@@ -96,7 +96,7 @@ export default function Sidebar({ isSidebarOpen, setIsSidebarOpen, activeView, s
           animate={{ x: 0, opacity: 1 }}
           exit={{ x: 300, opacity: 0 }}
           transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-          className="fixed top-0 right-0 z-50 h-[100dvh] w-64 bg-white dark:bg-slate-800 border-l border-slate-200 dark:border-slate-700 shadow-[-4px_0_24px_rgba(0,0,0,0.02)] flex flex-col transition-colors duration-500 font-['Cairo']"
+          className="fixed top-0 right-0 z-50 h-[100dvh] w-full max-w-[20rem] lg:w-64 bg-white dark:bg-slate-800 border-l border-slate-200 dark:border-slate-700 shadow-[-4px_0_24px_rgba(0,0,0,0.02)] flex flex-col transition-colors duration-500 font-['Cairo']"
         >
           <div className="h-20 flex items-center justify-between px-6 border-b border-slate-100 dark:border-slate-700 shrink-0">
             <div className="flex flex-col text-right">
@@ -121,7 +121,7 @@ export default function Sidebar({ isSidebarOpen, setIsSidebarOpen, activeView, s
                 <div key={group.id} className="flex flex-col rounded-2xl overflow-hidden">
                   <button
                     onClick={() => group.isStatic ? handleStaticClick(group.view) : toggleGroup(group.id)}
-                    className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl transition-all group/btn ${
+                    className={`w-full flex items-center justify-between px-4 py-3 min-h-[44px] rounded-2xl transition-all group/btn ${
                       isActive && !group.isStatic && !isOpen
                         ? 'bg-blue-50/50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400' 
                         : isActive && group.isStatic
@@ -169,7 +169,7 @@ export default function Sidebar({ isSidebarOpen, setIsSidebarOpen, activeView, s
                                 <button
                                   key={sub.id}
                                   onClick={() => handleSubItemClick(sub.view)}
-                                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-colors text-sm font-bold ${
+                                  className={`w-full flex items-center justify-between px-3 py-3 min-h-[44px] rounded-xl transition-colors text-sm font-bold ${
                                     isSubActive
                                       ? 'bg-blue-50 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400'
                                       : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/30 hover:text-slate-800 dark:hover:text-slate-200'
@@ -209,7 +209,7 @@ export default function Sidebar({ isSidebarOpen, setIsSidebarOpen, activeView, s
 
             <button 
               onClick={logout} 
-              className="w-full flex items-center justify-center space-x-2 space-x-reverse px-4 py-2.5 text-slate-400 dark:text-slate-500 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl transition-all font-bold text-sm"
+              className="w-full flex items-center justify-center space-x-2 space-x-reverse px-4 py-3 text-slate-400 dark:text-slate-500 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl transition-all font-bold text-sm"
             >
               <LogOut size={18} />
               <span>تسجيل الخروج</span>

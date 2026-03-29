@@ -68,7 +68,7 @@ export default function MainLayout({ children, activeView, setActiveView }) {
   }, []);
 
   return (
-    <div className="h-screen overflow-hidden bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 flex font-['Cairo'] transition-colors duration-500" dir="rtl">
+    <div className="min-h-screen overflow-x-hidden bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 flex font-['Cairo'] transition-colors duration-500" dir="rtl">
       <Sidebar 
         isSidebarOpen={isSidebarOpen} 
         setIsSidebarOpen={setIsSidebarOpen}
@@ -78,15 +78,15 @@ export default function MainLayout({ children, activeView, setActiveView }) {
 
       {/* Main Content Area */}
       <main 
-        className={`flex-1 flex flex-col h-screen overflow-hidden transition-all duration-300 ease-spring ${isSidebarOpen ? 'lg:mr-64' : 'mr-0'}`}
+        className={`flex-1 flex flex-col min-h-screen overflow-hidden transition-all duration-300 ease-spring ${isSidebarOpen ? 'lg:mr-64' : 'mr-0'}`}
       >
         {/* Top Navbar */}
-        <header className="h-16 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-200/60 dark:border-slate-700 shadow-sm shrink-0 z-40 flex items-center justify-between px-6 lg:px-8 transition-colors duration-500">
+        <header className="h-16 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-200/60 dark:border-slate-700 shadow-sm shrink-0 z-40 flex items-center justify-between px-4 sm:px-6 lg:px-8 transition-colors duration-500">
           <div className="flex items-center space-x-5 space-x-reverse">
             {!isSidebarOpen && (
               <button 
                 onClick={() => setIsSidebarOpen(true)}
-                className="text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors p-2 rounded-xl border border-slate-200 dark:border-slate-700"
+                className="text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors p-3 min-h-[44px] min-w-[44px] rounded-xl border border-slate-200 dark:border-slate-700"
               >
                 <Menu size={20} />
               </button>
@@ -163,7 +163,7 @@ export default function MainLayout({ children, activeView, setActiveView }) {
             {/* Audio Toggle */}
             <button 
               onClick={toggleMute}
-              className="p-2 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-xl transition-all"
+              className="p-3 min-h-[44px] min-w-[44px] text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-xl transition-all"
             >
               {isMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
             </button>
@@ -171,7 +171,7 @@ export default function MainLayout({ children, activeView, setActiveView }) {
             {/* Theme Toggle */}
             <button 
               onClick={toggleTheme}
-              className="p-2 text-slate-400 hover:text-blue-600 dark:hover:text-amber-400 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-xl transition-all"
+              className="p-3 min-h-[44px] min-w-[44px] text-slate-400 hover:text-blue-600 dark:hover:text-amber-400 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-xl transition-all"
             >
               {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
             </button>
@@ -180,7 +180,7 @@ export default function MainLayout({ children, activeView, setActiveView }) {
             <div className="relative" ref={alertsRef}>
               <button 
                 onClick={() => setIsAlertsOpen(!isAlertsOpen)}
-                className={`relative p-2 rounded-xl transition-all ${isAlertsOpen ? 'bg-slate-100 dark:bg-slate-700 text-blue-600' : 'text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700/50'}`}
+                className={`relative p-3 min-h-[44px] min-w-[44px] rounded-xl transition-all ${isAlertsOpen ? 'bg-slate-100 dark:bg-slate-700 text-blue-600' : 'text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700/50'}`}
               >
                 <Bell size={20} />
                 {criticalItems.length > 0 && (

@@ -417,7 +417,7 @@ export default function Inventory() {
       </div>
 
       {/* ═══ TABLE AREA ═══ */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0 bg-white dark:bg-slate-800/90 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm relative z-10" ref={tableRef}>
+      <div className="flex-1 overflow-y-auto overflow-x-auto custom-scrollbar min-h-0 bg-white dark:bg-slate-800/90 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm relative z-10" ref={tableRef}>
         
         {/* Print Header */}
         <div className="p-5 pb-3 border-b border-slate-100 dark:border-slate-700/50">
@@ -454,7 +454,8 @@ export default function Inventory() {
             )}
           </div>
         ) : (
-          <table className="w-full text-right border-collapse">
+          <div className="overflow-x-auto">
+            <table className="w-full text-right border-collapse whitespace-nowrap">
             <thead>
               <tr className="bg-slate-50/80 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400 font-black border-y border-slate-200/80 dark:border-slate-700/80 text-[13px]">
                 <th className="px-3 py-3.5 w-10 text-center">م</th>
@@ -676,6 +677,7 @@ export default function Inventory() {
               })}
             </tbody>
           </table>
+          </div>
         )}
         
         {/* Print Footer */}

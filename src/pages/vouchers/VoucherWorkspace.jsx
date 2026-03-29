@@ -893,7 +893,7 @@ export default function VoucherWorkspace({ kind }) {
             <>
               {/* Desktop table */}
               <div className="hidden md:block overflow-x-auto">
-                <table className="w-full min-w-[700px] text-right text-sm border-collapse">
+                <table className="w-full min-w-[700px] text-right text-sm border-collapse whitespace-nowrap">
                   <thead>
                     <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 font-black text-xs">
                       <th className="px-3 py-3">رقم السند</th>
@@ -997,7 +997,7 @@ export default function VoucherWorkspace({ kind }) {
                     <AnimatePresence>
                       {expandedGroupId === group.groupId && (
                         <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0 }} className="overflow-x-auto pt-2">
-                          <table className="w-full text-right text-xs border-separate border-spacing-y-1">
+                          <table className="w-full text-right text-xs border-separate border-spacing-y-1 whitespace-nowrap">
                             <thead>
                               <tr className="text-slate-400 font-black">
                                 <th className="px-1">م</th>
@@ -1043,7 +1043,7 @@ export default function VoucherWorkspace({ kind }) {
                       animate={{ opacity: 1 }}
                       className="hidden md:block border-t border-slate-100 dark:border-slate-700/80 bg-slate-50/50 dark:bg-slate-900/40 p-3 overflow-x-auto"
                     >
-                      <table className="w-full text-right text-sm border-separate border-spacing-y-1 min-w-[640px]">
+                      <table className="w-full text-right text-sm border-separate border-spacing-y-1 min-w-[640px] whitespace-nowrap">
                         <thead>
                           <tr className="text-slate-400 font-black text-xs">
                             <th className="px-2 py-1">م</th>
