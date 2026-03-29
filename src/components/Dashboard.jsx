@@ -569,51 +569,51 @@ export default function Dashboard() {
     <div className="h-screen w-full flex flex-col space-y-4 font-['Cairo'] p-4 sm:p-6 bg-transparent text-slate-800 dark:text-slate-100 overflow-hidden box-border transition-colors duration-500">
       
       {/* 4 Stat Cards */}
-      <motion.div variants={containerVariants} initial="hidden" animate="show" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 shrink-0">
-        <motion.div variants={itemVariants} className="bg-white dark:bg-slate-800/80 dark:backdrop-blur-xl p-4 sm:p-5 rounded-[1.5rem] shadow-sm border border-slate-100 dark:border-slate-700/60 flex flex-col justify-between overflow-hidden transition-colors duration-500">
+      <motion.div variants={containerVariants} initial="hidden" animate="show" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 shrink-0">
+        <motion.div variants={itemVariants} className="bg-white dark:bg-slate-800/80 dark:backdrop-blur-xl p-3 sm:p-4 rounded-[1.5rem] shadow-sm border border-slate-100 dark:border-slate-700/60 flex flex-col justify-between overflow-hidden transition-colors duration-500">
           <div className="flex justify-between items-start mb-3">
-            <div><p className="text-slate-500 dark:text-slate-400 text-xs font-bold mb-1">إجمالي الأصناف</p><h3 className="text-xl sm:text-2xl font-black text-slate-800 dark:text-white transition-colors">{items.length}</h3></div>
+            <div><p className="text-slate-500 dark:text-slate-400 text-xs font-bold mb-1">إجمالي الأصناف</p><h3 className="text-lg sm:text-xl font-black text-slate-800 dark:text-white transition-colors">{items.length}</h3></div>
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white"><Package size={20} /></div>
           </div>
-          <button onClick={() => setIsItemModalOpen(true)} className="w-full py-2 bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-100 dark:hover:bg-slate-700 text-blue-600 dark:text-blue-400 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center border border-slate-100 dark:border-slate-700 transition-colors"><Plus size={16} className="ml-1" /> إضافة صنف</button>
+          <button onClick={() => setIsItemModalOpen(true)} className="w-full py-2 bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-100 dark:hover:bg-slate-700 text-blue-600 dark:text-blue-400 rounded-xl font-bold text-[11px] sm:text-xs flex items-center justify-center border border-slate-100 dark:border-slate-700 transition-colors"><Plus size={16} className="ml-1" /> إضافة صنف</button>
         </motion.div>
 
-        <motion.div variants={itemVariants} className="bg-white dark:bg-slate-800/80 dark:backdrop-blur-xl p-4 sm:p-5 rounded-[1.5rem] shadow-sm border border-slate-100 dark:border-slate-700/60 flex flex-col justify-between overflow-hidden transition-colors duration-500">
+        <motion.div variants={itemVariants} className="bg-white dark:bg-slate-800/80 dark:backdrop-blur-xl p-3 sm:p-4 rounded-[1.5rem] shadow-sm border border-slate-100 dark:border-slate-700/60 flex flex-col justify-between overflow-hidden transition-colors duration-500">
           <div className="flex justify-between items-start mb-3">
-            <div><p className="text-slate-500 dark:text-slate-400 text-xs font-bold mb-1">الوارد</p><h3 className="text-xl sm:text-2xl font-black text-slate-800 dark:text-white transition-colors">{stockInCount}</h3></div>
+            <div><p className="text-slate-500 dark:text-slate-400 text-xs font-bold mb-1">الوارد</p><h3 className="text-lg sm:text-xl font-black text-slate-800 dark:text-white transition-colors">{stockInCount}</h3></div>
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white"><Truck size={20} /></div>
           </div>
-          <button onClick={() => setIsStockInModalOpen(true)} className="w-full py-2 bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-100 dark:hover:bg-slate-700 text-emerald-600 dark:text-emerald-400 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center border border-slate-100 dark:border-slate-700 transition-colors"><Plus size={16} className="ml-1" /> إضافة وارد</button>
+          <button onClick={() => setIsStockInModalOpen(true)} className="w-full py-2 bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-100 dark:hover:bg-slate-700 text-emerald-600 dark:text-emerald-400 rounded-xl font-bold text-[11px] sm:text-xs flex items-center justify-center border border-slate-100 dark:border-slate-700 transition-colors"><Plus size={16} className="ml-1" /> إضافة وارد</button>
         </motion.div>
 
-        <motion.div variants={itemVariants} className="bg-white dark:bg-slate-800/80 dark:backdrop-blur-xl p-4 sm:p-5 rounded-[1.5rem] shadow-sm border border-slate-100 dark:border-slate-700/60 flex flex-col justify-between overflow-hidden transition-colors duration-500">
+        <motion.div variants={itemVariants} className="bg-white dark:bg-slate-800/80 dark:backdrop-blur-xl p-3 sm:p-4 rounded-[1.5rem] shadow-sm border border-slate-100 dark:border-slate-700/60 flex flex-col justify-between overflow-hidden transition-colors duration-500">
           <div className="flex justify-between items-start mb-3">
-            <div><p className="text-slate-500 dark:text-slate-400 text-xs font-bold mb-1">الصادر</p><h3 className="text-xl sm:text-2xl font-black text-slate-800 dark:text-white transition-colors">{salesCount}</h3></div>
+            <div><p className="text-slate-500 dark:text-slate-400 text-xs font-bold mb-1">الصادر</p><h3 className="text-lg sm:text-xl font-black text-slate-800 dark:text-white transition-colors">{salesCount}</h3></div>
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white"><TrendingUp size={20} /></div>
           </div>
-          <button onClick={() => setIsSalesModalOpen(true)} className="w-full py-2 bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-100 dark:hover:bg-slate-700 text-amber-600 dark:text-amber-400 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center border border-slate-100 dark:border-slate-700 transition-colors"><FileText size={16} className="ml-1" /> فاتورة جديدة</button>
+          <button onClick={() => setIsSalesModalOpen(true)} className="w-full py-2 bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-100 dark:hover:bg-slate-700 text-amber-600 dark:text-amber-400 rounded-xl font-bold text-[11px] sm:text-xs flex items-center justify-center border border-slate-100 dark:border-slate-700 transition-colors"><FileText size={16} className="ml-1" /> فاتورة جديدة</button>
         </motion.div>
 
-        <motion.div variants={itemVariants} className="bg-white dark:bg-slate-800/80 dark:backdrop-blur-xl p-4 sm:p-5 rounded-[1.5rem] shadow-sm border border-slate-100 dark:border-slate-700/60 flex flex-col justify-between overflow-hidden transition-colors duration-500">
+        <motion.div variants={itemVariants} className="bg-white dark:bg-slate-800/80 dark:backdrop-blur-xl p-3 sm:p-4 rounded-[1.5rem] shadow-sm border border-slate-100 dark:border-slate-700/60 flex flex-col justify-between overflow-hidden transition-colors duration-500">
           <div className="flex justify-between items-start mb-3">
             <div>
                <p className="text-slate-500 dark:text-slate-400 text-xs font-bold mb-1">المرتجعات</p>
-               <div className="flex space-x-2 space-x-reverse"><h3 className="text-xl sm:text-2xl font-black text-slate-800 dark:text-white transition-colors">{returnsCount}</h3>{damageCount > 0 && <span className="text-[10px] font-bold px-2 py-0.5 bg-red-50 dark:bg-rose-500/10 text-red-600 dark:text-rose-400 rounded-md">تالف: {damageCount}</span>}</div>
+               <div className="flex space-x-2 space-x-reverse"><h3 className="text-lg sm:text-xl font-black text-slate-800 dark:text-white transition-colors">{returnsCount}</h3>{damageCount > 0 && <span className="text-[10px] font-bold px-2 py-0.5 bg-red-50 dark:bg-rose-500/10 text-red-600 dark:text-rose-400 rounded-md">تالف: {damageCount}</span>}</div>
             </div>
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-red-500 to-rose-600 flex items-center justify-center text-white"><RotateCcw size={20} /></div>
           </div>
-          <button onClick={() => setIsReturnsModalOpen(true)} className="w-full py-2 bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-100 dark:hover:bg-slate-700 text-red-600 dark:text-rose-400 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center border border-slate-100 dark:border-slate-700 transition-colors"><Plus size={16} className="ml-1" /> تسجيل مرتجع</button>
+          <button onClick={() => setIsReturnsModalOpen(true)} className="w-full py-2 bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-100 dark:hover:bg-slate-700 text-red-600 dark:text-rose-400 rounded-xl font-bold text-[11px] sm:text-xs flex items-center justify-center border border-slate-100 dark:border-slate-700 transition-colors"><Plus size={16} className="ml-1" /> تسجيل مرتجع</button>
         </motion.div>
       </motion.div>
 
       {/* Main Grid: 3 Equal Columns */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 min-h-0 mb-4">
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 min-h-0 mb-4">
         
         {/* Card 1: Alerts (Right) */}
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-white dark:bg-slate-800/80 dark:backdrop-blur-xl p-4 sm:p-5 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700/60 flex flex-col min-h-[400px] max-h-[500px] lg:max-h-full overflow-hidden transition-colors duration-500">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-white dark:bg-slate-800/80 dark:backdrop-blur-xl p-3 sm:p-4 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700/60 flex flex-col min-h-[360px] max-h-[500px] lg:max-h-full overflow-hidden transition-colors duration-500">
           
           <div className="flex items-center justify-between mb-3 shrink-0">
-            <h3 className="text-base sm:text-lg font-black text-slate-800 dark:text-white flex items-center transition-colors"><Bell size={18} className="ml-2 text-amber-500 animate-pulse" /> تنبيهات المخزن</h3>
+            <h3 className="text-sm sm:text-base font-black text-slate-800 dark:text-white flex items-center transition-colors"><Bell size={18} className="ml-2 text-amber-500 animate-pulse" /> تنبيهات المخزن</h3>
             <button onClick={generatePDFReport} className="p-2 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 rounded-lg transition-colors flex items-center space-x-2 space-x-reverse text-xs font-bold border border-blue-100 dark:border-blue-500/20 shadow-sm">
                <Printer size={16} /> <span>تصدير</span>
             </button>
@@ -667,9 +667,9 @@ export default function Dashboard() {
         </motion.div>
 
         {/* Card 2: Transactions (Middle) */}
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-white dark:bg-slate-800/80 dark:backdrop-blur-xl p-4 sm:p-5 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700/60 flex flex-col min-h-[400px] max-h-[500px] lg:max-h-full transition-colors duration-500">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-white dark:bg-slate-800/80 dark:backdrop-blur-xl p-3 sm:p-4 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700/60 flex flex-col min-h-[360px] max-h-[500px] lg:max-h-full transition-colors duration-500">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 shrink-0 gap-2">
-            <h3 className="text-base sm:text-lg font-black text-slate-800 dark:text-white transition-colors">آخر الحركات</h3>
+            <h3 className="text-sm sm:text-base font-black text-slate-800 dark:text-white transition-colors">آخر الحركات</h3>
             <div className="flex bg-slate-50 dark:bg-slate-900/50 p-1 rounded-xl border border-slate-100 dark:border-slate-700/60 space-x-1 space-x-reverse transition-colors">
                {['الكل', 'Restock', 'Issue', 'Return'].map(filter => (
                   <button key={filter} onClick={() => setTxFilter(filter)} className={`px-2 py-1 text-[10px] font-bold flex-1 rounded-lg transition-colors ${txFilter === filter ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
@@ -713,10 +713,10 @@ export default function Dashboard() {
         </motion.div>
 
         {/* Card 3: Sales (Left) */}
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-white dark:bg-slate-800/80 dark:backdrop-blur-xl p-4 sm:p-5 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700/60 flex flex-col min-h-[400px] max-h-[500px] lg:max-h-full transition-colors duration-500">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-white dark:bg-slate-800/80 dark:backdrop-blur-xl p-3 sm:p-4 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700/60 flex flex-col min-h-[360px] max-h-[500px] lg:max-h-full transition-colors duration-500">
           <div className="flex flex-col mb-4 shrink-0 gap-3">
             <div className="flex justify-between items-center">
-              <h3 className="text-base sm:text-lg font-black text-slate-800 dark:text-white transition-colors">إحصائيات المبيعات</h3>
+              <h3 className="text-sm sm:text-base font-black text-slate-800 dark:text-white transition-colors">إحصائيات المبيعات</h3>
               <div className="flex bg-slate-50 dark:bg-slate-900/50 p-1 rounded-xl border border-slate-100 dark:border-slate-700/60 space-x-1 space-x-reverse transition-colors">
                  <button onClick={() => setChartMode('category')} className={`px-3 py-1 text-[10px] font-bold rounded-lg transition-colors ${chartMode === 'category' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>أقسام</button>
                  <button onClick={() => setChartMode('item')} className={`px-3 py-1 text-[10px] font-bold rounded-lg transition-colors ${chartMode === 'item' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>أصناف</button>
@@ -784,7 +784,7 @@ export default function Dashboard() {
               <h4 className="text-sm font-black text-slate-800 dark:text-slate-100 transition-colors">الأصناف المشمولة في هذه العملية ({selectedBatchTransactions.length})</h4>
             </div>
             <div className="p-0 bg-slate-50/50 dark:bg-slate-900/50 overflow-y-auto w-full overflow-x-auto text-sm custom-scrollbar transition-colors">
-              <table className="w-full text-right">
+              <table className="w-full min-w-max text-right whitespace-nowrap">
                 <thead className="bg-white dark:bg-slate-800 sticky top-0 shadow-[0_2px_10px_rgba(0,0,0,0.02)] z-10 transition-colors">
                   <tr className="text-xs font-bold text-slate-400 border-b border-slate-100 dark:border-slate-700">
                     <th className="px-4 py-3 text-center w-12">#</th>
@@ -1039,7 +1039,7 @@ export default function Dashboard() {
               <h4 className="text-sm font-black text-slate-800 dark:text-slate-100 transition-colors">جدول الأصناف المضافة ({stockForm.items.length})</h4>
             </div>
             <div className="p-0 bg-slate-50/50 dark:bg-slate-900/50 overflow-y-auto w-full overflow-x-auto flex-1 custom-scrollbar transition-colors">
-              <table className="w-full text-right text-sm">
+              <table className="w-full min-w-max text-right text-sm whitespace-nowrap">
                 <thead className="bg-white dark:bg-slate-800 sticky top-0 shadow-[0_2px_10px_rgba(0,0,0,0.02)] z-10 transition-colors">
                   <tr className="text-xs font-bold text-slate-400 border-b border-slate-100 dark:border-slate-700">
                     <th className="px-4 py-3 font-bold w-12 text-center">#</th>
@@ -1188,7 +1188,7 @@ export default function Dashboard() {
               <h4 className="text-sm font-black text-slate-800 dark:text-slate-100 transition-colors">جدول الأصناف الصادرة ({invoiceForm.items.length})</h4>
             </div>
             <div className="p-0 bg-slate-50/50 dark:bg-slate-900/50 overflow-y-auto w-full overflow-x-auto flex-1 custom-scrollbar transition-colors">
-              <table className="w-full text-right text-sm">
+              <table className="w-full min-w-max text-right text-sm whitespace-nowrap">
                 <thead className="bg-white dark:bg-slate-800 sticky top-0 shadow-[0_2px_10px_rgba(0,0,0,0.02)] z-10 transition-colors">
                   <tr className="text-xs font-bold text-slate-400 border-b border-slate-100 dark:border-slate-700">
                     <th className="px-4 py-3 font-bold w-12 text-center">#</th>

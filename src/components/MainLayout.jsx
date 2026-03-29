@@ -81,7 +81,7 @@ export default function MainLayout({ children, activeView, setActiveView }) {
         className={`flex-1 flex flex-col min-h-screen overflow-hidden transition-all duration-300 ease-spring ${isSidebarOpen ? 'lg:mr-64' : 'mr-0'}`}
       >
         {/* Top Navbar */}
-        <header className="h-16 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-200/60 dark:border-slate-700 shadow-sm shrink-0 z-40 flex items-center justify-between px-4 sm:px-6 lg:px-8 transition-colors duration-500">
+        <header className="h-auto py-2 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-200/60 dark:border-slate-700 shadow-sm shrink-0 z-40 flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 lg:px-8 transition-colors duration-500">
           <div className="flex items-center space-x-5 space-x-reverse">
             {!isSidebarOpen && (
               <button 
