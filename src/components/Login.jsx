@@ -50,8 +50,8 @@ export default function Login() {
     <div className="min-h-screen bg-slate-900 flex flex-col justify-center items-center p-4 font-['Cairo']" dir="rtl">
       {/* Background Ambience */}
       <div className="absolute top-0 w-full h-full overflow-hidden pointer-events-none">
-        <div className="absolute -top-[20%] -right-[10%] w-[700px] h-[700px] rounded-full bg-blue-600/10 blur-[120px]"></div>
-        <div className="absolute -bottom-[20%] -left-[10%] w-[600px] h-[600px] rounded-full bg-indigo-600/10 blur-[100px]"></div>
+        <div className="absolute -top-[20%] -right-[10%] w-[420px] h-[420px] sm:w-[700px] sm:h-[700px] rounded-full bg-blue-600/10 blur-[120px]"></div>
+        <div className="absolute -bottom-[20%] -left-[10%] w-[360px] h-[360px] sm:w-[600px] sm:h-[600px] rounded-full bg-indigo-600/10 blur-[100px]"></div>
       </div>
 
       <motion.div 

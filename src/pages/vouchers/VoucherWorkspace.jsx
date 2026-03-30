@@ -1246,14 +1246,14 @@ export default function VoucherWorkspace({ kind }) {
                 {modalDrafts.length} سطر
               </span>
             </div>
-            <div className="p-2 overflow-y-auto max-h-56">
+            <div className="p-2 overflow-x-auto overflow-y-auto max-h-56">
               {modalDrafts.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-8 text-slate-400 font-bold text-sm">
                   <CheckCircle size={28} className="mb-2 opacity-50" />
                   أضف أصنافاً ثم اضغط Enter في الكمية — التركيز يعود لاسم الصنف.
                 </div>
               ) : (
-                <table className="w-full text-right text-sm border-separate border-spacing-y-1">
+                <table className="w-full min-w-[640px] text-right text-sm border-separate border-spacing-y-1 whitespace-nowrap">
                   <thead>
                     <tr className="text-slate-400 font-black text-xs text-center">
                       <th className="px-1">م</th>

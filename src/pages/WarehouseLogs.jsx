@@ -219,7 +219,7 @@ function DailyActivity({ transactions }) {
 
       {/* Table */}
       <div className="flex-1 min-h-0 overflow-hidden bg-white/60 dark:bg-slate-800/40 backdrop-blur-xl border border-slate-200/60 dark:border-slate-700/50 rounded-2xl shadow-inner">
-        <div className="h-full overflow-y-auto custom-scrollbar">
+        <div className="h-full overflow-x-auto overflow-y-auto custom-scrollbar">
           {filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full py-16 text-slate-400 dark:text-slate-500">
               <Activity size={40} className="mb-3 opacity-40" />
@@ -227,7 +227,7 @@ function DailyActivity({ transactions }) {
               <p className="text-xs mt-1 opacity-70">حاول تغيير التاريخ أو نوع الحركة</p>
             </div>
           ) : (
-            <table className="w-full text-right text-sm">
+            <table className="w-full min-w-[640px] text-right text-sm whitespace-nowrap">
               <thead className="sticky top-0 z-10">
                 <tr className="bg-slate-50/95 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 font-black text-xs">
                   <th className="px-4 py-3">الوقت</th>
@@ -449,7 +449,7 @@ function DiscrepancyLog({ discrepancies, items }) {
 
       {/* List */}
       <div className="flex-1 min-h-0 overflow-hidden bg-white/60 dark:bg-slate-800/40 backdrop-blur-xl border border-slate-200/60 dark:border-slate-700/50 rounded-2xl shadow-inner">
-        <div className="h-full overflow-y-auto custom-scrollbar">
+        <div className="h-full overflow-x-auto overflow-y-auto custom-scrollbar">
           {filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full py-16 text-slate-400 dark:text-slate-500">
               <CheckCircle size={40} className="mb-3 opacity-40" />
@@ -457,7 +457,7 @@ function DiscrepancyLog({ discrepancies, items }) {
               <p className="text-xs mt-1 opacity-70">استخدم زر "تسجيل فارق" لإضافة ملاحظة</p>
             </div>
           ) : (
-            <table className="w-full text-right text-sm">
+            <table className="w-full min-w-[640px] text-right text-sm whitespace-nowrap">
               <thead className="sticky top-0 z-10">
                 <tr className="bg-slate-50/95 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 font-black text-xs">
                   <th className="px-4 py-3">التاريخ</th>

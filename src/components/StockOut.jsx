@@ -708,7 +708,7 @@ export default function StockOut() {
       <div className="flex-1 overflow-y-auto px-1 pb-10 custom-scrollbar w-full">
         {Object.keys(groupedTransactions).length === 0 ? (
           <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
-            className="flex flex-col items-center justify-center p-12 text-center bg-white/40 dark:bg-slate-800/20 backdrop-blur-md rounded-[2rem] border border-dashed border-slate-300 dark:border-slate-700 mt-4 h-[50vh]">
+            className="flex flex-col items-center justify-center p-12 text-center bg-white/40 dark:bg-slate-800/20 backdrop-blur-md rounded-[2rem] border border-dashed border-slate-300 dark:border-slate-700 mt-4 min-h-[24rem] sm:h-[50vh]">
             <ArrowUpRight size={56} className="text-slate-300 dark:text-slate-600 mb-6 animate-bounce" />
             <h3 className="text-xl font-black text-slate-800 dark:text-slate-100 mb-2">لا توجد حركات صادر مطابقة</h3>
             <p className="text-slate-500 dark:text-slate-400 font-bold max-w-sm text-center">أضف أذونات الصرف والتوزيع من المستودع لتظهر هنا مصنفة بالأقسام.</p>
@@ -880,8 +880,9 @@ export default function StockOut() {
                   <span className="font-bold text-sm">\u0627\u0628\u062d\u062b \u0639\u0646 \u0635\u0646\u0641 \u0628\u0627\u0644\u0623\u0639\u0644\u0649 \u062b\u0645 \u0623\u062f\u062e\u0644 \u0627\u0644\u0643\u0645\u064a\u0629 \u0627\u0644\u0645\u0631\u0627\u062f \u0635\u0631\u0641\u0647\u0627.</span>
                 </div>
               ) : (
-                <table className="w-full text-right border-separate border-spacing-y-2 mt-2">
-                  <thead>
+                <div className="w-full overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700 mt-2">
+                  <table className="w-full min-w-[640px] text-right border-separate border-spacing-y-2">
+                    <thead>
                     <tr className="text-slate-400 dark:text-slate-500 font-black text-xs text-center">
                       <th className="px-2 py-1">\u0645</th><th className="px-3 py-1 text-right">\u0627\u0644\u0635\u0646\u0641</th><th className="px-3 py-1 text-right">\u0627\u0644\u0634\u0631\u0643\u0629</th>
                       <th className="px-2 py-1">\u0627\u0644\u0642\u0633\u0645</th><th className="px-2 py-1 text-orange-500">\u0627\u0644\u0643\u0645\u064a\u0629</th><th className="px-2 py-1">\u0627\u0644\u0648\u062d\u062f\u0629</th><th className="px-2 py-1 text-center">\u062d\u0630\u0641</th>
@@ -908,6 +909,7 @@ export default function StockOut() {
                     </AnimatePresence>
                   </tbody>
                 </table>
+              </div>
               )}
             </div>
           </div>

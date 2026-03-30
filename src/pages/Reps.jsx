@@ -272,7 +272,7 @@ export default function Reps() {
         {filtered.length === 0 ? (
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
-            className="flex flex-col items-center justify-center p-12 text-center bg-white/40 dark:bg-slate-800/20 backdrop-blur-md rounded-[2rem] border border-dashed border-slate-300 dark:border-slate-700 mt-4 h-[50vh]"
+            className="flex flex-col items-center justify-center p-12 text-center bg-white/40 dark:bg-slate-800/20 backdrop-blur-md rounded-[2rem] border border-dashed border-slate-300 dark:border-slate-700 mt-4 min-h-[24rem] sm:h-[50vh]"
           >
             <Users size={56} className="text-slate-300 dark:text-slate-600 mb-6" />
             <h3 className="text-xl font-black mb-2">لا يوجد مناديب مسجلون</h3>

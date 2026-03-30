@@ -96,7 +96,7 @@ export default function Sidebar({ isSidebarOpen, setIsSidebarOpen, activeView, s
           animate={{ x: 0, opacity: 1 }}
           exit={{ x: 300, opacity: 0 }}
           transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-          className="fixed top-0 right-0 z-50 h-[100dvh] w-full max-w-[20rem] lg:w-64 bg-white dark:bg-slate-800 border-l border-slate-200 dark:border-slate-700 shadow-[-4px_0_24px_rgba(0,0,0,0.02)] flex flex-col transition-colors duration-500 font-['Cairo']"
+          className="fixed inset-y-0 right-0 z-50 h-full min-h-screen w-full max-w-[20rem] lg:w-64 bg-white dark:bg-slate-800 border-l border-slate-200 dark:border-slate-700 shadow-[-4px_0_24px_rgba(0,0,0,0.02)] flex flex-col transition-colors duration-500 font-['Cairo']"
         >
           <div className="h-20 flex items-center justify-between px-6 border-b border-slate-100 dark:border-slate-700 shrink-0">
             <div className="flex flex-col text-right">

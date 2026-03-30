@@ -236,11 +236,11 @@ function DailyLog({ transactions }) {
 
       {/* Table */}
       <div className="flex-1 min-h-0 overflow-hidden bg-white/60 dark:bg-slate-800/40 backdrop-blur-xl border border-slate-200/60 dark:border-slate-700/50 rounded-2xl shadow-inner">
-        <div className="h-full overflow-y-auto custom-scrollbar">
+        <div className="h-full overflow-x-auto overflow-y-auto custom-scrollbar">
           {rows.length === 0 ? (
             <EmptyState icon={Activity} title="لا توجد عمليات" sub="حاول تغيير التاريخ أو الفلتر" />
           ) : (
-            <table className="w-full text-right text-sm">
+            <table className="w-full min-w-[640px] text-right text-sm whitespace-nowrap">
               <thead className="sticky top-0 z-10">
                 <tr className="bg-slate-50/95 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-700 text-xs font-black text-slate-400 dark:text-slate-500">
                   <th className="px-4 py-3">الوقت</th>
@@ -598,7 +598,8 @@ function PreInventory({ items }) {
           {sorted.length === 0 ? (
             <EmptyState icon={ListChecks} title="لا توجد نتائج" sub="غيّر مصطلح البحث أو الفلتر" />
           ) : (
-            <table className="w-full text-right text-sm">
+            <div className="w-full overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
+              <table className="w-full min-w-[640px] text-right text-sm whitespace-nowrap">
               <thead className="sticky top-0 z-10">
                 <tr className="bg-slate-50/95 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-700 text-xs font-black text-slate-400 dark:text-slate-500">
                   {[
@@ -637,11 +638,11 @@ function PreInventory({ items }) {
                         {qty == null ? (
                           <StatusChip color="slate" label="غير محدد" />
                         ) : qty <= 0 ? (
-                          <StatusChip color="rose"    label="نفد الرصيد" icon={AlertCircle} />
+                          <StatusChip color="rose" label="نفد الرصيد" icon={AlertCircle} />
                         ) : qty < 50 ? (
-                          <StatusChip color="amber"   label="رصيد منخفض" icon={Info} />
+                          <StatusChip color="amber" label="رصيد منخفض" icon={Info} />
                         ) : (
-                          <StatusChip color="emerald" label="رصيد جيد"  icon={CheckCircle2} />
+                          <StatusChip color="emerald" label="رصيد جيد" icon={CheckCircle2} />
                         )}
                       </td>
                     </tr>
@@ -649,11 +650,12 @@ function PreInventory({ items }) {
                 })}
               </tbody>
             </table>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
-  );
+  </div>
+);
 }
 
 // ═══════════════════════════════════════════════════════

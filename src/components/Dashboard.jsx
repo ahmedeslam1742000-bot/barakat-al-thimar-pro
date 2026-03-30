@@ -158,7 +158,7 @@ export default function Dashboard() {
   }, []);
 
   if (!db) {
-    return <div className="h-screen w-full flex items-center justify-center bg-slate-50 text-xl font-bold text-slate-500">Loading Firebase...</div>;
+    return <div className="min-h-screen w-full flex items-center justify-center bg-slate-50 text-xl font-bold text-slate-500">Loading Firebase...</div>;
   }
 
   // --- Aggregations --- //
@@ -566,7 +566,7 @@ export default function Dashboard() {
   });
 
   return (
-    <div className="h-screen w-full flex flex-col space-y-4 font-['Cairo'] p-4 sm:p-6 bg-transparent text-slate-800 dark:text-slate-100 overflow-hidden box-border transition-colors duration-500">
+    <div className="min-h-screen w-full flex flex-col space-y-4 font-['Cairo'] p-4 sm:p-6 bg-transparent text-slate-800 dark:text-slate-100 overflow-hidden box-border transition-colors duration-500">
       
       {/* 4 Stat Cards */}
       <motion.div variants={containerVariants} initial="hidden" animate="show" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 shrink-0">
@@ -713,7 +713,7 @@ export default function Dashboard() {
         </motion.div>
 
         {/* Card 3: Sales (Left) */}
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-white dark:bg-slate-800/80 dark:backdrop-blur-xl p-3 sm:p-4 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700/60 flex flex-col min-h-[360px] max-h-[500px] lg:max-h-full transition-colors duration-500">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full min-w-0 bg-white dark:bg-slate-800/80 dark:backdrop-blur-xl p-3 sm:p-4 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700/60 flex flex-col min-h-[360px] max-h-[500px] lg:max-h-full transition-colors duration-500">
           <div className="flex flex-col mb-4 shrink-0 gap-3">
             <div className="flex justify-between items-center">
               <h3 className="text-sm sm:text-base font-black text-slate-800 dark:text-white transition-colors">إحصائيات المبيعات</h3>
@@ -722,7 +722,7 @@ export default function Dashboard() {
                  <button onClick={() => setChartMode('item')} className={`px-3 py-1 text-[10px] font-bold rounded-lg transition-colors ${chartMode === 'item' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>أصناف</button>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                <select className="bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700/60 text-slate-700 dark:text-slate-200 text-[10px] font-bold rounded-xl px-2 py-1.5 transition-colors focus:outline-none focus:border-blue-500" value={chartDateRange} onChange={e => setChartDateRange(e.target.value)}>
                  <option>آخر 7 أيام</option><option>هذا الشهر</option><option>هذا العام</option><option>مخصص</option><option>الكل</option>
                </select>

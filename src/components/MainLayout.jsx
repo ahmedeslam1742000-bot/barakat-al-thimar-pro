@@ -68,7 +68,7 @@ export default function MainLayout({ children, activeView, setActiveView }) {
   }, []);
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 flex font-['Cairo'] transition-colors duration-500" dir="rtl">
+    <div className="min-h-screen overflow-hidden bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 flex font-['Cairo'] transition-colors duration-500" dir="rtl">
       <Sidebar 
         isSidebarOpen={isSidebarOpen} 
         setIsSidebarOpen={setIsSidebarOpen}
@@ -81,7 +81,7 @@ export default function MainLayout({ children, activeView, setActiveView }) {
         className={`flex-1 flex flex-col min-h-screen overflow-hidden transition-all duration-300 ease-spring ${isSidebarOpen ? 'lg:mr-64' : 'mr-0'}`}
       >
         {/* Top Navbar */}
-        <header className="h-auto py-2 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-200/60 dark:border-slate-700 shadow-sm shrink-0 z-40 flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 lg:px-8 transition-colors duration-500">
+        <header className="w-full h-14 sm:h-16 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-200/60 dark:border-slate-700 shadow-sm shrink-0 z-40 flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 lg:px-8 transition-colors duration-500">
           <div className="flex items-center space-x-5 space-x-reverse">
             {!isSidebarOpen && (
               <button 
@@ -91,13 +91,18 @@ export default function MainLayout({ children, activeView, setActiveView }) {
                 <Menu size={20} />
               </button>
             )}
-            <div className="flex flex-col border-r-4 border-blue-600 pr-3 py-0.5">
-              <h1 className="text-lg font-black text-slate-800 dark:text-white leading-tight tracking-tight">
-                بركة الثمار
-              </h1>
-              <span className="text-[10px] uppercase font-bold text-blue-600 dark:text-blue-400 tracking-widest">
-                PRO VISION
-              </span>
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="flex-shrink-0 h-9 w-9 rounded-2xl bg-blue-600 text-white grid place-items-center text-sm font-black">
+                ب
+              </div>
+              <div className="hidden sm:flex flex-col border-r-4 border-blue-600 pr-3 py-0.5 text-right">
+                <h1 className="text-xl sm:text-2xl md:text-3xl font-semibold text-slate-800 dark:text-white leading-tight tracking-tight">
+                  بركة الثمار
+                </h1>
+                <span className="text-[10px] uppercase font-bold text-blue-600 dark:text-blue-400 tracking-widest">
+                  PRO VISION
+                </span>
+              </div>
             </div>
           </div>
           
@@ -163,26 +168,26 @@ export default function MainLayout({ children, activeView, setActiveView }) {
             {/* Audio Toggle */}
             <button 
               onClick={toggleMute}
-              className="p-3 min-h-[44px] min-w-[44px] text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-xl transition-all"
+              className="p-2.5 sm:p-3 min-h-[44px] min-w-[44px] text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-xl transition-all"
             >
-              {isMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
+              {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
             </button>
 
             {/* Theme Toggle */}
             <button 
               onClick={toggleTheme}
-              className="p-3 min-h-[44px] min-w-[44px] text-slate-400 hover:text-blue-600 dark:hover:text-amber-400 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-xl transition-all"
+              className="p-2.5 sm:p-3 min-h-[44px] min-w-[44px] text-slate-400 hover:text-blue-600 dark:hover:text-amber-400 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-xl transition-all"
             >
-              {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+              {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
             </button>
 
             {/* Notification Bell */}
             <div className="relative" ref={alertsRef}>
               <button 
                 onClick={() => setIsAlertsOpen(!isAlertsOpen)}
-                className={`relative p-3 min-h-[44px] min-w-[44px] rounded-xl transition-all ${isAlertsOpen ? 'bg-slate-100 dark:bg-slate-700 text-blue-600' : 'text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700/50'}`}
+                className={`relative p-2.5 sm:p-3 min-h-[44px] min-w-[44px] rounded-xl transition-all ${isAlertsOpen ? 'bg-slate-100 dark:bg-slate-700 text-blue-600' : 'text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700/50'}`}
               >
-                <Bell size={20} />
+                <Bell className="h-5 w-5 sm:h-6 sm:w-6" />
                 {criticalItems.length > 0 && (
                   <span className="absolute top-1.5 left-1.5 min-w-[16px] h-4 px-1 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-white dark:border-slate-800 shrink-0">
                     {criticalItems.length}
@@ -237,9 +242,9 @@ export default function MainLayout({ children, activeView, setActiveView }) {
 
             <div className="h-6 w-px bg-slate-200 dark:bg-slate-700"></div>
             
-            <div className="flex items-center space-x-2 sm:space-x-3 space-x-reverse cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/30 p-1 pl-3 sm:pr-3 rounded-full border border-transparent hover:border-slate-200 dark:hover:border-slate-700 transition-all group">
-              <div className="flex flex-col text-right hidden sm:flex">
-                <span className="text-sm font-black text-slate-800 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors flex items-center space-x-1 space-x-reverse">
+            <div className="flex items-center gap-2 sm:gap-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/30 p-2 rounded-full border border-transparent hover:border-slate-200 dark:hover:border-slate-700 transition-all group">
+              <div className="hidden md:flex flex-col text-right">
+                <span className="text-sm font-black text-slate-800 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors flex items-center gap-1">
                    <span>{currentUser?.username || currentUser?.displayName || 'مدير النظام'}</span>
                    <ChevronDown size={14} className="text-slate-400" />
                 </span>
@@ -266,7 +271,7 @@ export default function MainLayout({ children, activeView, setActiveView }) {
 
         {/* Page Content */}
         <div className="flex-1 overflow-auto bg-slate-50/50 dark:bg-[#080d17] p-4 sm:p-6 lg:p-8 custom-scrollbar">
-          <div className="max-w-7xl mx-auto h-full flex flex-col">
+          <div className="w-full max-w-7xl mx-auto h-full flex flex-col">
             {children}
           </div>
         </div>

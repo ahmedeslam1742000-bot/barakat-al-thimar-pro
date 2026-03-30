@@ -487,7 +487,7 @@ export default function Items() {
       {/* 2. Sectioned Content (The Directory) */}
       <div className="flex-1 overflow-y-auto px-1 pb-10 custom-scrollbar hide-print w-full" id="printable-directory">
         {Object.keys(groupedItems).length === 0 ? (
-           <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center justify-center p-12 text-center bg-white/40 dark:bg-slate-800/20 backdrop-blur-md rounded-[2rem] border border-dashed border-slate-300 dark:border-slate-700 mt-4 h-[50vh] shadow-sm">
+           <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center justify-center p-12 text-center bg-white/40 dark:bg-slate-800/20 backdrop-blur-md rounded-[2rem] border border-dashed border-slate-300 dark:border-slate-700 mt-4 min-h-[24rem] sm:h-[50vh] shadow-sm">
               <Package size={56} className="text-slate-300 dark:text-slate-600 mb-6 animate-bounce" />
               <h3 className="text-xl font-black text-slate-800 dark:text-slate-100 mb-2">لا توجد أصناف مطابقة للبحث</h3>
               <p className="text-slate-500 dark:text-slate-400 font-bold mb-8 max-w-sm text-center">قم بإضافة أصناف جديدة لمخزنك للبدء في تتبع الرصيد وإدارة المعاملات الخاصة بك.</p>

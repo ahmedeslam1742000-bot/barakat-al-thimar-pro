@@ -736,7 +736,7 @@ export default function StockIn() {
       {/* 2. Sectioned Content (Main View Grid) */}
       <div className="flex-1 overflow-y-auto px-1 pb-10 custom-scrollbar hide-print w-full" id="printable-directory">
         {Object.keys(groupedTransactions).length === 0 ? (
-           <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center justify-center p-12 text-center bg-white/40 dark:bg-slate-800/20 backdrop-blur-md rounded-[2rem] border border-dashed border-slate-300 dark:border-slate-700 mt-4 h-[50vh] shadow-sm">
+           <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center justify-center p-12 text-center bg-white/40 dark:bg-slate-800/20 backdrop-blur-md rounded-[2rem] border border-dashed border-slate-300 dark:border-slate-700 mt-4 min-h-[24rem] sm:h-[50vh] shadow-sm">
               <Truck size={56} className="text-slate-300 dark:text-slate-600 mb-6 animate-bounce" />
               <h3 className="text-xl font-black text-slate-800 dark:text-slate-100 mb-2">لا توجد حركات وارد مطابقة</h3>
               <p className="text-slate-500 dark:text-slate-400 font-bold mb-8 max-w-sm text-center">قم بإضافة حركات المشتريات والواردات للمخزن لتظهر مصنفة هنا.</p>
@@ -950,8 +950,9 @@ export default function StockIn() {
                        <span className="font-bold text-sm">ابحث عن الصنف بالأعلى ثم أدخل الكمية.</span>
                     </div>
                  ) : (
-                    <table className="w-full text-right border-separate border-spacing-y-2 mt-2">
-                     <thead>
+                    <div className="w-full overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700 mt-2">
+                      <table className="w-full min-w-[640px] text-right border-separate border-spacing-y-2">
+                        <thead>
                        <tr className="text-slate-400 dark:text-slate-500 font-black text-xs text-center">
                          <th className="px-2 py-1">م</th>
                          <th className="px-3 py-1 text-right">الصنف</th>
@@ -990,6 +991,7 @@ export default function StockIn() {
                        </AnimatePresence>
                      </tbody>
                     </table>
+                   </div>
                  )}
                </div>
            </div>

@@ -454,8 +454,8 @@ export default function Inventory() {
             )}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-right border-collapse whitespace-nowrap">
+          <div className="w-full overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
+            <table className="w-full min-w-[640px] text-right border-collapse whitespace-nowrap">
             <thead>
               <tr className="bg-slate-50/80 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400 font-black border-y border-slate-200/80 dark:border-slate-700/80 text-[13px]">
                 <th className="px-3 py-3.5 w-10 text-center">م</th>
