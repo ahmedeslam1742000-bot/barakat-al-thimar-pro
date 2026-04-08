@@ -575,7 +575,7 @@ export default function Dashboard() {
   });
 
   return (
-    <div className="h-full w-full flex flex-col gap-4 sm:gap-6 font-readex bg-transparent text-text-primary-light dark:text-text-primary-dark overflow-hidden box-border transition-colors duration-300">
+    <div className="flex-1 min-h-0 h-full w-full flex flex-col gap-4 sm:gap-6 font-readex bg-transparent text-text-primary-light dark:text-text-primary-dark overflow-hidden box-border transition-colors duration-300">
       
       {/* 4 Stat Cards */}
       <motion.div variants={containerVariants} initial="hidden" animate="show" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 shrink-0">

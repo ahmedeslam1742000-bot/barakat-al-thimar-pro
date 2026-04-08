@@ -289,8 +289,8 @@ export default function MainLayout({ children, activeView, setActiveView }) {
         )}
 
         {/* Page Content */}
-        <div className="flex-1 overflow-auto bg-slate-50/30 p-4 sm:p-6 lg:p-8 custom-scrollbar">
-          <div className="w-full max-w-7xl mx-auto h-full flex flex-col">
+        <div className="flex-1 flex flex-col min-h-0 bg-slate-50/30 p-4 sm:p-6 lg:p-8 overflow-hidden">
+          <div className="w-full max-w-7xl mx-auto flex-1 flex flex-col min-h-0">
             {children}
           </div>
         </div>
