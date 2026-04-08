@@ -467,7 +467,7 @@ export default function Returns() {
   };
 
   return (
-    <div className="flex flex-col space-y-6 font-readex p-4 sm:p-6 lg:p-8" dir="rtl">
+    <div className="flex flex-col gap-4 sm:gap-6 font-readex h-full overflow-hidden" dir="rtl">
       {/* HEADER — Stock Out glass + orange accent */}
       <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm mb-6 shrink-0 z-20">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">

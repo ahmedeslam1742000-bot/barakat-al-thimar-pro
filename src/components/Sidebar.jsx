@@ -100,7 +100,7 @@ export default function Sidebar({ isSidebarOpen, setIsSidebarOpen, activeView, s
           animate={{ x: 0, opacity: 1 }}
           exit={{ x: 300, opacity: 0 }}
           transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-          className="fixed inset-y-0 right-0 z-50 h-full min-h-screen w-72 bg-sidebar flex flex-col font-readex"
+          className="fixed inset-y-0 right-0 z-50 h-full w-72 bg-sidebar flex flex-col font-readex"
         >
           {/* Brand Area */}
           <div className="h-16 flex items-center justify-between px-6 border-b border-slate-100 shrink-0 bg-slate-50/50">

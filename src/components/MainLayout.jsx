@@ -76,7 +76,7 @@ export default function MainLayout({ children, activeView, setActiveView }) {
   }, []);
 
   return (
-    <div className="min-h-screen overflow-hidden bg-slate-50 text-slate-800 flex font-readex transition-colors duration-300" dir="rtl">
+    <div className="h-screen overflow-hidden bg-slate-50 text-slate-800 flex font-readex transition-colors duration-300" dir="rtl">
       <Sidebar 
         isSidebarOpen={isSidebarOpen} 
         setIsSidebarOpen={setIsSidebarOpen}
@@ -86,7 +86,7 @@ export default function MainLayout({ children, activeView, setActiveView }) {
 
       {/* Main Content Area */}
       <main 
-        className={`flex-1 flex flex-col min-h-screen overflow-hidden transition-all duration-300 ease-in-out ${isSidebarOpen ? 'lg:mr-72' : 'mr-0'}`}
+        className={`flex-1 flex flex-col h-full overflow-hidden transition-all duration-300 ease-in-out ${isSidebarOpen ? 'lg:mr-72' : 'mr-0'}`}
       >
         {/* Top Navbar - Slimmer and more functional */}
         <header className="w-full h-12 bg-white border-b border-slate-100 shrink-0 z-40 flex items-center justify-between px-4 sm:px-6 transition-all duration-300">
