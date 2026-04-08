@@ -865,7 +865,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="h-full w-full flex flex-col font-['Cairo']" dir="rtl">
+    <div className="flex-1 min-h-0 w-full flex flex-col font-['Cairo']" dir="rtl">
 
       {/* ── Page Header ── */}
       <div className="shrink-0 mb-5">

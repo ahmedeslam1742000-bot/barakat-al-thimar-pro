@@ -688,7 +688,7 @@ export default function VoucherWorkspace({ kind }) {
     : [...receiptLines, ...Array(BLANK_ROWS - receiptLines.length).fill(null)];
 
   return (
-    <div className="h-full w-full flex flex-col gap-6 animate-in fade-in duration-500 font-readex" dir="rtl">
+    <div className="flex-1 min-h-0 w-full flex flex-col gap-6 animate-in fade-in duration-500 font-readex" dir="rtl">
 
       {/* ═══════════════════════════════════════════════
           OFF-SCREEN FILLED RECEIPT  (PDF A4 + PNG)

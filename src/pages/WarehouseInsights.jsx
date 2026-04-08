@@ -69,7 +69,7 @@ export default function WarehouseInsights() {
   ];
 
   return (
-    <div className="h-full w-full flex flex-col gap-6 animate-in fade-in duration-500 font-readex" dir="rtl">
+    <div className="flex-1 min-h-0 w-full flex flex-col gap-6 animate-in fade-in duration-500 font-readex" dir="rtl">
 
       {/* ── Page header ── */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
