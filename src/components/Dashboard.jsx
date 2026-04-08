@@ -575,78 +575,78 @@ export default function Dashboard() {
   });
 
   return (
-    <div className="min-h-screen w-full flex flex-col space-y-6 font-readex p-4 sm:p-6 lg:p-8 bg-transparent text-text-primary-light dark:text-text-primary-dark overflow-hidden box-border transition-colors duration-300">
+    <div className="h-full w-full flex flex-col gap-4 sm:gap-6 font-readex bg-transparent text-text-primary-light dark:text-text-primary-dark overflow-hidden box-border transition-colors duration-300">
       
       {/* 4 Stat Cards */}
       <motion.div variants={containerVariants} initial="hidden" animate="show" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 shrink-0">
-        <motion.div variants={itemVariants} className="card p-6 flex flex-col justify-between group hover:border-primary/30 dark:hover:border-accent/30 hover:shadow-xl transition-all duration-500 relative overflow-hidden">
+        <motion.div variants={itemVariants} className="bg-white rounded-3xl p-6 flex flex-col justify-between group hover:border-primary/30 dark:hover:border-accent/30 hover:shadow-xl transition-all duration-500 relative overflow-hidden border border-slate-100 shadow-sm">
           <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-700"></div>
           <div className="flex justify-between items-start mb-6 relative z-10">
             <div>
-              <p className="text-text-secondary-light dark:text-text-secondary-dark text-[10px] font-bold mb-1 uppercase tracking-[0.15em]">إجمالي الأصناف</p>
-              <h3 className="kpi-value text-3xl sm:text-4xl">{items.length}</h3>
+              <p className="text-slate-400 text-[10px] font-bold mb-1 uppercase tracking-[0.15em]">إجمالي الأصناف</p>
+              <h3 className="text-slate-800 font-extrabold text-3xl sm:text-4xl">{items.length}</h3>
             </div>
             <div className="w-12 h-12 rounded-2xl bg-primary/10 dark:bg-primary/20 flex items-center justify-center text-primary dark:text-accent-light transition-all group-hover:rotate-12 duration-300 shadow-sm border border-primary/10">
               <Package size={22} />
             </div>
           </div>
-          <button onClick={() => setIsItemModalOpen(true)} className="btn-primary w-full py-2.5 text-xs flex items-center justify-center gap-2 shadow-primary/20 hover:shadow-primary/30 relative z-10">
+          <button onClick={() => setIsItemModalOpen(true)} className="w-full py-2.5 text-xs flex items-center justify-center gap-2 rounded-xl font-bold transition-all bg-[#0F2747] text-white hover:bg-[#15345b] shadow-lg shadow-black/10 hover:shadow-xl relative z-10">
             <Plus size={14} /> 
             <span>إضافة صنف جديد</span>
           </button>
         </motion.div>
 
-        <motion.div variants={itemVariants} className="card p-6 flex flex-col justify-between group hover:border-status-success/30 hover:shadow-xl transition-all duration-500 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-status-success/5 rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-700"></div>
+        <motion.div variants={itemVariants} className="bg-white rounded-3xl p-6 flex flex-col justify-between group hover:border-emerald-400/30 hover:shadow-xl transition-all duration-500 relative overflow-hidden border border-slate-100 shadow-sm">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-700"></div>
           <div className="flex justify-between items-start mb-6 relative z-10">
             <div>
-              <p className="text-text-secondary-light dark:text-text-secondary-dark text-[10px] font-bold mb-1 uppercase tracking-[0.15em]">الوارد (الكمية)</p>
-              <h3 className="kpi-value text-3xl sm:text-4xl">{stockInCount}</h3>
+              <p className="text-slate-400 text-[10px] font-bold mb-1 uppercase tracking-[0.15em]">الوارد (الكمية)</p>
+              <h3 className="text-slate-800 font-extrabold text-3xl sm:text-4xl">{stockInCount}</h3>
             </div>
-            <div className="w-12 h-12 rounded-2xl bg-status-success/10 flex items-center justify-center text-status-success transition-all group-hover:rotate-12 duration-300 shadow-sm border border-status-success/10">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-500 transition-all group-hover:rotate-12 duration-300 shadow-sm border border-emerald-100">
               <Truck size={22} />
             </div>
           </div>
-          <button onClick={() => setIsStockInModalOpen(true)} className="btn-accent w-full py-2.5 text-xs flex items-center justify-center gap-2 shadow-accent/20 hover:shadow-accent/30 relative z-10 bg-status-success hover:bg-status-success/90">
+          <button onClick={() => setIsStockInModalOpen(true)} className="w-full py-2.5 text-xs flex items-center justify-center gap-2 rounded-xl font-bold transition-all bg-[#10B981] text-white hover:bg-[#0ea5e9] shadow-lg shadow-emerald-500/20 hover:shadow-xl relative z-10">
             <Plus size={14} /> 
             <span>توريد بضاعة</span>
           </button>
         </motion.div>
 
-        <motion.div variants={itemVariants} className="card p-6 flex flex-col justify-between group hover:border-status-warning/30 hover:shadow-xl transition-all duration-500 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-status-warning/5 rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-700"></div>
+        <motion.div variants={itemVariants} className="bg-white rounded-3xl p-6 flex flex-col justify-between group hover:border-amber-400/30 hover:shadow-xl transition-all duration-500 relative overflow-hidden border border-slate-100 shadow-sm">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-amber-400/5 rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-700"></div>
           <div className="flex justify-between items-start mb-6 relative z-10">
             <div>
-              <p className="text-text-secondary-light dark:text-text-secondary-dark text-[10px] font-bold mb-1 uppercase tracking-[0.15em]">الصادر (الكمية)</p>
-              <h3 className="kpi-value text-3xl sm:text-4xl">{salesCount}</h3>
+              <p className="text-slate-400 text-[10px] font-bold mb-1 uppercase tracking-[0.15em]">الصادر (الكمية)</p>
+              <h3 className="text-slate-800 font-extrabold text-3xl sm:text-4xl">{salesCount}</h3>
             </div>
-            <div className="w-12 h-12 rounded-2xl bg-status-warning/10 flex items-center justify-center text-status-warning transition-all group-hover:rotate-12 duration-300 shadow-sm border border-status-warning/10">
+            <div className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-500 transition-all group-hover:rotate-12 duration-300 shadow-sm border border-amber-100">
               <TrendingUp size={22} />
             </div>
           </div>
-          <button onClick={() => setIsSalesModalOpen(true)} className="w-full py-2.5 text-xs flex items-center justify-center gap-2 rounded-button font-bold transition-all bg-amber-500 text-white hover:bg-amber-600 shadow-lg shadow-amber-500/20 hover:shadow-amber-500/30 relative z-10">
+          <button onClick={() => setIsSalesModalOpen(true)} className="w-full py-2.5 text-xs flex items-center justify-center gap-2 rounded-xl font-bold transition-all bg-amber-500 text-white hover:bg-amber-600 shadow-lg shadow-amber-500/20 hover:shadow-xl relative z-10">
             <FileText size={14} /> 
             <span>إصدار فاتورة صادر</span>
           </button>
         </motion.div>
 
-        <motion.div variants={itemVariants} className="card p-6 flex flex-col justify-between group hover:border-status-danger/30 hover:shadow-xl transition-all duration-500 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-status-danger/5 rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-700"></div>
+        <motion.div variants={itemVariants} className="bg-white rounded-3xl p-6 flex flex-col justify-between group hover:border-rose-400/30 hover:shadow-xl transition-all duration-500 relative overflow-hidden border border-slate-100 shadow-sm">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-rose-500/5 rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-700"></div>
           <div className="flex justify-between items-start mb-6 relative z-10">
             <div>
-              <p className="text-text-secondary-light dark:text-text-secondary-dark text-[10px] font-bold mb-1 uppercase tracking-[0.15em]">المرتجعات</p>
+              <p className="text-slate-400 text-[10px] font-bold mb-1 uppercase tracking-[0.15em]">المرتجعات</p>
               <div className="flex items-center gap-2">
-                <h3 className="kpi-value text-3xl sm:text-4xl">{returnsCount}</h3>
+                <h3 className="text-slate-800 font-extrabold text-3xl sm:text-4xl">{returnsCount}</h3>
                 {damageCount > 0 && (
-                  <span className="text-[9px] font-bold px-1.5 py-0.5 bg-status-danger/10 text-status-danger rounded border border-status-danger/20 uppercase tracking-tighter">تالف: {damageCount}</span>
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 bg-rose-50 text-rose-600 rounded border border-rose-100 uppercase tracking-tighter">تالف: {damageCount}</span>
                 )}
               </div>
             </div>
-            <div className="w-12 h-12 rounded-2xl bg-status-danger/10 flex items-center justify-center text-status-danger transition-all group-hover:rotate-12 duration-300 shadow-sm border border-status-danger/10">
+            <div className="w-12 h-12 rounded-2xl bg-rose-50 flex items-center justify-center text-rose-500 transition-all group-hover:rotate-12 duration-300 shadow-sm border border-rose-100">
               <RotateCcw size={22} />
             </div>
           </div>
-          <button onClick={() => setIsReturnsModalOpen(true)} className="w-full py-2.5 text-xs flex items-center justify-center gap-2 rounded-button font-bold transition-all bg-rose-500 text-white hover:bg-rose-600 shadow-lg shadow-rose-500/20 hover:shadow-rose-500/30 relative z-10">
+          <button onClick={() => setIsReturnsModalOpen(true)} className="w-full py-2.5 text-xs flex items-center justify-center gap-2 rounded-xl font-bold transition-all bg-rose-500 text-white hover:bg-rose-600 shadow-lg shadow-rose-500/20 hover:shadow-xl relative z-10">
             <Plus size={14} /> 
             <span>تسجيل مرتجع جديد</span>
           </button>
@@ -654,10 +654,10 @@ export default function Dashboard() {
       </motion.div>
 
       {/* Main Grid: 3 Equal Columns */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 min-h-0 mb-4">
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 min-h-0 pb-2">
         
         {/* Card 1: Alerts (Right) */}
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card p-6 flex flex-col min-h-[450px] max-h-[600px] lg:max-h-full overflow-hidden hover:shadow-lg transition-shadow duration-500">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-white rounded-3xl p-6 flex flex-col h-full overflow-hidden border border-slate-100 shadow-sm transition-shadow duration-500 hover:shadow-lg">
           
           <div className="flex items-center justify-between mb-6 shrink-0">
             <h3 className="text-lg font-bold font-tajawal text-text-primary-light dark:text-text-primary-dark flex items-center gap-3">
@@ -731,7 +731,7 @@ export default function Dashboard() {
         </motion.div>
 
         {/* Card 2: Transactions (Middle) */}
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card p-6 flex flex-col min-h-[450px] max-h-[600px] lg:max-h-full transition-all duration-500 hover:shadow-lg">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-white rounded-3xl p-6 flex flex-col h-full overflow-hidden border border-slate-100 shadow-sm transition-all duration-500 hover:shadow-lg">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 shrink-0 gap-4">
             <h3 className="text-lg font-bold font-tajawal text-text-primary-light dark:text-text-primary-dark flex items-center gap-3">
               <div className="p-2 bg-primary/10 rounded-xl text-primary dark:text-accent-light border border-primary/20">
@@ -788,7 +788,7 @@ export default function Dashboard() {
         </motion.div>
 
         {/* Card 3: Sales (Left) */}
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card p-6 flex flex-col min-h-[450px] max-h-[600px] lg:max-h-full transition-all duration-500 hover:shadow-lg">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-white rounded-3xl p-6 flex flex-col h-full overflow-hidden border border-slate-100 shadow-sm transition-all duration-500 hover:shadow-lg">
           <div className="flex flex-col mb-6 shrink-0 gap-4">
             <div className="flex justify-between items-center">
               <h3 className="text-lg font-bold font-tajawal text-text-primary-light dark:text-text-primary-dark flex items-center gap-3">

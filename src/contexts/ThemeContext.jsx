@@ -12,7 +12,7 @@ export function ThemeProvider({ children }) {
   useEffect(() => {
     const root = window.document.documentElement;
     root.classList.remove('dark');
-    localStorage.setItem('theme', 'light');
+    sessionStorage.setItem('theme', 'light');
   }, []);
 
   const toggleTheme = () => {

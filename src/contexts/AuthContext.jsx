@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, setPersistence, browserSessionPersistence } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { useSettings } from './SettingsContext';
@@ -15,16 +15,21 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const { settings } = useSettings();
 
-  function login(email, password) {
+  async function login(email, password) {
+    await setPersistence(auth, browserSessionPersistence);
     return signInWithEmailAndPassword(auth, email, password);
   }
 
-  function signup(email, password) {
+  async function signup(email, password) {
+    await setPersistence(auth, browserSessionPersistence);
     return createUserWithEmailAndPassword(auth, email, password);
   }
 
-  function logout() {
-    return signOut(auth);
+  async function logout() {
+    localStorage.clear();
+    sessionStorage.clear();
+    await signOut(auth);
+    window.location.href = '/';
   }
 
   useEffect(() => {

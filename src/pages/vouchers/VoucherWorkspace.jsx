@@ -255,7 +255,7 @@ export default function VoucherWorkspace({ kind }) {
   const [hasUnsavedDraft, setHasUnsavedDraft] = useState(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem(DRAFT_KEY);
+    const saved = sessionStorage.getItem(DRAFT_KEY);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -266,16 +266,16 @@ export default function VoucherWorkspace({ kind }) {
 
   useEffect(() => {
     if (modalDrafts.length > 0 || session.supplier !== '' || session.rep !== '') {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify({ session, drafts: modalDrafts }));
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ session, drafts: modalDrafts }));
     } else {
-      localStorage.removeItem(DRAFT_KEY);
+      sessionStorage.removeItem(DRAFT_KEY);
       setHasUnsavedDraft(false);
     }
   }, [session, modalDrafts, DRAFT_KEY]);
 
   const restoreDraft = () => {
     try {
-      const saved = JSON.parse(localStorage.getItem(DRAFT_KEY));
+      const saved = JSON.parse(sessionStorage.getItem(DRAFT_KEY));
       if (saved && saved.drafts) {
         setSession(saved.session || emptySession(kind));
         setModalDrafts(saved.drafts);
@@ -286,7 +286,7 @@ export default function VoucherWorkspace({ kind }) {
   };
 
   const discardDraft = () => {
-    localStorage.removeItem(DRAFT_KEY);
+    sessionStorage.removeItem(DRAFT_KEY);
     setHasUnsavedDraft(false);
   };
 

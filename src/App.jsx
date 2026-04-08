@@ -41,7 +41,9 @@ function AuthenticatedApp() {
   const { currentUser } = useAuth();
   const [activeView, setActiveView] = useState('dashboard');
 
-  if (!currentUser) {
+  const hasSessionToken = sessionStorage.getItem('auth_token') === 'active';
+
+  if (!currentUser || !hasSessionToken) {
     return <Login />;
   }
 

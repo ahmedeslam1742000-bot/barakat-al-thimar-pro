@@ -317,17 +317,17 @@ function Notepad() {
   const [search, setSearch]     = useState('');
   const textareaRef             = useRef(null);
 
-  // Load from localStorage
+  // Load from sessionStorage
   useEffect(() => {
     try {
-      const stored = localStorage.getItem(LOCAL_KEY);
+      const stored = sessionStorage.getItem(LOCAL_KEY);
       if (stored) setNotes(JSON.parse(stored));
     } catch { /* ignore */ }
   }, []);
 
-  // Save to localStorage on every change
+  // Save to sessionStorage on every change
   useEffect(() => {
-    localStorage.setItem(LOCAL_KEY, JSON.stringify(notes));
+    sessionStorage.setItem(LOCAL_KEY, JSON.stringify(notes));
   }, [notes]);
 
   const addNote = () => {

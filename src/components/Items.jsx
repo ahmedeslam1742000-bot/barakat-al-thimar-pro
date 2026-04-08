@@ -384,7 +384,7 @@ export default function Items() {
   const cardVariants = { hidden: { opacity: 0, y: 15, scale: 0.95 }, show: { opacity: 1, y: 0, scale: 1, transition: { type: 'spring', stiffness: 400, damping: 25 } } };
 
   return (
-    <div className="flex flex-col space-y-6 font-readex p-4 sm:p-6 lg:p-8 h-full overflow-hidden" dir="rtl">
+    <div className="flex flex-col gap-4 sm:gap-6 font-readex h-full overflow-hidden" dir="rtl">
       {/* Header & Main Actions */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
         <div>

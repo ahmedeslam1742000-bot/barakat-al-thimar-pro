@@ -152,6 +152,7 @@ export default function Login() {
         }
 
         await login(loginEmail, password);
+        sessionStorage.setItem('auth_token', 'active');
       } else {
         const cred = await signup(email, password);
 
@@ -163,6 +164,7 @@ export default function Login() {
           role: 'User',
           createdAt: new Date().toISOString(),
         });
+        sessionStorage.setItem('auth_token', 'active');
       }
     } catch (err) {
       console.error(err);
