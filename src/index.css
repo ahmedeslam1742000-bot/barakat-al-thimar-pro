@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@200;300;400;500;700;800;900&family=Readex+Pro:wght@200;300;400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -9,12 +9,16 @@
     overflow-x: hidden;
   }
   body {
-    font-family: 'Cairo', sans-serif;
+    font-family: 'Readex Pro', sans-serif;
     overflow-x: hidden;
-    @apply bg-slate-50 text-slate-800 text-xs sm:text-sm antialiased transition-colors duration-500 ease-in-out;
+    @apply bg-background-light text-text-primary-light text-xs sm:text-sm antialiased transition-colors duration-300 ease-in-out;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Tajawal', sans-serif;
+    @apply font-semibold text-text-primary-light;
   }
   h1 {
-    @apply text-xl sm:text-2xl md:text-3xl font-semibold leading-tight;
+    @apply text-xl sm:text-2xl md:text-3xl leading-tight;
   }
   h2 {
     @apply text-base sm:text-lg md:text-xl font-medium leading-tight;
@@ -23,23 +27,105 @@
     @apply text-sm sm:text-base font-medium leading-tight;
   }
   .card-label {
-    @apply text-sm sm:text-base font-medium;
+    @apply text-sm sm:text-base font-medium text-text-secondary-light;
   }
   .body-copy {
-    @apply text-xs sm:text-sm;
+    @apply text-xs sm:text-sm text-text-secondary-light;
   }
   .kpi-value {
-    @apply text-2xl sm:text-3xl md:text-4xl font-bold leading-tight tabular-nums;
+    @apply text-2xl sm:text-3xl md:text-4xl font-bold leading-tight tabular-nums text-text-primary-light;
   }
   .heading-tight {
     @apply leading-tight sm:leading-normal;
   }
+  
   .dark body {
-    @apply bg-slate-900 text-slate-100;
+    @apply bg-background-dark text-text-primary-dark;
+  }
+  .dark h1, .dark h2, .dark h3, .dark h4, .dark h5, .dark h6 {
+    @apply text-text-primary-dark;
+  }
+  .dark .card-label {
+    @apply text-text-secondary-dark;
+  }
+  .dark .body-copy {
+    @apply text-text-secondary-dark;
+  }
+  .dark .kpi-value {
+    @apply text-text-primary-dark;
+  }
+
+  /* Focus states */
+  :focus-visible {
+    @apply outline-none ring-2 ring-primary ring-offset-2 ring-offset-background-light dark:ring-primary-light dark:ring-offset-background-dark;
+  }
+
+  /* Table styling */
+  table {
+    @apply w-full border-collapse;
+  }
+  th {
+    @apply text-right py-3 px-4 text-xs font-semibold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider border-b border-border-light dark:border-border-dark;
+  }
+  td {
+    @apply py-3 px-4 text-sm text-text-primary-light dark:text-text-primary-dark border-b border-border-light dark:border-border-dark;
+  }
+  tr:nth-child(even) {
+    @apply bg-slate-50/50 dark:bg-slate-800/30;
+  }
+  tr:hover {
+    @apply bg-slate-100/50 dark:bg-slate-800/50 transition-colors duration-200;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-surface-light border border-border-light rounded-card shadow-sm transition-all duration-300;
+  }
+  .dark .card {
+    @apply bg-surface-dark border-border-dark shadow-none;
+  }
+  .card-elevated {
+    @apply bg-surface-light border border-border-light rounded-card shadow-md transition-all duration-300;
+  }
+  .dark .card-elevated {
+    @apply bg-surface-elevated border-border-dark shadow-none;
+  }
+  
+  .btn-primary {
+    @apply bg-primary text-white px-4 py-2 rounded-button font-medium transition-all duration-300 hover:bg-primary-light hover:shadow-lg active:scale-95 disabled:opacity-50 disabled:scale-100 disabled:shadow-none;
+  }
+  .btn-secondary {
+    @apply bg-secondary text-white px-4 py-2 rounded-button font-medium transition-all duration-300 hover:bg-secondary-light hover:shadow-lg active:scale-95 disabled:opacity-50 disabled:scale-100 disabled:shadow-none;
+  }
+  .btn-accent {
+    @apply bg-accent text-white px-4 py-2 rounded-button font-medium transition-all duration-300 hover:bg-accent-light hover:shadow-lg active:scale-95 disabled:opacity-50 disabled:scale-100 disabled:shadow-none;
+  }
+  .btn-outline {
+    @apply border border-border-light text-text-secondary-light px-4 py-2 rounded-button font-medium transition-all duration-300 hover:bg-slate-50 hover:shadow-md active:scale-95;
+  }
+  .dark .btn-outline {
+    @apply border-border-dark text-text-secondary-dark hover:bg-slate-800;
+  }
+  .btn-ghost {
+    @apply text-text-secondary-light px-4 py-2 rounded-button font-medium transition-all duration-300 hover:bg-slate-100 active:scale-95;
+  }
+  .dark .btn-ghost {
+    @apply text-text-secondary-dark hover:bg-slate-800;
   }
 }
 
 @layer utilities {
+  .bg-header {
+    @apply bg-surface-light dark:bg-surface-header transition-colors duration-300;
+  }
+  .bg-sidebar {
+    @apply bg-surface-light dark:bg-surface-header border-r border-border-light dark:border-border-dark transition-colors duration-300;
+  }
+  .text-muted {
+    @apply text-text-muted-light dark:text-muted-dark;
+  }
+  
   @keyframes marquee {
     0% { transform: translateX(0); }
     100% { transform: translateX(50%); }

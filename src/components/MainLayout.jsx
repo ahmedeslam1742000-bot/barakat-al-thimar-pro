@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
+import {
   Menu,
   X,
   User,
@@ -12,7 +12,10 @@ import {
   VolumeX,
   Search,
   Clock,
-  ChevronDown
+  ChevronDown,
+  Warehouse,
+  Settings,
+  LogOut
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -24,7 +27,7 @@ import Sidebar from './Sidebar';
 
 export default function MainLayout({ children, activeView, setActiveView }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const { currentUser } = useAuth();
+  const { currentUser, logout } = useAuth();
   const { isDarkMode, toggleTheme } = useTheme();
   const { isMuted, toggleMute } = useAudio();
   const { settings } = useSettings();
@@ -32,7 +35,9 @@ export default function MainLayout({ children, activeView, setActiveView }) {
   const [criticalItems, setCriticalItems] = useState([]);
   const [allItems, setAllItems] = useState([]);
   const [isAlertsOpen, setIsAlertsOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const alertsRef = useRef(null);
+  const profileRef = useRef(null);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
@@ -56,11 +61,14 @@ export default function MainLayout({ children, activeView, setActiveView }) {
     return () => unsubscribe();
   }, [settings?.lowStockThreshold]);
 
-  // Close alerts dropdown on outside click
+  // Close dropdowns on outside click
   useEffect(() => {
     function handleClickOutside(event) {
       if (alertsRef.current && !alertsRef.current.contains(event.target)) {
         setIsAlertsOpen(false);
+      }
+      if (profileRef.current && !profileRef.current.contains(event.target)) {
+        setIsProfileOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -68,7 +76,7 @@ export default function MainLayout({ children, activeView, setActiveView }) {
   }, []);
 
   return (
-    <div className="min-h-screen overflow-hidden bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 flex font-['Cairo'] transition-colors duration-500" dir="rtl">
+    <div className="min-h-screen overflow-hidden bg-slate-50 text-slate-800 flex font-readex transition-colors duration-300" dir="rtl">
       <Sidebar 
         isSidebarOpen={isSidebarOpen} 
         setIsSidebarOpen={setIsSidebarOpen}
@@ -78,40 +86,36 @@ export default function MainLayout({ children, activeView, setActiveView }) {
 
       {/* Main Content Area */}
       <main 
-        className={`flex-1 flex flex-col min-h-screen overflow-hidden transition-all duration-300 ease-spring ${isSidebarOpen ? 'lg:mr-64' : 'mr-0'}`}
+        className={`flex-1 flex flex-col min-h-screen overflow-hidden transition-all duration-300 ease-in-out ${isSidebarOpen ? 'lg:mr-72' : 'mr-0'}`}
       >
-        {/* Top Navbar */}
-        <header className="w-full h-14 sm:h-16 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-200/60 dark:border-slate-700 shadow-sm shrink-0 z-40 flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 lg:px-8 transition-colors duration-500">
-          <div className="flex items-center space-x-5 space-x-reverse">
+        {/* Top Navbar - Slimmer and more functional */}
+        <header className="w-full h-12 bg-white border-b border-slate-100 shrink-0 z-40 flex items-center justify-between px-4 sm:px-6 transition-all duration-300">
+          <div className="flex items-center gap-3">
             {!isSidebarOpen && (
               <button 
                 onClick={() => setIsSidebarOpen(true)}
-                className="text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors p-3 min-h-[44px] min-w-[44px] rounded-xl border border-slate-200 dark:border-slate-700"
+                className="p-1.5 text-slate-400 hover:text-primary hover:bg-slate-50 rounded-lg transition-all"
               >
-                <Menu size={20} />
+                <Menu size={18} />
               </button>
             )}
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="flex-shrink-0 h-9 w-9 rounded-2xl bg-blue-600 text-white grid place-items-center text-sm font-black">
-                ب
+            
+            {/* Logo area when sidebar is closed */}
+            {!isSidebarOpen && (
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 bg-primary rounded-lg flex items-center justify-center text-white shadow-sm">
+                  <Warehouse size={16} />
+                </div>
+                <h1 className="text-base font-bold font-tajawal hidden sm:block tracking-tight">بركة الثمار</h1>
               </div>
-              <div className="hidden sm:flex flex-col border-r-4 border-blue-600 pr-3 py-0.5 text-right">
-                <h1 className="text-xl sm:text-2xl md:text-3xl font-semibold text-slate-800 dark:text-white leading-tight tracking-tight">
-                  بركة الثمار
-                </h1>
-                <span className="text-[10px] uppercase font-bold text-blue-600 dark:text-blue-400 tracking-widest">
-                  PRO VISION
-                </span>
-              </div>
-            </div>
+            )}
           </div>
           
-          {/* Middle: Global Search & Clock */}
-          <div className="hidden md:flex flex-1 max-w-2xl mx-6 items-center space-x-4 space-x-reverse">
-            {/* Search */}
-            <div className="relative flex-1 group">
-               <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400 group-focus-within:text-blue-500 transition-colors">
-                  <Search size={16} />
+          {/* Middle: Global Search - More prominent and rounded */}
+          <div className="flex-1 max-w-2xl mx-4 sm:mx-10">
+            <div className="relative group">
+               <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-primary transition-colors">
+                  <Search size={14} />
                </div>
                <input 
                   type="text" 
@@ -120,76 +124,65 @@ export default function MainLayout({ children, activeView, setActiveView }) {
                   onFocus={() => setIsSearchFocused(true)}
                   onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)}
                   placeholder="ابحث عن أصناف، شركات، أو أكواد..." 
-                  className="w-full bg-slate-50 border-0 dark:bg-slate-900/50 dark:border-slate-700 text-slate-800 dark:text-slate-100 text-sm font-bold rounded-xl pr-10 pl-4 py-2 focus:outline-none focus:ring-4 focus:ring-blue-500/10 transition-all shadow-inner"
+                  className={`w-full bg-slate-100/50 border border-transparent focus:bg-white text-slate-800 text-xs rounded-full pr-10 pl-4 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30 transition-all duration-300 ${isSearchFocused ? 'scale-[1.02]' : ''}`}
                />
                
                {/* Search Dropdown */}
                <AnimatePresence>
                  {searchQuery && isSearchFocused && (
                    <motion.div 
-                     initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
-                     className="absolute top-full mt-2 w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-xl rounded-2xl overflow-hidden z-50 max-h-64 overflow-y-auto custom-scrollbar"
+                     initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
+                     className="absolute top-full mt-2 w-full bg-white border border-slate-100 shadow-2xl rounded-2xl overflow-hidden z-50 max-h-80 overflow-y-auto custom-scrollbar"
                    >
+                     <div className="p-2 border-b border-slate-100 bg-slate-50/50">
+                       <span className="text-[10px] font-bold text-slate-400 uppercase px-2">نتائج البحث</span>
+                     </div>
                      {allItems.filter(i => (i.name + i.company + i.cat).toLowerCase().includes(searchQuery.toLowerCase())).length > 0 ? (
-                       allItems.filter(i => (i.name + i.company + i.cat).toLowerCase().includes(searchQuery.toLowerCase())).slice(0, 5).map((item, idx) => (
-                         <div key={idx} onMouseDown={() => {}} className="p-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer transition-colors border-b border-slate-50 dark:border-slate-700/50 flex justify-between items-center group/item text-right">
+                       allItems.filter(i => (i.name + i.company + i.cat).toLowerCase().includes(searchQuery.toLowerCase())).slice(0, 8).map((item, idx) => (
+                         <div key={idx} onMouseDown={() => {}} className="p-3 hover:bg-slate-50 cursor-pointer transition-colors border-b border-slate-100 last:border-0 flex justify-between items-center group/item text-right">
                            <div className="flex flex-col">
-                             <span className="text-sm font-bold text-slate-800 dark:text-slate-100 group-hover/item:text-blue-600 dark:group-hover/item:text-blue-400 transition-colors">{item.name}</span>
+                             <span className="text-sm font-bold text-slate-800 group-hover/item:text-primary transition-colors">{item.name}</span>
                              <span className="text-[10px] text-slate-400">{item.company || 'بدون شركة'} • {item.cat}</span>
                            </div>
-                           <div className="bg-slate-100 dark:bg-slate-900/50 px-2 py-1 rounded-md text-xs font-black text-slate-600 dark:text-slate-300">
+                           <div className="bg-slate-100 px-2.5 py-1 rounded-full text-[10px] font-bold text-slate-500 border border-slate-100">
                              {item.stockQty} {item.unit}
                            </div>
                          </div>
                        ))
                      ) : (
-                       <div className="p-4 text-center pb-6">
-                         <Search size={24} className="mx-auto text-slate-300 dark:text-slate-600 mb-2 mt-2" />
-                         <span className="text-xs font-bold text-slate-500">لا توجد نتائج مطابقة</span>
+                       <div className="p-6 text-center">
+                         <Search size={24} className="mx-auto text-slate-200 mb-2" />
+                         <span className="text-xs font-bold text-slate-400">لا توجد نتائج مطابقة لـ "{searchQuery}"</span>
                        </div>
                      )}
                    </motion.div>
                  )}
                </AnimatePresence>
             </div>
-
-            {/* Clock */}
-            <div className="hidden lg:flex flex-col justify-center items-center bg-slate-50 dark:bg-slate-900/50 px-4 py-1.5 rounded-xl shadow-inner shrink-0 text-center select-none h-full">
-               <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest leading-none mb-1 shadow-sm" dir="ltr">{currentTime.toLocaleDateString('en-GB')}</span>
-               <div className="flex items-center space-x-1.5 space-x-reverse text-slate-700 dark:text-slate-200">
-                 <Clock size={12} className="text-slate-400 dark:text-slate-500" />
-                 <span className="text-sm font-black leading-none" dir="ltr">{currentTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>
-               </div>
-            </div>
           </div>
           
-          <div className="flex items-center space-x-3 sm:space-x-5 space-x-reverse relative">
-            
-            {/* Audio Toggle */}
-            <button 
-              onClick={toggleMute}
-              className="p-2.5 sm:p-3 min-h-[44px] min-w-[44px] text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-xl transition-all"
-            >
-              {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
-            </button>
-
-            {/* Theme Toggle */}
-            <button 
-              onClick={toggleTheme}
-              className="p-2.5 sm:p-3 min-h-[44px] min-w-[44px] text-slate-400 hover:text-blue-600 dark:hover:text-amber-400 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-xl transition-all"
-            >
-              {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
-            </button>
+          <div className="flex items-center gap-1 sm:gap-2">
+            {/* Quick Actions Group */}
+            <div className="hidden md:flex items-center gap-1 border-l border-slate-100 ml-2 pl-2">
+              {/* Audio Toggle */}
+              <button 
+                onClick={toggleMute}
+                className="p-2 text-slate-400 hover:text-primary hover:bg-slate-50 rounded-lg transition-all group"
+                title="كتم الصوت"
+              >
+                {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+              </button>
+            </div>
 
             {/* Notification Bell */}
             <div className="relative" ref={alertsRef}>
               <button 
                 onClick={() => setIsAlertsOpen(!isAlertsOpen)}
-                className={`relative p-2.5 sm:p-3 min-h-[44px] min-w-[44px] rounded-xl transition-all ${isAlertsOpen ? 'bg-slate-100 dark:bg-slate-700 text-blue-600' : 'text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700/50'}`}
+                className={`p-2 rounded-lg transition-all ${isAlertsOpen ? 'bg-primary/10 text-primary shadow-inner' : 'text-slate-400 hover:text-slate-800 hover:bg-slate-50'}`}
               >
-                <Bell className="h-5 w-5 sm:h-6 sm:w-6" />
+                <Bell size={18} />
                 {criticalItems.length > 0 && (
-                  <span className="absolute top-1.5 left-1.5 min-w-[16px] h-4 px-1 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-white dark:border-slate-800 shrink-0">
+                  <span className="absolute top-1.5 left-1.5 w-3.5 h-3.5 bg-rose-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center border-2 border-white">
                     {criticalItems.length}
                   </span>
                 )}
@@ -199,39 +192,36 @@ export default function MainLayout({ children, activeView, setActiveView }) {
               <AnimatePresence>
                 {isAlertsOpen && (
                   <motion.div 
-                    initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute top-[120%] left-0 w-72 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-2xl rounded-2xl overflow-hidden z-50 text-right"
+                    initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
+                    className="absolute left-0 mt-3 w-80 bg-white border border-slate-100 shadow-2xl rounded-2xl overflow-hidden z-50"
                   >
-                    <div className="p-3 border-b border-slate-50 dark:border-slate-700/50 bg-slate-50/50 dark:bg-slate-800/50 flex items-center justify-between">
-                      <span className="text-[10px] bg-red-100 text-red-600 dark:bg-rose-500/20 dark:text-rose-400 px-2 py-0.5 rounded-lg font-bold">{criticalItems.length} أصناف</span>
-                      <h4 className="font-black text-sm text-slate-800 dark:text-white">تنبيهات سريعة</h4>
+                    <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                      <span className="font-bold text-sm">التنبيهات</span>
+                      <span className="bg-rose-50 text-rose-600 text-[10px] px-2.5 py-1 rounded-full font-black border border-rose-100 shadow-sm">
+                        {criticalItems.length} تنبيه حرج
+                      </span>
                     </div>
-                    <div className="max-h-64 overflow-y-auto custom-scrollbar">
-                      {criticalItems.length === 0 ? (
-                        <div className="p-6 text-center text-slate-400 dark:text-slate-500 text-xs font-bold">
-                          المخزون آمن ولا يوجد نواقص
-                        </div>
-                      ) : (
-                        <div className="divide-y divide-slate-50 dark:divide-slate-700/50 p-1">
-                          {criticalItems.map(item => (
-                            <div key={item.id} className="p-3 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors flex items-center justify-between group rounded-xl">
-                              <div className="flex items-center space-x-3 space-x-reverse">
-                                <div className="w-8 h-8 rounded-full bg-rose-50 dark:bg-rose-500/10 flex items-center justify-center text-rose-500">
-                                   <AlertOctagon size={14} />
-                                </div>
-                                <div className="text-right">
-                                  <p className="text-xs font-black text-slate-700 dark:text-slate-200 truncate max-w-[120px]">{item.name}</p>
-                                  <p className="text-[10px] font-bold text-slate-400">{item.company || 'بدون شركة'}</p>
-                                </div>
-                              </div>
-                              <div className="text-center font-black text-sm text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 px-2 py-1 rounded-lg">
-                                {item.stockQty}
-                              </div>
+                    <div className="max-h-80 overflow-y-auto custom-scrollbar">
+                      {criticalItems.length > 0 ? (
+                        criticalItems.map((item, idx) => (
+                          <div key={idx} className="p-4 hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0 flex items-start gap-3 group/alert">
+                            <div className="mt-0.5 p-2 bg-rose-50 rounded-xl group-hover/alert:bg-rose-100 transition-colors">
+                              <AlertOctagon size={16} className="text-rose-500" />
                             </div>
-                          ))}
+                            <div className="flex-1">
+                              <p className="text-sm font-black text-slate-800 group-hover/alert:text-rose-600 transition-colors">{item.name}</p>
+                              <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                                المخزون الحالي: <span className="font-black text-rose-600 bg-rose-50 px-1.5 rounded">{item.stockQty} {item.unit}</span>
+                              </p>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="p-10 text-center">
+                          <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                            <Bell size={24} className="text-slate-200" />
+                          </div>
+                          <p className="text-sm font-medium text-slate-400">لا توجد تنبيهات حالية</p>
                         </div>
                       )}
                     </div>
@@ -240,37 +230,66 @@ export default function MainLayout({ children, activeView, setActiveView }) {
               </AnimatePresence>
             </div>
 
-            <div className="h-6 w-px bg-slate-200 dark:bg-slate-700"></div>
-            
-            <div className="flex items-center gap-2 sm:gap-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/30 p-2 rounded-full border border-transparent hover:border-slate-200 dark:hover:border-slate-700 transition-all group">
-              <div className="hidden md:flex flex-col text-right">
-                <span className="text-sm font-black text-slate-800 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors flex items-center gap-1">
-                   <span>{currentUser?.username || currentUser?.displayName || 'مدير النظام'}</span>
-                   <ChevronDown size={14} className="text-slate-400" />
-                </span>
-                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
-                  {currentUser?.role === 'Admin' ? 'مدير النظام' : currentUser?.role === 'Storekeeper' ? 'أمين مستودع' : 'مراقب'}
-                </span>
-              </div>
-              <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-300 shadow-sm border border-slate-200 dark:border-slate-600 relative z-10 shrink-0">
-                <User size={18} />
-                <span className="absolute bottom-0 left-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-white dark:border-slate-800 rounded-full"></span>
-              </div>
+            {/* Profile Menu */}
+            <div className="relative mr-1" ref={profileRef}>
+              <button 
+                onClick={() => setIsProfileOpen(!isProfileOpen)}
+                className={`flex items-center gap-2 p-1 pl-2 hover:bg-slate-50 rounded-full transition-all border border-transparent ${isProfileOpen ? 'bg-slate-50 border-slate-100' : ''}`}
+              >
+                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-primary to-slate-800 flex items-center justify-center text-white text-[10px] font-bold shadow-md border border-white/20">
+                  {currentUser?.email?.charAt(0).toUpperCase() || 'A'}
+                </div>
+                <div className="hidden sm:flex flex-col items-start ml-1 leading-none text-right">
+                  <span className="text-[10px] font-black text-slate-800 truncate max-w-[80px]">{currentUser?.email?.split('@')[0]}</span>
+                  <span className="text-[8px] text-slate-400 uppercase tracking-widest font-black">مسؤول</span>
+                </div>
+                <ChevronDown size={12} className={`text-slate-400 transition-transform duration-300 ${isProfileOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              <AnimatePresence>
+                {isProfileOpen && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
+                    className="absolute left-0 mt-3 w-56 bg-white border border-slate-100 shadow-2xl rounded-xl overflow-hidden z-50"
+                  >
+                    <div className="p-4 border-b border-slate-100 bg-slate-50/50">
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">المستخدم الحالي</p>
+                      <p className="text-xs font-black truncate text-primary">{currentUser?.email}</p>
+                    </div>
+                    <div className="p-1">
+                      <button 
+                        onClick={() => { setActiveView('settings'); setIsProfileOpen(false); }}
+                        className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-600 font-bold hover:bg-slate-50 rounded-lg transition-colors"
+                      >
+                        <Settings size={16} className="text-slate-400" />
+                        إعدادات الحساب
+                      </button>
+                      <button 
+                        onClick={logout}
+                        className="w-full flex items-center gap-3 px-3 py-2 text-sm text-rose-500 font-bold hover:bg-rose-50 rounded-lg transition-colors"
+                      >
+                        <LogOut size={16} />
+                        تسجيل الخروج
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
         </header>
 
         {/* ── System Freeze Banner ── */}
         {settings?.systemFrozen && (
-          <div className="shrink-0 flex items-center gap-3 px-6 py-2.5 bg-rose-500 text-white text-xs font-black z-30">
-            <span className="text-sm">⛔</span>
+          <div className="shrink-0 flex items-center gap-3 px-6 py-2.5 bg-rose-600 text-white text-xs font-black z-30 shadow-lg shadow-rose-600/20">
+            <AlertOctagon size={16} className="animate-pulse" />
             <span className="flex-1">النظام مجمَّد — جميع عمليات الإدخال معطّلة حتى يتم إلغاء التجميد من صفحة الإعدادات</span>
-            <button type="button" onClick={() => setActiveView('settings')} className="shrink-0 px-3 py-1 bg-white/20 hover:bg-white/30 rounded-lg transition-colors">الإعدادات</button>
+            <button type="button" onClick={() => setActiveView('settings')} className="shrink-0 px-3 py-1 bg-white/20 hover:bg-white/30 rounded-lg transition-colors border border-white/20">الإعدادات</button>
           </div>
         )}
 
         {/* Page Content */}
-        <div className="flex-1 overflow-auto bg-slate-50/50 dark:bg-[#080d17] p-4 sm:p-6 lg:p-8 custom-scrollbar">
+        <div className="flex-1 overflow-auto bg-slate-50/30 p-4 sm:p-6 lg:p-8 custom-scrollbar">
           <div className="w-full max-w-7xl mx-auto h-full flex flex-col">
             {children}
           </div>

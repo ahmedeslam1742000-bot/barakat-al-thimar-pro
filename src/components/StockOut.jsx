@@ -34,25 +34,25 @@ const ModalWrapper = ({ title, isOpen, onClose, children, onSubmit, maxWidth = "
     {isOpen && (
       <motion.div 
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} 
-        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 dark:bg-black/60 backdrop-blur-sm" 
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" 
         dir="rtl" onMouseDown={onClose}
       >
         <motion.div 
           onMouseDown={(e) => e.stopPropagation()}
           initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} 
           transition={{ type: 'spring', damping: 25, stiffness: 300 }} 
-          className={`w-full ${maxWidth} bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col overflow-hidden max-h-[90vh]`}
+          className={`w-full ${maxWidth} bg-white rounded-[2rem] shadow-2xl border border-slate-100 flex flex-col overflow-hidden max-h-[90vh]`}
         >
-          <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/50 shrink-0">
-            <h3 className="text-lg font-black text-slate-800 dark:text-white">{title}</h3>
-            <button type="button" onClick={onClose} className="p-2 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-white rounded-full transition-colors">
+          <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-slate-50/80 shrink-0">
+            <h3 className="text-lg font-black text-slate-800">{title}</h3>
+            <button type="button" onClick={onClose} className="p-2 text-slate-400 hover:bg-slate-200 hover:text-slate-700 rounded-full transition-colors">
               <X size={20} className="stroke-[3]" />
             </button>
           </div>
           <form onSubmit={onSubmit} className="flex flex-col flex-1 overflow-hidden">
             <div className="p-5 overflow-y-auto custom-scrollbar flex-1">{children}</div>
-            <div className="p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex space-x-3 space-x-reverse justify-end shrink-0">
-              <button type="button" onClick={onClose} className="px-5 py-2 rounded-xl font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">إلغاء</button>
+            <div className="p-5 border-t border-slate-100 bg-slate-50 flex space-x-3 space-x-reverse justify-end shrink-0">
+              <button type="button" onClick={onClose} className="px-5 py-2 rounded-xl font-bold text-slate-600 hover:bg-slate-200 transition-colors">إلغاء</button>
               <button type="submit" disabled={loading || disableSubmit} className={`px-6 py-2 rounded-xl font-bold text-white flex items-center gap-2 shadow-md disabled:opacity-50 disabled:cursor-not-allowed ${submitColor === 'rose' ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-500/20' : submitColor === 'orange' ? 'bg-orange-500 hover:bg-orange-600 shadow-orange-500/20' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/20'}`}>
                 {loading && <Box className="animate-spin" size={16} />}
                 {submitLabel}
@@ -65,8 +65,8 @@ const ModalWrapper = ({ title, isOpen, onClose, children, onSubmit, maxWidth = "
   </AnimatePresence>
 );
 
-const InputClass = "w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60 text-slate-800 dark:text-slate-100 text-sm font-bold rounded-xl focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 block px-4 py-2.5 outline-none transition-all";
-const LabelClass = "block text-xs font-black text-slate-700 dark:text-slate-300 mb-1.5";
+const InputClass = "w-full bg-slate-50 border border-slate-200 text-slate-800 text-sm font-bold rounded-xl focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 block px-4 py-2.5 outline-none transition-all";
+const LabelClass = "block text-xs font-black text-slate-700 mb-1.5";
 
 export default function StockOut() {
   const { playSuccess, playWarning } = useAudio();
@@ -618,163 +618,175 @@ export default function StockOut() {
   const cardVariants = { hidden: { opacity: 0, y: 15, scale: 0.95 }, show: { opacity: 1, y: 0, scale: 1, transition: { type: 'spring', stiffness: 400, damping: 25 } } };
 
   return (
-    <div className="h-full w-full flex flex-col font-['Cairo'] text-slate-800 dark:text-slate-100 overflow-hidden" dir="rtl">
+    <div className="h-full w-full flex flex-col font-readex text-slate-800 overflow-hidden" dir="rtl">
 
       {/* ─── HEADER ─── */}
-      <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border border-slate-200/60 dark:border-slate-700/60 shadow-sm rounded-[2rem] p-4 sm:p-5 mb-6 shrink-0 z-20 transition-colors">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      <div className="bg-white border-b border-slate-200 p-4 sm:p-6 shrink-0 z-20 transition-all">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
 
           <div className="flex items-center space-x-4 space-x-reverse flex-1">
-            <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-rose-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-orange-500/20 shrink-0">
-              <ArrowUpRight size={24} />
+            <div className="w-14 h-14 bg-gradient-to-br from-orange-500 to-rose-600 rounded-[1.25rem] flex items-center justify-center text-white shadow-xl shadow-orange-500/20 shrink-0">
+              <ArrowUpRight size={28} />
             </div>
             <div>
-              <h2 className="text-xl font-black">أذونات الصادر</h2>
-              <p className="text-xs font-bold text-slate-500 dark:text-slate-400 mt-1">إدارة عمليات صرف وتوزيع البضاعة من المستودع</p>
+              <h2 className="text-2xl font-black tracking-tight">أذونات الصادر</h2>
+              <p className="text-sm font-bold text-slate-400 mt-1">إدارة عمليات صرف وتوزيع البضاعة من المستودع بدقة</p>
             </div>
           </div>
 
           <div className="flex items-center space-x-3 space-x-reverse self-end lg:self-auto relative pr-2">
-            {/* Today badge */}
-            <div className="flex items-center space-x-2 space-x-reverse px-4 py-2 bg-orange-50 dark:bg-orange-500/10 border border-orange-100 dark:border-orange-500/20 rounded-xl mr-2">
-              <span className="text-xs font-black text-orange-500 dark:text-orange-400 uppercase tracking-wider">صادر اليوم:</span>
-              <span className="text-lg font-black text-orange-700 dark:text-orange-300 leading-none">{todayTotal} <span className="text-[10px]">كرتونة</span></span>
+            
+            <div className="flex items-center space-x-2 space-x-reverse px-5 py-2.5 bg-orange-50 border border-orange-100 rounded-2xl mr-2">
+              <span className="text-xs font-black text-orange-500 uppercase tracking-wider">صادر اليوم:</span>
+              <span className="text-xl font-black text-orange-600 leading-none">{todayTotal} <span className="text-[11px] font-bold opacity-60">كرتونة</span></span>
             </div>
 
             {/* Export dropdown */}
             <div className="relative">
-              <button onClick={() => setIsExportMenuOpen(!isExportMenuOpen)} className="flex items-center space-x-2 space-x-reverse px-4 py-2 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl font-bold text-sm transition-all shadow-sm">
-                <Download size={16} /><span>تصدير</span>
-                <ChevronDown size={14} className={`transition-transform ${isExportMenuOpen ? 'rotate-180 text-orange-500' : ''}`} />
+              <button onClick={() => setIsExportMenuOpen(!isExportMenuOpen)} className="flex items-center space-x-2 space-x-reverse px-5 py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-2xl font-bold text-sm transition-all shadow-sm">
+                <Download size={18} />
+                <span>تصدير </span>
+                <ChevronDown size={14} className={`transition-transform duration-300 ${isExportMenuOpen ? 'rotate-180 text-orange-500' : ''}`} />
               </button>
               <AnimatePresence>
                 {isExportMenuOpen && (
-                  <motion.div initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} transition={{ duration: 0.15 }}
-                    className="absolute top-[120%] right-0 w-48 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-xl rounded-2xl overflow-hidden z-50 text-sm font-bold">
-                    <button onClick={handleExportPDF} className="w-full flex items-center space-x-2 space-x-reverse px-4 py-3 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 hover:text-orange-600 transition-colors">
-                      <FileText size={16} /><span>تحميل PDF</span>
+                  <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 12 }}
+                    className="absolute top-full mt-3 right-0 w-56 bg-white border border-slate-100 shadow-2xl rounded-2xl overflow-hidden z-50 text-sm font-bold">
+                    <button onClick={handleExportPDF} className="w-full flex items-center justify-between px-5 py-4 text-slate-600 hover:bg-slate-50 hover:text-orange-600 transition-colors border-b border-slate-50">
+                      <span className="flex items-center space-x-3 space-x-reverse"><FileText size={18} /><span>تحميل PDF</span></span>
                     </button>
-                    <div className="h-px bg-slate-100 dark:bg-slate-700"></div>
-                    <button onClick={() => { toast.info('جاري تجهيز الصفحة للطباعة...'); window.print(); setIsExportMenuOpen(false); }} className="w-full flex items-center space-x-2 space-x-reverse px-4 py-3 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 hover:text-emerald-600 transition-colors">
-                      <Image size={16} /><span>تحميل صورة PNG</span>
+                    <button onClick={() => { toast.info('جاري تجهيز الصفحة للطباعة...'); window.print(); setIsExportMenuOpen(false); }} className="w-full flex items-center justify-between px-5 py-4 text-slate-600 hover:bg-slate-50 hover:text-emerald-600 transition-colors">
+                      <span className="flex items-center space-x-3 space-x-reverse"><Image size={18} /><span>تحميل صورة PNG</span></span>
                     </button>
                   </motion.div>
                 )}
               </AnimatePresence>
             </div>
 
-            <div className="w-px h-8 bg-slate-200 dark:bg-slate-700 mx-1"></div>
+            <div className="w-px h-10 bg-slate-200 mx-2"></div>
 
-            {/* Blank Template Button — Glassmorphism */}
+            {/* Blank Template Button — Professional */}
             <button
               onClick={handleBlankTemplate}
-              className="flex items-center space-x-2 space-x-reverse px-4 py-2.5 rounded-xl font-bold text-sm transition-all border border-white/30 bg-white/10 backdrop-blur-md text-slate-700 dark:text-white hover:bg-white/20 hover:border-white/50 hover:shadow-[0_0_20px_rgba(255,255,255,0.1)] active:scale-95"
+              className="flex items-center space-x-2 space-x-reverse px-5 py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-2xl font-bold text-sm transition-all shadow-sm"
               title="طباعة سند إخراج فارغ للكتابة اليدوية"
             >
-              <Printer size={16} className="opacity-80" />
+              <Printer size={18} />
               <span>طباعة سند فارغ</span>
             </button>
 
             {!isViewer && (
               <button
                 onClick={() => { setModalDrafts([]); setBulkRecipient(''); setBulkDate(formatDate(new Date())); setIsAddModalOpen(true); setTimeout(() => itemNameRef.current?.focus(), 150); }}
-                className="flex items-center space-x-2 space-x-reverse px-5 py-2.5 bg-gradient-to-br from-orange-500 to-rose-600 text-white rounded-xl font-bold text-sm hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-orange-500/25">
-                <Plus size={18} /><span>إضافة صادر</span>
+                className="flex items-center space-x-2 space-x-reverse px-6 py-3 bg-gradient-to-br from-orange-500 to-rose-600 text-white rounded-2xl font-black text-sm hover:shadow-2xl hover:shadow-orange-500/30 active:scale-95 transition-all shadow-xl shadow-orange-500/20">
+                <Plus size={20} /><span>إضافة صادر جديد</span>
               </button>
             )}
           </div>
         </div>
 
         {/* Filter Bar */}
-        <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-          <div className="relative group lg:col-span-2 flex items-center bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700/60 rounded-xl px-4 py-2.5 focus-within:ring-2 focus-within:ring-orange-500/20 focus-within:border-orange-500 transition-all shadow-inner">
-            <Search size={16} className="text-slate-400 group-focus-within:text-orange-500 transition-colors ml-3" />
-            <input type="text" placeholder="البحث بالصنف، الشركة، أو المستلم..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full bg-transparent text-slate-800 dark:text-slate-100 text-sm font-bold focus:outline-none" />
+        <div className="mt-8 flex flex-wrap items-center gap-4">
+          <div className="relative group flex-1 min-w-[300px]">
+            <Search size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-orange-500 transition-colors" />
+            <input type="text" placeholder="البحث بالصنف، الشركة، أو المستلم..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full bg-slate-100/50 border border-transparent focus:bg-white focus:border-orange-500/20 focus:ring-4 focus:ring-orange-500/5 text-slate-800 text-sm font-bold rounded-2xl pr-11 pl-4 py-3 outline-none transition-all" />
           </div>
-          <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700/60 text-slate-700 dark:text-slate-200 text-sm font-bold rounded-xl px-4 py-2.5 cursor-pointer focus:outline-none focus:border-orange-500 transition-colors shadow-inner appearance-none">
-            <option>الكل</option><option>مجمدات</option><option>بلاستيك</option><option>تبريد</option>
-          </select>
-          <select value={companyFilter} onChange={e => setCompanyFilter(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700/60 text-slate-700 dark:text-slate-200 text-sm font-bold rounded-xl px-4 py-2.5 cursor-pointer focus:outline-none focus:border-orange-500 transition-colors shadow-inner appearance-none">
-            {dynamicCompanies.map(c => <option key={c}>{c}</option>)}
-          </select>
-          <button onClick={() => setShowHotOnly(!showHotOnly)}
-            className={`w-full flex items-center justify-center space-x-2 space-x-reverse rounded-xl px-4 py-2.5 text-sm font-bold transition-all shadow-inner border ${showHotOnly ? 'bg-orange-50 dark:bg-orange-500/10 border-orange-200 dark:border-orange-500/30 text-orange-600 dark:text-orange-400' : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700/60 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
-            <Flame size={18} className={showHotOnly ? 'animate-pulse' : ''} /><span>نشاط عالي</span>
-          </button>
+          <div className="flex items-center gap-3">
+            <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} className="bg-slate-100/50 border border-transparent text-slate-700 text-sm font-bold rounded-2xl px-5 py-3 cursor-pointer focus:bg-white focus:border-orange-500/20 outline-none transition-all appearance-none">
+              <option>التصنيف: الكل</option><option>مجمدات</option><option>بلاستيك</option><option>تبريد</option>
+            </select>
+            <select value={companyFilter} onChange={e => setCompanyFilter(e.target.value)} className="bg-slate-100/50 border border-transparent text-slate-700 text-sm font-bold rounded-2xl px-5 py-3 cursor-pointer focus:bg-white focus:border-orange-500/20 outline-none transition-all appearance-none">
+              {dynamicCompanies.map(c => <option key={c}>{c === 'الكل' ? 'الشركة: الكل' : c}</option>)}
+            </select>
+            <button onClick={() => setShowHotOnly(!showHotOnly)}
+              className={`flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-bold transition-all border ${showHotOnly ? 'bg-orange-50 border-orange-200 text-orange-600 shadow-lg shadow-orange-500/10' : 'bg-slate-100/50 border-transparent text-slate-600 hover:bg-slate-100'}`}>
+              <Flame size={18} className={showHotOnly ? 'animate-pulse text-orange-500' : ''} /><span>نشاط عالي</span>
+            </button>
+          </div>
         </div>
       </div>
 
       {/* ─── SECTIONED GRID ─── */}
-      <div className="flex-1 overflow-y-auto px-1 pb-10 custom-scrollbar w-full">
+      <div className="flex-1 overflow-y-auto px-6 pb-12 custom-scrollbar w-full bg-slate-50/30">
         {Object.keys(groupedTransactions).length === 0 ? (
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
-            className="flex flex-col items-center justify-center p-12 text-center bg-white/40 dark:bg-slate-800/20 backdrop-blur-md rounded-[2rem] border border-dashed border-slate-300 dark:border-slate-700 mt-4 min-h-[24rem] sm:h-[50vh]">
-            <ArrowUpRight size={56} className="text-slate-300 dark:text-slate-600 mb-6 animate-bounce" />
-            <h3 className="text-xl font-black text-slate-800 dark:text-slate-100 mb-2">لا توجد حركات صادر مطابقة</h3>
-            <p className="text-slate-500 dark:text-slate-400 font-bold max-w-sm text-center">أضف أذونات الصرف والتوزيع من المستودع لتظهر هنا مصنفة بالأقسام.</p>
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+            className="flex flex-col items-center justify-center p-16 text-center bg-white rounded-[2.5rem] border-2 border-dashed border-slate-200 mt-8 min-h-[50vh] shadow-sm">
+            <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center mb-8 border border-slate-100 shadow-inner">
+              <ArrowUpRight size={48} className="text-slate-300 animate-bounce" />
+            </div>
+            <h3 className="text-2xl font-black text-slate-800 mb-3">لا توجد حركات صادر مطابقة</h3>
+            <p className="text-slate-400 font-bold mb-10 max-w-sm">أضف أذونات الصرف والتوزيع من المستودع لتظهر هنا مصنفة بالأقسام.</p>
+            {!isViewer && (
+              <button onClick={() => setIsAddModalOpen(true)} className="px-8 py-3.5 bg-gradient-to-br from-orange-500 to-rose-600 text-white rounded-2xl font-black shadow-lg shadow-orange-500/30">إضافة أول حركة صادر</button>
+            )}
           </motion.div>
         ) : (
-          <motion.div variants={containerVariants} initial="hidden" animate="show" className="space-y-8">
+          <motion.div variants={containerVariants} initial="hidden" animate="show" className="space-y-10 mt-8">
             {Object.keys(groupedTransactions).sort().map(cat => (
-              <div key={cat} className="space-y-4">
-                {/* Section Header */}
-                <div className="flex items-center space-x-3 space-x-reverse px-2 sticky top-0 z-10 bg-slate-50/90 dark:bg-[#080d17]/90 backdrop-blur-md py-2 transition-colors">
-                  <div className="w-8 h-8 rounded-full bg-white dark:bg-slate-800 shadow-sm border border-slate-100 dark:border-slate-700/60 flex items-center justify-center">
+              <div key={cat} className="space-y-6">
+                
+                {/* Category Header */}
+                <div className="flex items-center space-x-4 space-x-reverse px-2 sticky top-0 z-10 bg-slate-50/80 backdrop-blur-md py-3 transition-colors">
+                  <div className="w-10 h-10 rounded-xl bg-white shadow-md border border-slate-100 flex items-center justify-center text-orange-500">
                     {getCatIcon(cat)}
                   </div>
-                  <h3 className="text-lg font-black text-slate-800 dark:text-slate-100">صادر {cat}</h3>
-                  <div className="flex-1 h-px bg-gradient-to-l from-slate-200/0 via-slate-200 dark:via-slate-700 to-slate-200/0"></div>
-                  <span className="text-[10px] font-bold text-slate-400 bg-white dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-100 dark:border-slate-700 shadow-sm">{groupedTransactions[cat].length} سند</span>
+                  <div>
+                    <h3 className="text-xl font-black text-slate-800 tracking-tight">صادر {cat}</h3>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">تصنيف المنتجات</p>
+                  </div>
+                  <div className="flex-1 h-px bg-gradient-to-l from-transparent via-slate-200 to-transparent mx-4"></div>
+                  <span className="text-xs font-black text-orange-600 bg-orange-50 px-4 py-1.5 rounded-full border border-orange-100 shadow-sm">{groupedTransactions[cat].length} سند</span>
                 </div>
 
                 {/* Cards Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 px-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
                   {groupedTransactions[cat].map(tx => (
                     <motion.div key={tx.id} variants={cardVariants}
-                      className="group relative flex flex-col justify-between p-4 rounded-2xl bg-white dark:bg-slate-800/40 backdrop-blur-xl border border-slate-100 dark:border-slate-700/50 shadow-[0_2px_10px_rgba(0,0,0,0.02)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] dark:hover:shadow-[0_8px_30px_rgba(0,0,0,0.3)] transition-all duration-300 overflow-hidden">
+                      className="group relative flex flex-col justify-between p-6 rounded-[2rem] bg-white border border-slate-100 shadow-sm hover:shadow-2xl hover:border-orange-200 transition-all duration-500">
                       <div className="flex flex-col h-full">
-                        <div className="flex flex-col mb-3">
-                          <div className="flex items-center justify-between mb-0.5">
-                            <span className="text-[10px] font-black tracking-wider text-slate-400 uppercase truncate">{tx.company || 'بدون شركة'}</span>
-                            <span className="text-[10px] font-bold text-slate-400">{tx.date || (tx.timestamp?.toDate ? formatDate(tx.timestamp.toDate()) : '')}</span>
-                          </div>
-                          <div className="flex items-center space-x-2 space-x-reverse">
-                            <h4 className="text-base font-black text-slate-800 dark:text-slate-100 leading-tight group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors truncate">{tx.item}</h4>
-                            {(hotItemsMap[tx._itemId] || 0) >= 50 && (
-                              <Flame size={16} className="text-orange-500 drop-shadow-[0_0_8px_rgba(249,115,22,0.6)] animate-[pulse_2s_ease-in-out_infinite] shrink-0" />
-                            )}
+                        <div className="flex items-start justify-between w-full mb-4">
+                          <div className="flex flex-col w-full overflow-hidden">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase truncate">{tx.company || 'بدون شركة'}</span>
+                              <span className="text-[10px] font-bold text-slate-400">{tx.date || (tx.timestamp?.toDate ? formatDate(tx.timestamp.toDate()) : '')}</span>
+                            </div>
+                            <div className="flex items-center gap-2 w-full">
+                              <h4 className="text-lg font-black text-slate-800 leading-tight group-hover:text-orange-600 transition-colors truncate tracking-tight">{tx.item}</h4>
+                              {(hotItemsMap[tx._itemId] || 0) >= 50 && (
+                                <Flame size={18} className="text-orange-500 animate-pulse shrink-0" />
+                              )}
+                            </div>
                           </div>
                         </div>
 
-                        <div className="flex items-end justify-between mt-auto">
+                        <div className="flex items-end justify-between mt-auto pt-4 border-t border-slate-50">
                           <div className="flex flex-col space-y-2">
                             {/* Recipient badge */}
                             {tx.recipient && (
-                              <div className="flex items-center text-[10px] font-bold text-slate-500 bg-slate-50 dark:bg-slate-800/50 w-max px-2 py-0.5 rounded border border-slate-100 dark:border-slate-700">
-                                <User size={10} className="mr-1 opacity-70" /> {tx.recipient}
+                              <div className="flex items-center text-[10px] font-black text-slate-500 bg-slate-50 w-max px-2.5 py-1 rounded-lg border border-slate-100">
+                                <User size={10} className="ml-1.5 opacity-60" /> {tx.recipient}
                               </div>
                             )}
                             {/* Qty badge — orange/rose for outgoing */}
-                            <span className="inline-flex items-center px-2 py-1 rounded-lg text-sm font-black bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-100 dark:border-orange-500/20 w-max">
-                              -{tx.qty} <span className="text-[10px] mr-1">{tx.unit}</span>
+                            <span className="inline-flex items-center px-4 py-1.5 rounded-xl text-sm font-black bg-orange-50 text-orange-600 border border-orange-100 w-max shadow-sm">
+                              -{tx.qty} <span className="text-[10px] font-bold mr-1 opacity-70">{tx.unit}</span>
                             </span>
                           </div>
 
                           {/* Actions Menu */}
-                          <div className="opacity-0 group-hover:opacity-100 flex space-x-1.5 space-x-reverse transition-opacity duration-300">
+                          <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all duration-300">
                             {!isViewer && (
                               <>
-                                <button onClick={(e) => { e.stopPropagation(); openEditTx(tx); }} title="تعديل" className="p-1.5 bg-white dark:bg-slate-900 rounded-lg text-slate-400 hover:text-emerald-400 shadow-sm border border-slate-100 dark:border-slate-700 hover:border-emerald-400/40 hover:shadow-[0_0_12px_rgba(52,211,153,0.35)] transition-all duration-200"><Pencil size={15} /></button>
-                                <button onClick={(e) => { e.stopPropagation(); openDeleteTx(tx); }} title="حذف" className="p-1.5 bg-white dark:bg-slate-900 rounded-lg text-slate-400 hover:text-rose-400 shadow-sm border border-slate-100 dark:border-slate-700 hover:border-rose-400/40 hover:shadow-[0_0_12px_rgba(251,113,133,0.35)] transition-all duration-200"><Trash2 size={15} /></button>
+                                <button onClick={(e) => { e.stopPropagation(); openEditTx(tx); }} title="تعديل" className="p-2.5 rounded-xl bg-white border border-slate-200 text-slate-400 hover:text-blue-500 hover:border-blue-200 hover:shadow-lg transition-all active:scale-90"><Pencil size={14} /></button>
+                                <button onClick={(e) => { e.stopPropagation(); openDeleteTx(tx); }} title="حذف" className="p-2.5 rounded-xl bg-white border border-slate-200 text-slate-400 hover:text-rose-500 hover:border-rose-200 hover:shadow-lg transition-all active:scale-90"><Trash2 size={14} /></button>
                               </>
                             )}
-                            <button onClick={(e) => { e.stopPropagation(); handleRowExportPDF(tx); }} title="تصدير PDF" className="p-1.5 bg-white dark:bg-slate-900 rounded-lg text-slate-400 hover:text-blue-400 shadow-sm border border-slate-100 dark:border-slate-700 hover:border-blue-400/40 hover:shadow-[0_0_12px_rgba(96,165,250,0.35)] transition-all duration-200"><FileText size={15} /></button>
-                            <button onClick={(e) => { e.stopPropagation(); handleRowSaveImage(tx); }} title="حفظ صورة" className="p-1.5 bg-white dark:bg-slate-900 rounded-lg text-slate-400 hover:text-violet-400 shadow-sm border border-slate-100 dark:border-slate-700 hover:border-violet-400/40 hover:shadow-[0_0_12px_rgba(167,139,250,0.35)] transition-all duration-200"><Image size={15} /></button>
+                            <button onClick={(e) => { e.stopPropagation(); handleRowExportPDF(tx); }} title="تصدير PDF" className="p-2.5 rounded-xl bg-white border border-slate-200 text-slate-400 hover:text-orange-500 hover:border-orange-200 hover:shadow-lg transition-all active:scale-90"><FileText size={14} /></button>
                           </div>
                         </div>
                       </div>
                       {/* Bottom accent — orange for outgoing */}
-                      <div className="absolute bottom-0 right-0 w-0 h-1 bg-gradient-to-r from-orange-500 to-rose-500 group-hover:w-full transition-all duration-500 ease-out"></div>
+                      <div className="absolute bottom-0 right-10 left-10 h-1 bg-gradient-to-r from-orange-500 to-rose-500 scale-x-0 group-hover:scale-x-100 transition-transform duration-500 ease-out rounded-t-full"></div>
                     </motion.div>
                   ))}
                 </div>
@@ -799,35 +811,35 @@ export default function StockOut() {
         <div className="flex flex-col gap-6">
 
           {/* Row 1: Date + Recipient */}
-          <div className="grid grid-cols-2 gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
+          <div className="grid grid-cols-2 gap-4 pb-4 border-b border-slate-100">
             <div>
-              <label className={LabelClass}>\u062a\u0627\u0631\u064a\u062e \u0627\u0644\u0625\u0630\u0646</label>
+              <label className={LabelClass}>تاريخ الإذن</label>
               <input type="date" className={InputClass} value={bulkDate} onChange={e => setBulkDate(e.target.value)} required />
             </div>
             <div>
-              <label className={LabelClass}>\u0627\u0633\u0645 \u0627\u0644\u0645\u0633\u062a\u0644\u0645 / \u0627\u0644\u0645\u0646\u062f\u0648\u0628 <span className="text-rose-500">*</span></label>
+              <label className={LabelClass}>اسم المستلم / المندوب <span className="text-rose-500">*</span></label>
               <div className="relative">
                 <User size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 z-10" />
-                <input type="text" className={`${InputClass} pr-10`} placeholder="\u0645\u062b\u0627\u0644: \u0623\u062d\u0645\u062f \u0645\u062d\u0645\u062f..." value={bulkRecipient} onChange={e => setBulkRecipient(e.target.value)} required />
+                <input type="text" className={`${InputClass} pr-10`} placeholder="مثال: أحمد محمد..." value={bulkRecipient} onChange={e => setBulkRecipient(e.target.value)} required />
               </div>
             </div>
           </div>
 
           {/* Row 2: 4-col Entry Grid */}
-          <div className="bg-orange-50/50 dark:bg-slate-800/40 border border-orange-200/60 dark:border-slate-700/80 rounded-2xl p-4 flex flex-col gap-3 relative z-30">
-            <p className="text-[11px] font-black text-orange-400 dark:text-orange-500/70 uppercase tracking-widest">\u0625\u0636\u0627\u0641\u0629 \u0635\u0646\u0641 \u0644\u0644\u0635\u0631\u0641</p>
+          <div className="bg-orange-50/50 border border-orange-200/60 rounded-2xl p-4 flex flex-col gap-3 relative z-30">
+            <p className="text-[11px] font-black text-orange-400 uppercase tracking-widest">إضافة صنف للصرف</p>
             <div className="grid grid-cols-12 gap-3 items-end">
               <div className="col-span-6 relative group/findItem">
-                <label className={LabelClass}>\u0627\u0633\u0645 \u0627\u0644\u0635\u0646\u0641</label>
+                <label className={LabelClass}>اسم الصنف</label>
                 <div className="relative">
                   <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 z-10" />
                   {selectedItemModel ? (
-                    <div className="flex items-center justify-between w-full bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/30 text-orange-800 dark:text-orange-300 text-sm font-bold rounded-xl px-3 py-2.5">
+                    <div className="flex items-center justify-between w-full bg-orange-50 border border-orange-200 text-orange-800 text-sm font-bold rounded-xl px-3 py-2.5">
                       <span className="truncate text-xs">{selectedItemModel.name}</span>
                       <button type="button" onClick={handleClearDynamicRow} className="text-orange-400 hover:text-orange-600 shrink-0"><X size={13} /></button>
                     </div>
                   ) : (
-                    <input ref={itemNameRef} type="text" className={`${InputClass} pr-9 text-sm`} placeholder="\u0627\u0628\u062d\u062b \u0639\u0646 \u0627\u0644\u0635\u0646\u0641..."
+                    <input ref={itemNameRef} type="text" className={`${InputClass} pr-9 text-sm`} placeholder="ابحث عن الصنف..."
                       value={searchNameText} onChange={e => { setSearchNameText(e.target.value); setItemSearchActiveIndex(-1); }}
                       onKeyDown={(e) => {
                         if (e.key === 'ArrowDown') { e.preventDefault(); setItemSearchActiveIndex(p => p < itemSuggestions.length - 1 ? p + 1 : p); }
@@ -837,29 +849,29 @@ export default function StockOut() {
                   )}
                 </div>
                 {!selectedItemModel && searchNameText && itemSuggestions.length > 0 && (
-                  <div className="absolute top-full right-0 w-full max-h-48 overflow-y-auto bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-100 dark:border-slate-700 z-50 p-1 mt-1">
+                  <div className="absolute top-full right-0 w-full max-h-48 overflow-y-auto bg-white rounded-xl shadow-2xl border border-slate-100 z-50 p-1 mt-1">
                     {itemSuggestions.map((s, idx) => (
                       <button key={s.id} type="button" onMouseDown={(e) => { e.preventDefault(); handleSelectSuggestion(s); }}
-                        className={`w-full text-right px-3 py-2 border-b border-slate-50 dark:border-slate-700/60 last:border-0 text-sm flex flex-col items-start transition-colors ${itemSearchActiveIndex === idx ? 'bg-orange-50 dark:bg-orange-500/20 text-orange-700' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50'}`}>
+                        className={`w-full text-right px-3 py-2 border-b border-slate-50 last:border-0 text-sm flex flex-col items-start transition-colors ${itemSearchActiveIndex === idx ? 'bg-orange-50 text-orange-700' : 'text-slate-700 hover:bg-slate-50'}`}>
                         <span className="font-black text-xs">{s.name}</span>
-                        <span className="text-[10px] opacity-70 font-bold">{s.company || '\u0628\u062f\u0648\u0646 \u0634\u0631\u0643\u0629'} \u2022 {s.cat} \u2022 \u0631\u0635\u064a\u062f: {s.stockQty ?? '\u2014'}</span>
+                        <span className="text-[10px] opacity-70 font-bold">{s.company || 'بدون شركة'} • {s.cat} • رصيد: {s.stockQty ?? '—'}</span>
                       </button>
                     ))}
                   </div>
                 )}
               </div>
               <div className="col-span-2">
-                <label className={LabelClass}>\u0627\u0644\u0634\u0631\u0643\u0629</label>
-                <input type="text" className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent text-slate-500 dark:text-slate-400 text-xs font-bold rounded-xl px-3 py-2.5 outline-none cursor-not-allowed truncate" readOnly value={selectedItemModel?.company || '---'} />
+                <label className={LabelClass}>الشركة</label>
+                <input type="text" className="w-full bg-slate-100 border border-transparent text-slate-500 text-xs font-bold rounded-xl px-3 py-2.5 outline-none cursor-not-allowed truncate" readOnly value={selectedItemModel?.company || '---'} />
               </div>
               <div className="col-span-2">
-                <label className={LabelClass}>\u0627\u0644\u0648\u062d\u062f\u0629</label>
-                <input type="text" className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent text-slate-500 dark:text-slate-400 text-xs font-bold rounded-xl px-3 py-2.5 outline-none cursor-not-allowed text-center" readOnly value={selectedItemModel?.unit || '\u0643\u0631\u062a\u0648\u0646\u0629'} />
+                <label className={LabelClass}>الوحدة</label>
+                <input type="text" className="w-full bg-slate-100 border border-transparent text-slate-500 text-xs font-bold rounded-xl px-3 py-2.5 outline-none cursor-not-allowed text-center" readOnly value={selectedItemModel?.unit || 'كرتونة'} />
               </div>
               <div className="col-span-2">
-                <label className={LabelClass}>\u0627\u0644\u0643\u0645\u064a\u0629 <span className="text-orange-500">\u21b5</span></label>
+                <label className={LabelClass}>الكمية <span className="text-orange-500">↵</span></label>
                 <input id="stock-out-qty-input" type="number" min="1"
-                  className={`${InputClass} !border-orange-500/60 focus:!ring-orange-500/30 text-orange-700 dark:text-orange-400 font-bold text-center`}
+                  className={`${InputClass} !border-orange-500/60 focus:!ring-orange-500/30 text-orange-700 font-bold text-center`}
                   placeholder="0" disabled={!selectedItemModel} value={draftQty}
                   onChange={e => setDraftQty(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handlePushToDraft(); } }} />
@@ -868,39 +880,39 @@ export default function StockOut() {
           </div>
 
           {/* Row 3: Review Table */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden flex flex-col shadow-inner">
-            <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800/80 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between shrink-0">
-              <h4 className="text-sm font-black text-slate-700 dark:text-slate-300">\u0645\u0631\u0627\u062c\u0639\u0629 \u0627\u0644\u0623\u0633\u0637\u0631</h4>
-              <span className="text-xs font-bold bg-white dark:bg-slate-700 px-3 py-1 rounded-full text-orange-600 dark:text-orange-400 border border-slate-200 dark:border-slate-600 shadow-sm">{modalDrafts.length} \u0623\u0635\u0646\u0627\u0641 \u0645\u064f\u0639\u062f\u0651\u0629 \u0644\u0644\u0635\u0631\u0641</span>
+          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden flex flex-col shadow-inner">
+            <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between shrink-0">
+              <h4 className="text-sm font-black text-slate-700">مراجعة الأسطر</h4>
+              <span className="text-xs font-bold bg-white px-3 py-1 rounded-full text-orange-600 border border-slate-200 shadow-sm">{modalDrafts.length} أصناف مُعدّة للصرف</span>
             </div>
             <div className="max-h-[260px] overflow-y-auto px-2 custom-scrollbar">
               {modalDrafts.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-10 text-slate-400 dark:text-slate-600 opacity-60">
+                <div className="flex flex-col items-center justify-center py-10 text-slate-400 opacity-60">
                   <CheckCircle size={32} className="mb-2" />
-                  <span className="font-bold text-sm">\u0627\u0628\u062d\u062b \u0639\u0646 \u0635\u0646\u0641 \u0628\u0627\u0644\u0623\u0639\u0644\u0649 \u062b\u0645 \u0623\u062f\u062e\u0644 \u0627\u0644\u0643\u0645\u064a\u0629 \u0627\u0644\u0645\u0631\u0627\u062f \u0635\u0631\u0641\u0647\u0627.</span>
+                  <span className="font-bold text-sm">ابحث عن صنف بالأعلى ثم أدخل الكمية المراد صرفها.</span>
                 </div>
               ) : (
-                <div className="w-full overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700 mt-2">
+                <div className="w-full overflow-x-auto rounded-lg border border-slate-200 mt-2">
                   <table className="w-full min-w-[640px] text-right border-separate border-spacing-y-2">
                     <thead>
-                    <tr className="text-slate-400 dark:text-slate-500 font-black text-xs text-center">
-                      <th className="px-2 py-1">\u0645</th><th className="px-3 py-1 text-right">\u0627\u0644\u0635\u0646\u0641</th><th className="px-3 py-1 text-right">\u0627\u0644\u0634\u0631\u0643\u0629</th>
-                      <th className="px-2 py-1">\u0627\u0644\u0642\u0633\u0645</th><th className="px-2 py-1 text-orange-500">\u0627\u0644\u0643\u0645\u064a\u0629</th><th className="px-2 py-1">\u0627\u0644\u0648\u062d\u062f\u0629</th><th className="px-2 py-1 text-center">\u062d\u0630\u0641</th>
+                    <tr className="text-slate-400 font-black text-xs text-center">
+                      <th className="px-2 py-1">م</th><th className="px-3 py-1 text-right">الصنف</th><th className="px-3 py-1 text-right">الشركة</th>
+                      <th className="px-2 py-1">القسم</th><th className="px-2 py-1 text-orange-500">الكمية</th><th className="px-2 py-1">الوحدة</th><th className="px-2 py-1 text-center">حذف</th>
                     </tr>
                   </thead>
                   <tbody>
                     <AnimatePresence>
                       {modalDrafts.map((dr, index) => (
                         <motion.tr key={dr.draftId} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, scale: 0.95 }}
-                          className="bg-slate-50 dark:bg-slate-800/40 text-sm font-bold hover:bg-white dark:hover:bg-slate-800 transition-all">
-                          <td className="px-2 py-3 text-center text-slate-400 rounded-r-xl border-y border-r border-slate-200 dark:border-slate-700">{index + 1}</td>
-                          <td className="px-3 py-3 text-slate-800 dark:text-slate-200 border-y border-slate-200 dark:border-slate-700">{dr.item}</td>
-                          <td className="px-3 py-3 text-slate-600 dark:text-slate-400 text-xs border-y border-slate-200 dark:border-slate-700">{dr.company}</td>
-                          <td className="px-2 py-3 text-center text-orange-500 dark:text-orange-400 text-xs border-y border-slate-200 dark:border-slate-700">{dr.cat}</td>
-                          <td className="px-2 py-3 text-center border-y border-slate-200 dark:border-slate-700"><span className="bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-400 px-3 py-1 rounded inline-block">-{dr.qty}</span></td>
-                          <td className="px-2 py-3 text-center text-slate-500 text-xs border-y border-slate-200 dark:border-slate-700">{dr.unit}</td>
-                          <td className="px-2 py-3 text-center rounded-l-xl border-y border-l border-slate-200 dark:border-slate-700">
-                            <button onClick={() => setModalDrafts(prev => prev.filter(d => d.draftId !== dr.draftId))} className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors mx-auto block">
+                          className="bg-slate-50 text-sm font-bold hover:bg-white transition-all">
+                          <td className="px-2 py-3 text-center text-slate-400 rounded-r-xl border-y border-r border-slate-200">{index + 1}</td>
+                          <td className="px-3 py-3 text-slate-800 border-y border-slate-200">{dr.item}</td>
+                          <td className="px-3 py-3 text-slate-600 text-xs border-y border-slate-200">{dr.company}</td>
+                          <td className="px-2 py-3 text-center text-orange-500 text-xs border-y border-slate-200">{dr.cat}</td>
+                          <td className="px-2 py-3 text-center border-y border-slate-200"><span className="bg-orange-100 text-orange-700 px-3 py-1 rounded inline-block">-{dr.qty}</span></td>
+                          <td className="px-2 py-3 text-center text-slate-500 text-xs border-y border-slate-200">{dr.unit}</td>
+                          <td className="px-2 py-3 text-center rounded-l-xl border-y border-l border-slate-200">
+                            <button onClick={() => setModalDrafts(prev => prev.filter(d => d.draftId !== dr.draftId))} className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors mx-auto block">
                               <X size={16} className="stroke-[3]" />
                             </button>
                           </td>

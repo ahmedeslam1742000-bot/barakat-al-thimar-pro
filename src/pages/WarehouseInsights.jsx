@@ -34,14 +34,14 @@ const fmtTime = (ts) => {
 };
 
 const TX_META = {
-  'وارد':              { label: 'وارد',       icon: TrendingUp,   cls: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30' },
-  'صادر':              { label: 'صادر',       icon: TrendingDown, cls: 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-500/30' },
-  'مرتجع':             { label: 'مرتجع',      icon: RotateCcw,    cls: 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-500/30' },
-  'سند إدخال صوري':    { label: 'إدخال سند',  icon: FileText,     cls: 'bg-teal-50 dark:bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-200 dark:border-teal-500/30' },
-  'سند إخراج صوري':    { label: 'إخراج سند',  icon: FileText,     cls: 'bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-500/30' },
+  'وارد':              { label: 'وارد',       icon: TrendingUp,   cls: 'bg-emerald-50 text-emerald-600 border-emerald-200' },
+  'صادر':              { label: 'صادر',       icon: TrendingDown, cls: 'bg-orange-50 text-orange-600 border-orange-200' },
+  'مرتجع':             { label: 'مرتجع',      icon: RotateCcw,    cls: 'bg-amber-50 text-amber-600 border-amber-200' },
+  'سند إدخال صوري':    { label: 'إدخال سند',  icon: FileText,     cls: 'bg-teal-50 text-teal-600 border-teal-200' },
+  'سند إخراج صوري':    { label: 'إخراج سند',  icon: FileText,     cls: 'bg-purple-50 text-purple-600 border-purple-200' },
 };
 const getTxMeta = (type) =>
-  TX_META[type] || { label: type || '—', icon: Package, cls: 'bg-slate-50 dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700' };
+  TX_META[type] || { label: type || '—', icon: Package, cls: 'bg-slate-50 text-slate-500 border-slate-200' };
 
 // ─── Root Component ──────────────────────────────────────────────────────────
 export default function WarehouseInsights() {
@@ -69,41 +69,39 @@ export default function WarehouseInsights() {
   ];
 
   return (
-    <div className="h-full w-full flex flex-col gap-4 font-['Cairo']" dir="rtl">
+    <div className="h-full w-full flex flex-col gap-6 animate-in fade-in duration-500 font-readex" dir="rtl">
 
       {/* ── Page header ── */}
-      <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border border-slate-200/60 dark:border-slate-700/60 shadow-sm rounded-[2rem] p-4 sm:p-5 shrink-0">
-        <div className="flex items-start gap-4 mb-4">
-          <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-500/25 shrink-0">
-            <Eye size={22} />
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+        <div className="flex items-center gap-5">
+          <div className="w-16 h-16 bg-gradient-to-br from-indigo-600 to-violet-700 rounded-[1.25rem] flex items-center justify-center text-white shadow-xl shadow-indigo-500/20 shrink-0">
+            <Eye size={32} />
           </div>
-          <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <h2 className="text-xl font-black text-slate-800 dark:text-white">نظرة المستودع</h2>
-              <span className="flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30">
-                <Lock size={9} /> قراءة فقط
+          <div>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-black text-slate-800 tracking-tight">نظرة المستودع</h1>
+              <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-600 text-[10px] font-black border border-emerald-100 shadow-sm">
+                <Lock size={12} /> وضع القراءة
               </span>
             </div>
-            <p className="text-xs font-bold text-slate-400 dark:text-slate-500 mt-0.5">
-              عرض داخلي للأمين — لا يؤثر على أرصدة المخزن أو البيانات المالية
-            </p>
+            <p className="text-slate-400 mt-1 font-bold text-sm">عرض داخلي للأمين — لا يؤثر على الأرصدة أو البيانات المالية</p>
           </div>
         </div>
 
         {/* Tab pills */}
-        <div className="flex gap-1.5 bg-slate-100/80 dark:bg-slate-900/50 p-1 rounded-2xl w-fit flex-wrap">
+        <div className="flex gap-1.5 bg-slate-100/50 p-1.5 rounded-2xl w-fit flex-wrap border border-slate-200/50">
           {TABS.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
               type="button"
               onClick={() => setTab(id)}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-bold text-sm transition-all ${
+              className={`flex items-center gap-2.5 px-6 py-3 rounded-xl font-black text-sm transition-all duration-300 ${
                 tab === id
-                  ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm border border-slate-200/80 dark:border-slate-700'
-                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                  ? 'bg-white text-indigo-600 shadow-lg shadow-indigo-500/5 border border-slate-200'
+                  : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'
               }`}
             >
-              <Icon size={14} />
+              <Icon size={18} className={tab === id ? 'text-indigo-600' : 'text-slate-400'} />
               {label}
             </button>
           ))}
@@ -111,7 +109,7 @@ export default function WarehouseInsights() {
       </div>
 
       {/* ── Tab content area ── */}
-      <div className="flex-1 min-h-0 overflow-hidden">
+      <div className="flex-1 min-h-0">
         <AnimatePresence mode="wait">
           {tab === 'daily'   && <Slide key="daily">   <DailyLog   transactions={transactions} /> </Slide>}
           {tab === 'notepad' && <Slide key="notepad"> <Notepad /> </Slide>}
@@ -179,104 +177,113 @@ function DailyLog({ transactions }) {
   }, [rows]);
 
   return (
-    <div className="h-full flex flex-col gap-3 overflow-hidden">
+    <div className="h-full flex flex-col gap-6 overflow-hidden">
 
       {/* Read-only notice */}
-      <ReadOnlyBadge text="البيانات أدناه للعرض فقط — لا توجد أي عمليات كتابة" />
+      <ReadOnlyBadge text="البيانات أدناه للعرض والتدقيق اليومي فقط — لا توجد أي عمليات كتابة أو تعديل" />
 
       {/* Stats bar */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 shrink-0">
-        <MiniStat label="إجمالي العمليات" value={summary.total}  color="indigo" />
-        <MiniStat label="وارد (وحدة)"     value={summary.inQty}  color="emerald" />
-        <MiniStat label="صادر (وحدة)"     value={summary.outQty} color="blue" />
-        <MiniStat label="مرتجع (وحدة)"    value={summary.retQty} color="amber" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 shrink-0">
+        <MiniStat label="إجمالي العمليات" value={summary.total}  color="indigo" icon={Activity} />
+        <MiniStat label="إجمالي الوارد"     value={summary.inQty}  color="emerald" icon={TrendingUp} />
+        <MiniStat label="إجمالي الصادر"     value={summary.outQty} color="orange" icon={TrendingDown} />
+        <MiniStat label="إجمالي المرتجع"    value={summary.retQty} color="amber" icon={RotateCcw} />
       </div>
 
       {/* Filter row */}
-      <div className="shrink-0 flex flex-wrap gap-2 items-center bg-white/60 dark:bg-slate-800/40 backdrop-blur-xl border border-slate-200/60 dark:border-slate-700/50 rounded-2xl px-3 py-2">
-        <Calendar size={14} className="text-slate-400 shrink-0" />
-        <input
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          className="bg-transparent text-sm font-bold text-slate-700 dark:text-slate-200 outline-none"
-        />
-        <span className="w-px h-4 bg-slate-200 dark:bg-slate-700" />
-        <select
-          value={typeF}
-          onChange={(e) => setTypeF(e.target.value)}
-          className="bg-transparent text-sm font-bold text-slate-600 dark:text-slate-300 outline-none"
-        >
-          <option value="all">كل الأنواع</option>
-          <option value="وارد">وارد</option>
-          <option value="صادر">صادر</option>
-          <option value="مرتجع">مرتجع</option>
-          <option value="سند إدخال صوري">سند إدخال</option>
-          <option value="سند إخراج صوري">سند إخراج</option>
-        </select>
-        <span className="w-px h-4 bg-slate-200 dark:bg-slate-700" />
-        <div className="flex items-center gap-1.5 flex-1 min-w-[120px]">
-          <Search size={13} className="text-slate-400 shrink-0" />
+      <div className="bg-white border border-slate-100 p-5 rounded-[2rem] flex flex-col md:flex-row md:items-center gap-4 shrink-0 shadow-sm">
+        <div className="flex items-center gap-3 bg-slate-100/50 px-4 py-3 rounded-2xl border border-slate-200/50 flex-1 md:flex-none md:min-w-[200px]">
+          <Calendar size={18} className="text-slate-400 shrink-0" />
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="bg-transparent text-sm font-black text-slate-800 outline-none w-full"
+          />
+        </div>
+
+        <div className="flex items-center gap-3 bg-slate-100/50 px-4 py-3 rounded-2xl border border-slate-200/50 flex-1 md:flex-none md:min-w-[200px]">
+          <Filter size={18} className="text-slate-400 shrink-0" />
+          <select
+            value={typeF}
+            onChange={(e) => setTypeF(e.target.value)}
+            className="bg-transparent text-sm font-black text-slate-800 outline-none w-full cursor-pointer appearance-none"
+          >
+            <option value="all">جميع أنواع العمليات</option>
+            <option value="وارد">عمليات الوارد</option>
+            <option value="صادر">عمليات الصادر</option>
+            <option value="مرتجع">عمليات المرتجع</option>
+            <option value="سند إدخال صوري">سندات الإدخال</option>
+            <option value="سند إخراج صوري">سندات الإخراج</option>
+          </select>
+        </div>
+
+        <div className="relative flex-1 group">
+          <Search size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="بحث عن صنف..."
-            className="bg-transparent text-sm font-bold text-slate-700 dark:text-slate-200 outline-none w-full placeholder:text-slate-400 placeholder:font-normal"
+            placeholder="ابحث عن صنف أو شركة..."
+            className="w-full bg-slate-100/50 border border-slate-200/50 text-slate-800 font-black text-sm rounded-2xl pr-11 pl-4 py-3 outline-none focus:bg-white focus:border-indigo-500/20 focus:ring-4 focus:ring-indigo-500/5 transition-all shadow-inner"
           />
         </div>
+
         <button
           type="button"
           onClick={() => { setDate(todayISO()); setTypeF('all'); setSearch(''); }}
-          className="text-xs font-bold text-slate-400 hover:text-indigo-500 transition-colors"
+          className="text-xs font-black text-slate-400 hover:text-indigo-600 transition-colors py-3 px-5 rounded-2xl hover:bg-indigo-50 border border-transparent hover:border-indigo-100"
         >
           إعادة ضبط
         </button>
       </div>
 
-      {/* Table */}
-      <div className="flex-1 min-h-0 overflow-hidden bg-white/60 dark:bg-slate-800/40 backdrop-blur-xl border border-slate-200/60 dark:border-slate-700/50 rounded-2xl shadow-inner">
+      {/* Table Area */}
+      <div className="bg-white border border-slate-100 rounded-[2rem] overflow-hidden flex flex-col flex-1 shadow-sm">
         <div className="h-full overflow-x-auto overflow-y-auto custom-scrollbar">
           {rows.length === 0 ? (
-            <EmptyState icon={Activity} title="لا توجد عمليات" sub="حاول تغيير التاريخ أو الفلتر" />
+            <EmptyState icon={Activity} title="لا توجد عمليات مسجلة" sub="حاول تغيير معايير البحث أو التاريخ المختار" />
           ) : (
-            <table className="w-full min-w-[640px] text-right text-sm whitespace-nowrap">
+            <table className="w-full text-right text-sm whitespace-nowrap border-separate border-spacing-0">
               <thead className="sticky top-0 z-10">
-                <tr className="bg-slate-50/95 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-700 text-xs font-black text-slate-400 dark:text-slate-500">
-                  <th className="px-4 py-3">الوقت</th>
-                  <th className="px-4 py-3">النوع</th>
-                  <th className="px-4 py-3">الصنف</th>
-                  <th className="px-4 py-3">الشركة</th>
-                  <th className="px-4 py-3 text-center">الكمية</th>
-                  <th className="px-4 py-3">الوحدة</th>
-                  <th className="px-4 py-3">ملاحظة</th>
+                <tr className="bg-slate-50/95 backdrop-blur-md border-b border-slate-100 text-slate-500 font-black uppercase tracking-wider text-[11px]">
+                  <th className="px-8 py-5 rounded-tr-[2rem]">الوقت</th>
+                  <th className="px-6 py-5">النوع</th>
+                  <th className="px-6 py-5">الصنف والمواصفات</th>
+                  <th className="px-6 py-5 text-center">الكمية</th>
+                  <th className="px-6 py-5">الوحدة</th>
+                  <th className="px-8 py-5 rounded-tl-[2rem]">ملاحظات العملية</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50 dark:divide-slate-800/80">
+              <tbody className="divide-y divide-slate-50">
                 {rows.map((tx) => {
                   const m = getTxMeta(tx.type);
                   const Icon = m.icon;
                   return (
-                    <tr key={tx.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
-                      <td className="px-4 py-2.5">
-                        <span className="flex items-center gap-1 text-xs text-slate-400">
-                          <Clock size={10} />
-                          <span dir="ltr">{fmtTime(tx.timestamp)}</span>
+                    <tr key={tx.id} className="hover:bg-slate-50/80 transition-all duration-300 group">
+                      <td className="px-8 py-5">
+                        <span className="flex items-center gap-2.5 text-xs font-black text-slate-400 group-hover:text-slate-600 transition-colors">
+                          <Clock size={14} className="opacity-70" />
+                          <span dir="ltr" className="tracking-tight">{fmtTime(tx.timestamp)}</span>
                         </span>
                       </td>
-                      <td className="px-4 py-2.5">
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-black border ${m.cls}`}>
-                          <Icon size={10} />
+                      <td className="px-6 py-5">
+                        <span className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-black border shadow-sm ${m.cls}`}>
+                          <Icon size={12} />
                           {m.label}
                         </span>
                       </td>
-                      <td className="px-4 py-2.5 font-bold text-slate-800 dark:text-slate-100 max-w-[160px] truncate">{tx.item || '—'}</td>
-                      <td className="px-4 py-2.5 text-xs text-slate-500 dark:text-slate-400">{tx.company || '—'}</td>
-                      <td className="px-4 py-2.5 text-center">
-                        <span className={`px-2 py-0.5 rounded-lg font-black text-xs inline-block ${m.cls}`}>{tx.qty ?? '—'}</span>
+                      <td className="px-6 py-5">
+                        <div className="flex flex-col">
+                          <span className="font-black text-slate-800 group-hover:text-indigo-600 transition-colors tracking-tight text-base">{tx.item || '—'}</span>
+                          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{tx.company || '—'}</span>
+                        </div>
                       </td>
-                      <td className="px-4 py-2.5 text-xs text-slate-500 dark:text-slate-400">{tx.unit || '—'}</td>
-                      <td className="px-4 py-2.5 text-xs text-slate-400 max-w-[130px] truncate">
+                      <td className="px-6 py-5 text-center">
+                        <span className={`inline-flex items-center justify-center min-w-[50px] px-3 py-1.5 rounded-xl font-black text-sm shadow-sm ${m.cls}`}>{tx.qty ?? '—'}</span>
+                      </td>
+                      <td className="px-6 py-5 font-black text-slate-500 text-xs">{tx.unit || '—'}</td>
+                      <td className="px-8 py-5 text-[11px] font-bold text-slate-400 max-w-[250px] truncate italic group-hover:text-slate-600 transition-colors">
                         {tx.lineNote || tx.note || tx.supplyNotes || '—'}
                       </td>
                     </tr>
@@ -296,11 +303,11 @@ function DailyLog({ transactions }) {
 // ═══════════════════════════════════════════════════════
 const NOTE_TAGS = ['نقص', 'تلف', 'مشكوك فيه', 'للمراجعة', 'عادي'];
 const TAG_COLORS = {
-  'نقص':         'bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-500/30',
-  'تلف':         'bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-500/30',
-  'مشكوك فيه':  'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-500/30',
-  'للمراجعة':   'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-500/30',
-  'عادي':        'bg-slate-50 dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700',
+  'نقص':         'bg-rose-50 text-rose-600 border-rose-200',
+  'تلف':         'bg-orange-50 text-orange-600 border-orange-200',
+  'مشكوك فيه':  'bg-amber-50 text-amber-600 border-amber-200',
+  'للمراجعة':   'bg-blue-50 text-blue-600 border-blue-200',
+  'عادي':        'bg-slate-50 text-slate-500 border-slate-200',
 };
 
 function Notepad() {
@@ -354,21 +361,21 @@ function Notepad() {
   };
 
   return (
-    <div className="h-full flex flex-col gap-3 overflow-hidden">
+    <div className="h-full flex flex-col gap-6 overflow-hidden">
 
       {/* Local-only badge */}
-      <div className="shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-500/30">
-        <ShieldCheck size={15} className="text-violet-500 shrink-0" />
-        <p className="text-xs font-bold text-violet-700 dark:text-violet-300">
-          هذه المذكرة <strong>محلية تماماً</strong> — تُحفظ في المتصفح فقط ولا تُعدِّل أي رصيد في قاعدة البيانات
+      <div className="shrink-0 flex items-center gap-4 px-6 py-4 rounded-[1.5rem] bg-violet-50 border border-violet-100 shadow-sm shadow-violet-500/5">
+        <ShieldCheck size={20} className="text-violet-500 shrink-0" />
+        <p className="text-sm font-black text-violet-800 leading-relaxed tracking-tight">
+          هذه المذكرة <span className="underline decoration-violet-300 decoration-2 underline-offset-4">محلية تماماً</span> — تُحفظ في متصفحك فقط لمساعدتك في المتابعة اليومية.
         </p>
       </div>
 
       {/* Input box */}
-      <div className="shrink-0 bg-white/80 dark:bg-slate-800/60 backdrop-blur-xl border border-slate-200/60 dark:border-slate-700/50 rounded-2xl p-4 space-y-3">
-        <div className="flex items-center gap-2 mb-1">
-          <StickyNote size={14} className="text-violet-500" />
-          <span className="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider">ملاحظة جديدة</span>
+      <div className="bg-white border border-slate-100 rounded-[2rem] p-6 space-y-5 shrink-0 shadow-sm">
+        <div className="flex items-center gap-3">
+          <StickyNote size={20} className="text-violet-500" />
+          <span className="text-sm font-black text-slate-800 uppercase tracking-widest">تدوين ملاحظة سريعة</span>
         </div>
         <textarea
           ref={textareaRef}
@@ -376,100 +383,101 @@ function Notepad() {
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) addNote(); }}
           rows={3}
-          placeholder="مثال: وجدت 3 زجاجات زيت مكسورة في الرف 4 ... أو: رصيد الدقيق يبدو أقل من النظام"
-          className="w-full bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 text-sm font-bold rounded-xl px-3 py-2.5 outline-none resize-none placeholder:font-normal placeholder:text-slate-400 focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all"
+          placeholder="مثال: وجدت 3 كراتين تالفة في الرف العلوي ... أو: رصيد الصنف X يحتاج مراجعة"
+          className="w-full bg-slate-50 border-2 border-slate-100 text-slate-800 text-base font-black rounded-2xl px-5 py-4 outline-none resize-none placeholder:font-normal placeholder:text-slate-400 focus:border-violet-500/30 focus:bg-white transition-all shadow-inner"
         />
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center justify-between gap-6 flex-wrap">
           {/* Tag selector */}
-          <div className="flex gap-1.5 flex-wrap">
+          <div className="flex gap-2 flex-wrap">
             {NOTE_TAGS.map((t) => (
               <button
                 key={t}
                 type="button"
                 onClick={() => setDraftTag(t)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-black border transition-all ${
+                className={`px-5 py-2 rounded-xl text-[11px] font-black border-2 transition-all duration-300 ${
                   draftTag === t
-                    ? TAG_COLORS[t] + ' ring-2 ring-offset-1 ring-violet-400/50'
-                    : 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600'
+                    ? TAG_COLORS[t] + ' border-current shadow-lg shadow-violet-500/10 scale-105'
+                    : 'border-slate-50 text-slate-400 hover:border-slate-200 hover:text-slate-600'
                 }`}
               >
                 {t}
               </button>
             ))}
           </div>
-          <div className="flex-1" />
-          <span className="text-[10px] text-slate-400 hidden sm:block">Ctrl+Enter لإضافة سريعة</span>
-          <button
-            type="button"
-            onClick={addNote}
-            disabled={!draft.trim()}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 text-white text-sm font-black shadow-lg shadow-violet-500/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-40 disabled:pointer-events-none"
-          >
-            <Plus size={14} />
-            إضافة
-          </button>
+          <div className="flex items-center gap-5">
+            <span className="text-[10px] font-black text-slate-400 hidden sm:block italic tracking-widest">Ctrl + Enter للحفظ</span>
+            <button
+              type="button"
+              onClick={addNote}
+              disabled={!draft.trim()}
+              className="px-8 py-3.5 rounded-2xl font-black text-sm text-white bg-gradient-to-br from-violet-600 to-indigo-700 shadow-xl shadow-violet-500/25 hover:scale-[1.02] active:scale-95 transition-all flex items-center gap-2.5 disabled:opacity-40 disabled:grayscale"
+            >
+              <Plus size={20} />
+              حفظ الملاحظة
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Search + clear */}
-      {notes.length > 0 && (
-        <div className="shrink-0 flex items-center gap-3">
-          <div className="flex items-center gap-2 flex-1 bg-white/60 dark:bg-slate-800/40 backdrop-blur-xl border border-slate-200/60 dark:border-slate-700/50 rounded-xl px-3 py-2">
-            <Search size={13} className="text-slate-400 shrink-0" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="بحث في الملاحظات..."
-              className="bg-transparent text-sm font-bold text-slate-700 dark:text-slate-200 outline-none w-full placeholder:text-slate-400 placeholder:font-normal"
-            />
-          </div>
-          <span className="text-xs font-bold text-slate-400 shrink-0">{notes.length} ملاحظة</span>
-          <button
-            type="button"
-            onClick={clearAll}
-            className="text-xs font-bold text-slate-400 hover:text-rose-500 transition-colors px-2 py-1 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-500/10 shrink-0"
-          >
-            مسح الكل
-          </button>
+      {/* Search + List Header */}
+      <div className="flex items-center gap-4 shrink-0">
+        <div className="relative flex-1 group">
+          <Search size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-violet-600 transition-colors" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="بحث في الملاحظات المدونة..."
+            className="w-full bg-white border border-slate-100 text-slate-800 font-black text-sm rounded-2xl pr-11 pl-4 py-3 outline-none focus:ring-4 focus:ring-violet-500/5 focus:border-violet-500/20 transition-all shadow-sm"
+          />
         </div>
-      )}
+        <button
+          type="button"
+          onClick={clearAll}
+          disabled={notes.length === 0}
+          className="text-[10px] font-black text-rose-500 hover:bg-rose-50 px-5 py-3 rounded-xl border border-transparent hover:border-rose-100 transition-all disabled:opacity-0"
+        >
+          حذف الكل
+        </button>
+      </div>
 
       {/* Notes list */}
-      <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-2 pb-2">
+      <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-4 pb-8">
         {filtered.length === 0 ? (
           <EmptyState
             icon={StickyNote}
-            title={notes.length === 0 ? 'لا توجد ملاحظات بعد' : 'لا نتائج مطابقة'}
-            sub={notes.length === 0 ? 'اكتب ملاحظتك في الحقل أعلاه' : 'حاول تغيير مصطلح البحث'}
+            title={notes.length === 0 ? 'مذكرتك فارغة حالياً' : 'لم نجد ملاحظات تطابق بحثك'}
+            sub={notes.length === 0 ? 'ابدأ بتدوين الملاحظات اليومية لمتابعتها لاحقاً' : 'جرب استخدام كلمات بحث مختلفة'}
           />
         ) : (
           <AnimatePresence>
             {filtered.map((note) => (
               <motion.div
                 key={note.id}
-                initial={{ opacity: 0, y: -8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, x: 20, height: 0 }}
-                transition={{ duration: 0.15 }}
-                className="bg-white/80 dark:bg-slate-800/60 backdrop-blur-xl border border-slate-200/60 dark:border-slate-700/50 rounded-2xl px-4 py-3 flex items-start gap-3 group"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, x: 20 }}
+                className="bg-white border border-slate-100 rounded-[2rem] p-6 flex items-start gap-5 group hover:shadow-xl hover:shadow-slate-200/50 hover:border-violet-200 transition-all duration-500"
               >
-                {/* Tag dot */}
-                <span className={`mt-0.5 shrink-0 px-2 py-0.5 rounded-lg text-[10px] font-black border ${TAG_COLORS[note.tag] || TAG_COLORS['عادي']}`}>
+                {/* Tag Badge */}
+                <span className={`shrink-0 px-4 py-1.5 rounded-full text-[10px] font-black border shadow-sm ${TAG_COLORS[note.tag] || TAG_COLORS['عادي']}`}>
                   {note.tag}
                 </span>
-                {/* Text */}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-slate-700 dark:text-slate-200 whitespace-pre-wrap break-words">{note.text}</p>
-                  <p className="text-[10px] text-slate-400 mt-1">{fmtNoteDate(note.createdAt)}</p>
+                {/* Text Content */}
+                <div className="flex-1 min-w-0 space-y-3">
+                  <p className="text-lg font-black text-slate-800 whitespace-pre-wrap leading-relaxed tracking-tight group-hover:text-violet-700 transition-colors">{note.text}</p>
+                  <div className="flex items-center gap-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                    <Clock size={12} className="opacity-70" />
+                    <span>{fmtNoteDate(note.createdAt)}</span>
+                  </div>
                 </div>
-                {/* Delete */}
+                {/* Delete Action */}
                 <button
                   type="button"
                   onClick={() => deleteNote(note.id)}
-                  className="shrink-0 p-1.5 rounded-lg text-slate-300 dark:text-slate-600 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 opacity-0 group-hover:opacity-100 transition-all"
+                  className="shrink-0 p-3 rounded-xl text-slate-300 hover:text-rose-500 hover:bg-rose-50 opacity-0 group-hover:opacity-100 transition-all duration-300"
                 >
-                  <Trash2 size={13} />
+                  <Trash2 size={20} />
                 </button>
               </motion.div>
             ))}
@@ -523,126 +531,134 @@ function PreInventory({ items }) {
 
   const SortIcon = ({ col }) => {
     if (sortCol !== col) return null;
-    return sortAsc ? <ChevronUp size={11} className="inline" /> : <ChevronDown size={11} className="inline" />;
+    return sortAsc ? <ChevronUp size={11} className="inline mr-1" /> : <ChevronDown size={11} className="inline mr-1" />;
   };
 
   // Stock health colour
   const qtyColor = (qty) => {
     if (qty == null) return 'text-slate-400';
-    if (qty <= 0)   return 'text-rose-600 dark:text-rose-400 font-black';
-    if (qty < 50)   return 'text-amber-600 dark:text-amber-400 font-black';
-    return 'text-emerald-600 dark:text-emerald-400 font-bold';
+    if (qty <= 0)   return 'text-rose-600 font-black';
+    if (qty < 50)   return 'text-orange-600 font-black';
+    return 'text-emerald-600 font-black';
   };
 
   const qtyBg = (qty) => {
-    if (qty == null || qty <= 0) return 'bg-rose-50 dark:bg-rose-500/10';
-    if (qty < 50) return 'bg-amber-50 dark:bg-amber-500/10';
-    return 'bg-emerald-50 dark:bg-emerald-500/10';
+    if (qty == null || qty <= 0) return 'bg-rose-50 border-rose-100';
+    if (qty < 50) return 'bg-orange-50 border-orange-100';
+    return 'bg-emerald-50 border-emerald-100';
   };
 
   return (
-    <div className="h-full flex flex-col gap-3 overflow-hidden">
+    <div className="h-full flex flex-col gap-6 overflow-hidden">
 
-      <ReadOnlyBadge text={`${items.length} صنف في النظام — للمقارنة اليدوية مع الرفوف فقط`} />
+      <ReadOnlyBadge text={`${items.length} صنف مسجل في النظام — يُستخدم كمرجع للمقارنة اليدوية مع الرفوف`} />
 
       {/* Filters */}
-      <div className="shrink-0 flex flex-wrap gap-2 items-center bg-white/60 dark:bg-slate-800/40 backdrop-blur-xl border border-slate-200/60 dark:border-slate-700/50 rounded-2xl px-3 py-2">
-        <Search size={14} className="text-slate-400 shrink-0" />
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="بحث بالاسم أو الشركة أو القسم..."
-          className="flex-1 min-w-[140px] bg-transparent text-sm font-bold text-slate-700 dark:text-slate-200 outline-none placeholder:text-slate-400 placeholder:font-normal"
-        />
-        <span className="w-px h-4 bg-slate-200 dark:bg-slate-700" />
-        <Filter size={13} className="text-slate-400 shrink-0" />
-        <select
-          value={catFilter}
-          onChange={(e) => setCatFilter(e.target.value)}
-          className="bg-transparent text-sm font-bold text-slate-600 dark:text-slate-300 outline-none"
-        >
-          <option value="all">كل الأقسام</option>
-          {categories.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
+      <div className="bg-white border border-slate-100 p-5 rounded-[2rem] flex flex-col md:flex-row md:items-center gap-4 shrink-0 shadow-sm">
+        <div className="relative flex-1 group">
+          <Search size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="بحث بالاسم، الشركة، أو القسم..."
+            className="w-full bg-slate-100/50 border border-slate-200/50 text-slate-800 font-black text-sm rounded-2xl pr-11 pl-4 py-3 outline-none focus:bg-white focus:border-indigo-500/20 focus:ring-4 focus:ring-indigo-500/5 transition-all shadow-inner"
+          />
+        </div>
+
+        <div className="flex items-center gap-3 bg-slate-100/50 px-4 py-3 rounded-2xl border border-slate-200/50 flex-1 md:flex-none md:min-w-[200px]">
+          <Filter size={18} className="text-slate-400 shrink-0" />
+          <select
+            value={catFilter}
+            onChange={(e) => setCatFilter(e.target.value)}
+            className="bg-transparent text-sm font-black text-slate-800 outline-none w-full cursor-pointer appearance-none"
+          >
+            <option value="all">جميع الأقسام</option>
+            {categories.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+
         {(search || catFilter !== 'all') && (
           <button
             type="button"
             onClick={() => { setSearch(''); setCatFilter('all'); }}
-            className="text-xs font-bold text-slate-400 hover:text-indigo-500 transition-colors"
+            className="text-xs font-black text-slate-400 hover:text-indigo-600 transition-colors py-3 px-5 rounded-2xl hover:bg-indigo-50 border border-transparent hover:border-indigo-100"
           >
-            مسح
+            مسح الفلاتر
           </button>
         )}
-        <span className="mr-auto text-xs font-bold text-slate-400">{sorted.length} نتيجة</span>
       </div>
 
       {/* Legend */}
-      <div className="shrink-0 flex items-center gap-3 px-1 flex-wrap">
-        <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">الرصيد:</span>
-        {[
-          ['≥ 50',  'emerald', 'طبيعي'],
-          ['< 50',  'amber',   'منخفض'],
-          ['= 0',   'rose',    'نفد'],
-        ].map(([range, color, label]) => (
-          <span key={color} className={`inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-${color}-50 dark:bg-${color}-500/10 text-${color}-600 dark:text-${color}-400`}>
-            <span className={`w-1.5 h-1.5 rounded-full bg-${color}-500 inline-block`} />
-            {range} — {label}
-          </span>
-        ))}
+      <div className="shrink-0 flex items-center gap-6 px-4 flex-wrap">
+        <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">دليل الرصيد:</span>
+        <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-50 text-emerald-600 text-[10px] font-black border border-emerald-100 shadow-sm">
+          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+          كافٍ (≥ 50)
+        </span>
+        <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-orange-50 text-orange-600 text-[10px] font-black border border-orange-100 shadow-sm">
+          <div className="w-1.5 h-1.5 rounded-full bg-orange-500" />
+          منخفض (&lt; 50)
+        </span>
+        <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-rose-50 text-rose-600 text-[10px] font-black border border-rose-100 shadow-sm">
+          <div className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+          نافد (= 0)
+        </span>
       </div>
 
-      {/* Table */}
-      <div className="flex-1 min-h-0 overflow-hidden bg-white/60 dark:bg-slate-800/40 backdrop-blur-xl border border-slate-200/60 dark:border-slate-700/50 rounded-2xl shadow-inner">
-        <div className="h-full overflow-y-auto custom-scrollbar">
+      {/* Table Area */}
+      <div className="bg-white border border-slate-100 rounded-[2rem] overflow-hidden flex flex-col flex-1 shadow-sm">
+        <div className="h-full overflow-x-auto overflow-y-auto custom-scrollbar">
           {sorted.length === 0 ? (
-            <EmptyState icon={ListChecks} title="لا توجد نتائج" sub="غيّر مصطلح البحث أو الفلتر" />
+            <EmptyState icon={ListChecks} title="لا توجد أصناف تطابق البحث" sub="تأكد من كتابة الاسم بشكل صحيح أو تغيير القسم المختار" />
           ) : (
-            <div className="w-full overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
-              <table className="w-full min-w-[640px] text-right text-sm whitespace-nowrap">
+            <table className="w-full text-right text-sm whitespace-nowrap border-separate border-spacing-0">
               <thead className="sticky top-0 z-10">
-                <tr className="bg-slate-50/95 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-700 text-xs font-black text-slate-400 dark:text-slate-500">
+                <tr className="bg-slate-50/95 backdrop-blur-md border-b border-slate-100 text-slate-500 font-black uppercase tracking-wider text-[11px]">
                   {[
-                    { col: 'name',     label: 'اسم الصنف' },
+                    { col: 'name',     label: 'اسم الصنف والمواصفات' },
                     { col: 'company',  label: 'الشركة' },
                     { col: 'cat',      label: 'القسم' },
                     { col: 'unit',     label: 'الوحدة' },
                     { col: 'stockQty', label: 'رصيد النظام' },
-                  ].map(({ col, label }) => (
+                  ].map(({ col, label }, i) => (
                     <th
                       key={col}
-                      className="px-4 py-3 cursor-pointer hover:text-indigo-500 transition-colors select-none"
+                      className={`px-8 py-5 cursor-pointer hover:text-indigo-600 transition-colors select-none ${i === 0 ? 'rounded-tr-[2rem]' : ''}`}
                       onClick={() => toggleSort(col)}
                     >
-                      {label} <SortIcon col={col} />
+                      <div className="flex items-center gap-2">
+                        {label}
+                        <SortIcon col={col} />
+                      </div>
                     </th>
                   ))}
-                  <th className="px-4 py-3">حالة الرصيد</th>
+                  <th className="px-8 py-5 rounded-tl-[2rem]">تقييم الرصيد</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50 dark:divide-slate-800/80">
+              <tbody className="divide-y divide-slate-50">
                 {sorted.map((item) => {
                   const qty = item.stockQty;
                   return (
-                    <tr key={item.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
-                      <td className="px-4 py-2.5 font-bold text-slate-800 dark:text-slate-100 max-w-[160px] truncate">{item.name || '—'}</td>
-                      <td className="px-4 py-2.5 text-xs text-slate-500 dark:text-slate-400">{item.company || '—'}</td>
-                      <td className="px-4 py-2.5 text-xs text-slate-500 dark:text-slate-400">{item.cat || '—'}</td>
-                      <td className="px-4 py-2.5 text-xs text-slate-500 dark:text-slate-400">{item.unit || '—'}</td>
-                      <td className="px-4 py-2.5">
-                        <span className={`px-3 py-1 rounded-xl text-sm font-black inline-block ${qtyBg(qty)} ${qtyColor(qty)}`}>
+                    <tr key={item.id} className="hover:bg-slate-50/80 transition-all duration-300 group">
+                      <td className="px-8 py-5 font-black text-slate-800 group-hover:text-indigo-600 transition-colors tracking-tight text-base">{item.name || '—'}</td>
+                      <td className="px-8 py-5 font-black text-slate-500 text-xs">{item.company || '—'}</td>
+                      <td className="px-8 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest opacity-70 group-hover:opacity-100 transition-opacity">{item.cat || '—'}</td>
+                      <td className="px-8 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest opacity-70 group-hover:opacity-100 transition-opacity">{item.unit || '—'}</td>
+                      <td className="px-8 py-5">
+                        <span className={`inline-flex items-center justify-center min-w-[60px] px-4 py-2 rounded-xl text-base font-black border shadow-sm ${qtyBg(qty)} ${qtyColor(qty)}`}>
                           {qty ?? '—'}
                         </span>
                       </td>
-                      <td className="px-4 py-2.5">
+                      <td className="px-8 py-5">
                         {qty == null ? (
                           <StatusChip color="slate" label="غير محدد" />
                         ) : qty <= 0 ? (
-                          <StatusChip color="rose" label="نفد الرصيد" icon={AlertCircle} />
+                          <StatusChip color="rose" label="نافد الرصيد" icon={AlertCircle} />
                         ) : qty < 50 ? (
                           <StatusChip color="amber" label="رصيد منخفض" icon={Info} />
                         ) : (
-                          <StatusChip color="emerald" label="رصيد جيد" icon={CheckCircle2} />
+                          <StatusChip color="emerald" label="رصيد كافٍ" icon={CheckCircle2} />
                         )}
                       </td>
                     </tr>
@@ -650,12 +666,11 @@ function PreInventory({ items }) {
                 })}
               </tbody>
             </table>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
 }
 
 // ═══════════════════════════════════════════════════════
@@ -663,41 +678,44 @@ function PreInventory({ items }) {
 // ═══════════════════════════════════════════════════════
 function ReadOnlyBadge({ text }) {
   return (
-    <div className="shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/30">
-      <Eye size={13} className="text-indigo-400 shrink-0" />
-      <p className="text-xs font-bold text-indigo-600 dark:text-indigo-300">{text}</p>
+    <div className="shrink-0 flex items-center gap-3 px-5 py-3 rounded-2xl bg-indigo-50 border border-indigo-100 shadow-sm shadow-indigo-500/5">
+      <Eye size={16} className="text-indigo-400 shrink-0" />
+      <p className="text-xs font-black text-indigo-600 tracking-tight">{text}</p>
     </div>
   );
 }
 
 const MINI_COLORS = {
-  indigo:  'from-indigo-500 to-violet-600  shadow-indigo-500/20',
-  emerald: 'from-emerald-500 to-teal-600   shadow-emerald-500/20',
-  blue:    'from-blue-500 to-indigo-600    shadow-blue-500/20',
-  amber:   'from-amber-500 to-orange-500   shadow-amber-500/20',
+  indigo:  'from-indigo-600 to-violet-700 shadow-indigo-500/20',
+  emerald: 'from-emerald-500 to-teal-600 shadow-emerald-500/20',
+  orange:    'from-orange-500 to-rose-600 shadow-orange-500/20',
+  amber:   'from-amber-500 to-orange-500 shadow-amber-500/20',
 };
 
-function MiniStat({ label, value, color }) {
+function MiniStat({ label, value, color, icon: Icon }) {
   return (
-    <div className="bg-white/80 dark:bg-slate-800/60 backdrop-blur-xl border border-slate-200/60 dark:border-slate-700/50 rounded-2xl px-4 py-3 flex items-center gap-3 shadow-sm">
-      <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${MINI_COLORS[color]} flex items-center justify-center text-white shadow-lg shrink-0`}>
-        <span className="text-sm font-black">{value}</span>
+    <div className="bg-white border border-slate-100 rounded-[2rem] p-5 flex items-center gap-5 shadow-sm hover:shadow-xl hover:shadow-slate-200/50 transition-all duration-500 group">
+      <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${MINI_COLORS[color]} flex items-center justify-center text-white shadow-lg shrink-0 group-hover:scale-110 transition-transform duration-500`}>
+        {Icon ? <Icon size={24} /> : <span className="text-sm font-black">{value}</span>}
       </div>
-      <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 leading-tight">{label}</p>
+      <div className="overflow-hidden">
+        <p className="text-2xl font-black text-slate-800 leading-tight tracking-tight group-hover:translate-x-1 transition-transform duration-500">{value}</p>
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-tight mt-1">{label}</p>
+      </div>
     </div>
   );
 }
 
 function StatusChip({ color, label, icon: Icon }) {
   const map = {
-    rose:    'bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-500/30',
-    amber:   'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-500/30',
-    emerald: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30',
-    slate:   'bg-slate-50 dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700',
+    rose:    'bg-rose-50 text-rose-600 border-rose-100',
+    amber:   'bg-orange-50 text-orange-600 border-orange-100',
+    emerald: 'bg-emerald-50 text-emerald-600 border-emerald-100',
+    slate:   'bg-slate-50 text-slate-500 border-slate-200',
   };
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-black border ${map[color]}`}>
-      {Icon && <Icon size={9} />}
+    <span className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[10px] font-black border shadow-sm ${map[color]}`}>
+      {Icon && <Icon size={12} />}
       {label}
     </span>
   );
@@ -705,10 +723,12 @@ function StatusChip({ color, label, icon: Icon }) {
 
 function EmptyState({ icon: Icon, title, sub }) {
   return (
-    <div className="flex flex-col items-center justify-center h-full py-16 text-slate-400 dark:text-slate-500">
-      <Icon size={36} className="mb-3 opacity-30" />
-      <p className="font-bold text-sm">{title}</p>
-      {sub && <p className="text-xs mt-1 opacity-70">{sub}</p>}
+    <div className="flex flex-col items-center justify-center h-full py-24 text-slate-400">
+      <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-6 border border-slate-100">
+        <Icon size={40} className="opacity-20 text-slate-400" />
+      </div>
+      <p className="font-black text-xl text-slate-800 tracking-tight">{title}</p>
+      {sub && <p className="text-sm mt-2 font-bold opacity-60 max-w-xs text-center leading-relaxed">{sub}</p>}
     </div>
   );
 }

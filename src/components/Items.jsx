@@ -28,41 +28,41 @@ const normalizeText = (text) => {
 };
 
 const categoryIcons = {
-  'مجمدات': <Snowflake size={18} className="text-cyan-500" />,
-  'بلاستيك': <Archive size={18} className="text-amber-500" />,
-  'تبريد': <Box size={18} className="text-blue-500" />
+  'مجمدات': <Snowflake size={18} className="text-primary dark:text-accent-light" />,
+  'بلاستيك': <Archive size={18} className="text-status-warning" />,
+  'تبريد': <Thermometer size={18} className="text-primary dark:text-accent-light" />
 };
 
 const getCatIcon = (catName) => {
-  return categoryIcons[catName] || <Package size={18} className="text-slate-500" />;
+  return categoryIcons[catName] || <Package size={18} className="text-text-muted-light" />;
 };
 
 // --- SHARED MODAL COMPONENT ---
-const ModalWrapper = ({ title, isOpen, onClose, children, onSubmit, maxWidth = "max-w-md", submitLabel = "حفظ" }) => (
+const ModalWrapper = ({ title, isOpen, onClose, children, onSubmit, maxWidth = "max-w-md", submitLabel = "حفظ واعتماد" }) => (
   <AnimatePresence>
     {isOpen && (
       <motion.div 
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} 
-        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 dark:bg-black/60 backdrop-blur-sm" 
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md transition-all duration-500" 
         dir="rtl" onClick={onClose} 
       >
         <motion.div 
           onClick={(e) => e.stopPropagation()} 
-          initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} 
+          initial={{ opacity: 0, scale: 0.9, y: 40 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 40 }} 
           transition={{ type: 'spring', damping: 25, stiffness: 300 }} 
-          className={`w-full ${maxWidth} bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col overflow-hidden`}
+          className={`w-full ${maxWidth} bg-white dark:bg-surface-dark rounded-[2rem] shadow-[0_32px_64px_-12px_rgba(0,0,0,0.3)] border border-border-light dark:border-border-dark flex flex-col overflow-hidden`}
         >
-          <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/50">
-            <h3 className="text-lg font-black text-slate-800 dark:text-white">{title}</h3>
-            <button type="button" onClick={onClose} className="p-2 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-white rounded-full transition-colors">
-              <X size={20} className="stroke-[3]" />
+          <div className="flex items-center justify-between p-8 border-b border-border-light dark:border-border-dark bg-slate-50/30 dark:bg-slate-800/30 shrink-0">
+            <h3 className="text-2xl font-bold font-tajawal text-text-primary-light dark:text-text-primary-dark tracking-tight">{title}</h3>
+            <button type="button" onClick={onClose} className="p-2.5 text-text-muted-light hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-text-primary-light dark:hover:text-white rounded-2xl transition-all active:scale-90">
+              <X size={22} />
             </button>
           </div>
           <form onSubmit={onSubmit} className="flex flex-col">
-            <div className="p-5">{children}</div>
-            <div className="p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex space-x-3 space-x-reverse justify-end scale-100">
-                <button type="button" onClick={onClose} className="px-5 py-2 rounded-xl font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">إلغاء</button>
-                <button type="submit" className="px-6 py-2 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-500/20">{submitLabel}</button>
+            <div className="p-8 overflow-y-auto custom-scrollbar">{children}</div>
+            <div className="p-8 border-t border-border-light dark:border-border-dark bg-slate-50/30 dark:bg-slate-800/30 flex space-x-4 space-x-reverse justify-end shrink-0">
+                <button type="button" onClick={onClose} className="btn-outline px-6 py-3">إلغاء</button>
+                <button type="submit" className="btn-primary px-8 py-3 shadow-primary/30">{submitLabel}</button>
             </div>
           </form>
         </motion.div>
@@ -71,8 +71,8 @@ const ModalWrapper = ({ title, isOpen, onClose, children, onSubmit, maxWidth = "
   </AnimatePresence>
 );
 
-const InputClass = "w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60 text-slate-800 dark:text-slate-100 text-sm font-bold rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 block px-4 py-2.5 outline-none transition-all";
-const LabelClass = "block text-xs font-black text-slate-700 dark:text-slate-300 mb-1.5";
+const InputClass = "w-full bg-slate-100/50 dark:bg-slate-900/40 border border-transparent text-text-primary-light dark:text-text-primary-dark text-sm rounded-2xl focus:bg-white dark:focus:bg-slate-900 focus:ring-4 focus:ring-primary/5 focus:border-primary/20 block px-5 py-4 outline-none transition-all duration-300 placeholder:text-text-muted-light/40";
+const LabelClass = "block text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark mb-2.5 mr-1 uppercase tracking-wider transition-colors duration-300";
 
 export default function Items() {
   const { playSuccess, playWarning } = useAudio();
@@ -384,137 +384,109 @@ export default function Items() {
   const cardVariants = { hidden: { opacity: 0, y: 15, scale: 0.95 }, show: { opacity: 1, y: 0, scale: 1, transition: { type: 'spring', stiffness: 400, damping: 25 } } };
 
   return (
-    <div className="h-full w-full flex flex-col font-['Cairo'] text-slate-800 dark:text-slate-100 overflow-hidden" dir="rtl">
-      
-      {/* 1. Header & Quick Actions */}
-      <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border border-slate-200/60 dark:border-slate-700/60 shadow-sm rounded-[2rem] p-4 sm:p-5 mb-6 shrink-0 z-20 transition-colors">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          
-          <div className="flex items-center space-x-4 space-x-reverse flex-1">
-            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-blue-500/20 shrink-0">
-               <Package size={24} />
-            </div>
-            <div>
-              <h2 className="text-xl font-black">سجل الأصناف</h2>
-              <p className="text-xs font-bold text-slate-500 dark:text-slate-400 mt-1">إدارة دليلك الكامل للمخزون بدقة وسهولة</p>
-            </div>
-          </div>
+    <div className="flex flex-col space-y-6 font-readex p-4 sm:p-6 lg:p-8 h-full overflow-hidden" dir="rtl">
+      {/* Header & Main Actions */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
+        <div>
+          <h1 className="text-2xl font-bold font-tajawal text-text-primary-light dark:text-text-primary-dark">دليل الأصناف والمخزون</h1>
+          <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark mt-1">إدارة المنتجات ومراقبة مستويات التوفر والصلاحية</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <AnimatePresence>
+            {!isViewer && selectedForDelete.length > 0 && (
+              <motion.button
+                initial={{ opacity: 0, scale: 0.9, width: 0 }} animate={{ opacity: 1, scale: 1, width: 'auto' }} exit={{ opacity: 0, scale: 0.9, width: 0 }}
+                onClick={() => setIsBulkDeleteModalOpen(true)} 
+                className="flex items-center whitespace-nowrap gap-2 px-4 py-2.5 bg-status-danger/10 border border-status-danger/20 text-status-danger rounded-xl font-bold text-sm transition-all"
+              >
+                <Trash2 size={16} />
+                <span>حذف ({selectedForDelete.length})</span>
+              </motion.button>
+            )}
+          </AnimatePresence>
 
-          <div className="flex items-center space-x-3 space-x-reverse self-end lg:self-auto relative pr-2">
+          <div className="relative">
+            <button onClick={() => setIsExportMenuOpen(!isExportMenuOpen)} className="btn-outline flex items-center gap-2">
+              <Download size={18} />
+              <span>تصدير</span>
+              <ChevronDown size={14} className={`transition-transform duration-200 ${isExportMenuOpen ? 'rotate-180' : ''}`} />
+            </button>
             
             <AnimatePresence>
-                {!isViewer && selectedForDelete.length > 0 && (
-                  <motion.button
-                    initial={{ opacity: 0, scale: 0.9, width: 0 }}
-                    animate={{ opacity: 1, scale: 1, width: 'auto' }}
-                    exit={{ opacity: 0, scale: 0.9, width: 0 }}
-                    onClick={() => setIsBulkDeleteModalOpen(true)} 
-                    className="flex items-center whitespace-nowrap space-x-2 space-x-reverse px-4 py-2 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 hover:bg-rose-100 dark:hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 rounded-xl font-bold text-sm transition-all overflow-hidden"
-                  >
-                    <Trash2 size={16} />
-                    <span>حذف ({selectedForDelete.length})</span>
-                  </motion.button>
-                )}
+              {isExportMenuOpen && (
+                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute left-0 mt-2 w-48 bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-xl shadow-xl z-30 p-1">
+                  <button onClick={() => { handleExportPDF(); setIsExportMenuOpen(false); }} className="w-full text-right px-4 py-2.5 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg flex items-center gap-2">
+                    <FileText size={16} className="text-status-danger" />
+                    <span>تصدير PDF</span>
+                  </button>
+                  <button onClick={() => { handleExportPNG(); setIsExportMenuOpen(false); }} className="w-full text-right px-4 py-2.5 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg flex items-center gap-2">
+                    <Image size={16} className="text-status-success" />
+                    <span>طباعة الكتالوج</span>
+                  </button>
+                </motion.div>
+              )}
             </AnimatePresence>
-
-            <div className="relative">
-              <button onClick={() => setIsExportMenuOpen(!isExportMenuOpen)} className="flex items-center space-x-2 space-x-reverse px-4 py-2 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl font-bold text-sm transition-all shadow-sm shadow-slate-200/50 dark:shadow-none">
-                <Download size={16} />
-                <span>تصدير الكتالوج</span>
-                <ChevronDown size={14} className={`transition-transform duration-200 ${isExportMenuOpen ? 'rotate-180 text-blue-500' : ''}`} />
-              </button>
-              
-              <AnimatePresence>
-                {isExportMenuOpen && (
-                  <motion.div 
-                    initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute top-[120%] right-0 w-48 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-xl rounded-2xl overflow-hidden z-50 text-sm font-bold"
-                  >
-                    <button onClick={handleExportPDF} className="w-full flex items-center justify-between px-4 py-3 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
-                      <span className="flex items-center space-x-2 space-x-reverse"><FileText size={16} /> <span>تحميل PDF</span></span>
-                    </button>
-                    <div className="h-px bg-slate-100 dark:bg-slate-700/50 w-full"></div>
-                    <button onClick={handleExportPNG} className="w-full flex items-center justify-between px-4 py-3 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
-                      <span className="flex items-center space-x-2 space-x-reverse"><Image size={16} /> <span>تحميل صورة PNG</span></span>
-                    </button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            <div className="w-px h-8 bg-slate-200 dark:bg-slate-700 mx-1"></div>
-
-            {!isViewer && (
-              <button onClick={() => { setFormState({ name: '', company: '', cat: 'مجمدات', unit: 'كرتونة' }); setIsCustomUnit(false); setIsAddModalOpen(true); }} className="flex items-center space-x-2 space-x-reverse px-5 py-2.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl font-bold text-sm hover:scale-[1.02] active:scale-95 transition-all shadow-lg hover:shadow-slate-500/20">
-                 <Plus size={18} />
-                 <span>إضافة صنف</span>
-              </button>
-            )}
           </div>
 
+          {!isViewer && (
+            <button onClick={() => { setFormState({ name: '', company: '', cat: 'مجمدات', unit: 'كرتونة' }); setIsCustomUnit(false); setIsAddModalOpen(true); }} className="btn-primary flex items-center gap-2">
+               <Plus size={18} />
+               <span>صنف جديد</span>
+            </button>
+          )}
         </div>
+      </div>
 
-        {/* Filter Bar */}
-        <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          <div className="relative group col-span-2 flex items-center bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700/60 rounded-xl px-4 py-2.5 focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 transition-all shadow-inner">
-            <Search size={16} className="text-slate-400 group-focus-within:text-blue-500 transition-colors ml-3" />
-            <input type="text" placeholder="البحث باسم الصنف أو الشركة..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full bg-transparent text-slate-800 dark:text-slate-100 text-sm font-bold focus:outline-none" />
-          </div>
-          <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700/60 text-slate-700 dark:text-slate-200 text-sm font-bold rounded-xl px-4 py-2.5 cursor-pointer focus:outline-none focus:border-blue-500 transition-colors shadow-inner appearance-none">
+      {/* Filters Bar */}
+      <div className="card p-4 flex flex-col lg:flex-row lg:items-center gap-4 shrink-0">
+        <div className="relative flex-1 group">
+          <Search size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted-light group-focus-within:text-primary transition-colors" />
+          <input type="text" placeholder="بحث عن صنف أو شركة..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className={`${InputClass} pr-10 py-2.5`} />
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} className={`${InputClass} w-auto min-w-[120px] py-2.5`}>
             <option>الكل</option><option>مجمدات</option><option>بلاستيك</option><option>تبريد</option>
           </select>
-          <select value={companyFilter} onChange={e => setCompanyFilter(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700/60 text-slate-700 dark:text-slate-200 text-sm font-bold rounded-xl px-4 py-2.5 cursor-pointer focus:outline-none focus:border-blue-500 transition-colors shadow-inner appearance-none">
+          <select value={companyFilter} onChange={e => setCompanyFilter(e.target.value)} className={`${InputClass} w-auto min-w-[120px] py-2.5`}>
             {dynamicCompanies.map(c => <option key={c}>{c}</option>)}
           </select>
           <button onClick={() => setShowHotOnly(!showHotOnly)}
-            className={`flex items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-bold transition-all shadow-inner border truncate ${showHotOnly ? 'bg-orange-50 dark:bg-orange-500/10 border-orange-300 text-orange-600 dark:text-orange-400' : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700/60 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border ${showHotOnly ? 'bg-status-warning/10 text-status-warning border-status-warning/20' : 'bg-slate-50 dark:bg-slate-800/50 text-text-secondary-light dark:text-text-secondary-dark border-border-light dark:border-border-dark'}`}
           >
-            <Flame size={15} className={showHotOnly ? 'animate-pulse' : ''} />
-            <span className="hidden sm:inline">الأكثر طلباً</span>
+            <Flame size={14} className={showHotOnly ? 'animate-bounce' : ''} />
+            الأكثر طلباً
           </button>
           <button onClick={() => setSortByExpiry(!sortByExpiry)}
-            className={`flex items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-bold transition-all shadow-inner border truncate ${sortByExpiry ? 'bg-rose-50 dark:bg-rose-500/10 border-rose-300 text-rose-600 dark:text-rose-400' : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700/60 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border ${sortByExpiry ? 'bg-primary/10 text-primary dark:text-accent-light border-primary/20' : 'bg-slate-50 dark:bg-slate-800/50 text-text-secondary-light dark:text-text-secondary-dark border-border-light dark:border-border-dark'}`}
           >
-            <CalendarDays size={15} />
-            <span className="hidden sm:inline">الصلاحية</span>
+            <CalendarDays size={14} />
+            الصلاحية
           </button>
         </div>
       </div>
 
-      {/* 2. Sectioned Content (The Directory) */}
-      <div className="flex-1 overflow-y-auto px-1 pb-10 custom-scrollbar hide-print w-full" id="printable-directory">
+      {/* Directory Grid */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 pb-10" id="printable-directory">
         {Object.keys(groupedItems).length === 0 ? (
-           <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center justify-center p-12 text-center bg-white/40 dark:bg-slate-800/20 backdrop-blur-md rounded-[2rem] border border-dashed border-slate-300 dark:border-slate-700 mt-4 min-h-[24rem] sm:h-[50vh] shadow-sm">
-              <Package size={56} className="text-slate-300 dark:text-slate-600 mb-6 animate-bounce" />
-              <h3 className="text-xl font-black text-slate-800 dark:text-slate-100 mb-2">لا توجد أصناف مطابقة للبحث</h3>
-              <p className="text-slate-500 dark:text-slate-400 font-bold mb-8 max-w-sm text-center">قم بإضافة أصناف جديدة لمخزنك للبدء في تتبع الرصيد وإدارة المعاملات الخاصة بك.</p>
-              {!isViewer && (
-                <button onClick={() => { setFormState({ name: '', company: '', cat: 'مجمدات', unit: 'كرتونة' }); setIsCustomUnit(false); setIsAddModalOpen(true); }} className="flex items-center space-x-2 space-x-reverse px-6 py-3 bg-blue-600 text-white rounded-xl font-black text-sm hover:scale-[1.05] active:scale-95 transition-all shadow-lg hover:shadow-blue-500/30 dark:hover:shadow-[0_0_20px_rgba(37,99,235,0.4)]">
-                   <Plus size={20} />
-                   <span>إضافة صنف جديد</span>
-                </button>
-              )}
-           </motion.div>
+           <div className="h-full flex flex-col items-center justify-center text-center p-12 bg-white/20 dark:bg-black/10 rounded-[2rem] border-2 border-dashed border-border-light dark:border-border-dark">
+              <Package size={64} className="text-text-muted-light mb-6 opacity-20" />
+              <h3 className="text-xl font-bold font-tajawal text-text-primary-light dark:text-text-primary-dark mb-2">لا توجد نتائج</h3>
+              <p className="text-text-secondary-light dark:text-text-secondary-dark mb-8 max-w-xs">جرب تغيير كلمات البحث أو الفلاتر للعثور على ما تبحث عنه.</p>
+           </div>
         ) : (
-          <motion.div variants={containerVariants} initial="hidden" animate="show" className="space-y-8">
+          <motion.div variants={containerVariants} initial="hidden" animate="show" className="space-y-10">
             {Object.keys(groupedItems).sort().map(cat => (
-              <div key={cat} className="space-y-4">
-                
-                {/* Category Header */}
-                <div className="flex items-center space-x-3 space-x-reverse px-2 sticky top-0 z-10 bg-slate-50/90 dark:bg-[#080d17]/90 backdrop-blur-md py-2 transition-colors">
-                  <div className="w-8 h-8 rounded-full bg-white dark:bg-slate-800 shadow-sm border border-slate-100 dark:border-slate-700/60 flex items-center justify-center">
+              <div key={cat} className="space-y-6">
+                <div className="flex items-center gap-4 sticky top-0 z-10 bg-background-light/90 dark:bg-background-dark/90 backdrop-blur-md py-3 transition-colors">
+                  <div className="w-10 h-10 rounded-xl bg-white dark:bg-surface-dark shadow-sm border border-border-light dark:border-border-dark flex items-center justify-center text-primary dark:text-accent-light">
                     {getCatIcon(cat)}
                   </div>
-                  <h3 className="text-lg font-black text-slate-800 dark:text-slate-100">قسم {cat}</h3>
-                  <div className="flex-1 h-px bg-gradient-to-l from-slate-200/0 via-slate-200 dark:via-slate-700 to-slate-200/0"></div>
-                  <span className="text-[10px] font-bold text-slate-400 bg-white dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-100 dark:border-slate-700 shadow-sm">{groupedItems[cat].length} عنصر</span>
+                  <h3 className="text-xl font-bold font-tajawal text-text-primary-light dark:text-text-primary-dark">قسم {cat}</h3>
+                  <div className="flex-1 h-px bg-border-light dark:border-border-dark"></div>
+                  <span className="text-[10px] font-bold text-text-muted-light uppercase tracking-widest bg-slate-50 dark:bg-slate-800/50 px-3 py-1.5 rounded-full border border-border-light dark:border-border-dark">{groupedItems[cat].length} صنف</span>
                 </div>
 
-                {/* The Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 px-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
                   {groupedItems[cat].map(item => {
                     const expInfo = getExpiryInfo(item.id);
                     const daysLeft = expInfo?.daysLeft ?? null;
@@ -523,93 +495,74 @@ export default function Items() {
                     const isUrgent  = daysLeft !== null && daysLeft > 0  && daysLeft <= thresholds.red;
                     const isWarning = daysLeft !== null && daysLeft > thresholds.red && daysLeft <= thresholds.orange;
                     const isDead = deadStockSet.has(item.id);
-                    const storageIcon = item.cat === 'مجمدات'
-                      ? <Snowflake size={11} className="text-cyan-500 shrink-0" />
-                      : item.cat === 'تبريد'
-                      ? <Thermometer size={11} className="text-blue-500 shrink-0" />
-                      : null;
+                    const storageIcon = item.cat === 'مجمدات' ? <Snowflake size={12} className="text-primary dark:text-accent-light" /> : item.cat === 'تبريد' ? <Thermometer size={12} className="text-primary dark:text-accent-light" /> : null;
+                    
                     return (
                       <motion.div
                         key={item.id} variants={cardVariants}
-                        className={`group relative flex flex-col p-4 rounded-2xl bg-white dark:bg-slate-800/40 backdrop-blur-xl shadow-[0_2px_10px_rgba(0,0,0,0.02)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] dark:hover:shadow-[0_8px_30px_rgba(0,0,0,0.3)] transition-all duration-300 overflow-hidden ${
-                          isExpired || isUrgent ? 'border-2 border-rose-500 dark:border-rose-500 expiry-blink'
-                          : isWarning ? 'border-2 border-orange-400 dark:border-orange-400'
-                          : 'border border-slate-100 dark:border-slate-700/50'}`}
+                        className={`bg-white rounded-[1.5rem] border border-slate-200/60 shadow-sm hover:shadow-xl hover:border-primary/20 group flex flex-col p-6 relative overflow-hidden transition-all duration-500 ${isExpired || isUrgent ? 'border-status-danger/40 bg-rose-50/10' : isWarning ? 'border-status-warning/40 bg-amber-50/10' : ''}`}
                       >
-                        {/* Top: storage icon + company + expiry countdown badge */}
-                        <div className="flex items-center justify-between mb-1 gap-1">
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            {storageIcon}
-                            <span className="text-[10px] font-black tracking-wider text-slate-400 dark:text-slate-500 uppercase truncate">{item.company || 'بدون شركة'}</span>
+                        <div className="flex items-center justify-between mb-3 gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="p-1.5 bg-slate-50 rounded-lg group-hover:bg-primary/5 transition-colors">
+                              {storageIcon}
+                            </div>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest truncate">{item.company || 'بدون شركة'}</span>
                           </div>
-                          <div className="flex items-center gap-1 shrink-0">
+                          <div className="flex items-center gap-1.5 shrink-0">
                             {isDead && (
-                              <span className="inline-flex items-center gap-0.5 text-[8px] px-1.5 py-0.5 rounded-md font-black bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-600" title="لا يوجد صادر خلال 30 يوم">
-                                <PackageX size={8} /> راكد
-                              </span>
+                              <span className="bg-slate-100 text-slate-500 text-[8px] font-black px-2 py-0.5 rounded-full uppercase border border-slate-200">راكد</span>
                             )}
                             {expInfo && (
-                              <span className={`inline-flex items-center gap-1 text-[9px] px-2 py-1 rounded-lg font-black border shadow-sm ${
-                                isExpired ? 'bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-400 border-rose-300 dark:border-rose-500/40 expiry-blink'
-                                : isUrgent ? 'bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-500/30 expiry-blink'
-                                : isWarning ? 'bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-500/30'
-                                : 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30'
+                              <span className={`text-[9px] font-black px-2.5 py-1 rounded-full border flex items-center gap-1.5 shadow-sm ${
+                                isExpired ? 'bg-status-danger text-white border-status-danger animate-pulse'
+                                : isUrgent ? 'bg-rose-50 text-status-danger border-rose-200'
+                                : isWarning ? 'bg-amber-50 text-status-warning border-amber-200'
+                                : 'bg-emerald-50 text-status-success border-emerald-200'
                               }`}>
-                                <Timer size={9} className={isExpired || isUrgent ? 'animate-pulse' : ''} />
-                                {isExpired ? '⛔ منتهي' : `${daysLeft} يوم متبقي`}
+                                <Timer size={10} />
+                                {isExpired ? 'منتهي' : `${daysLeft} يوم`}
                               </span>
                             )}
                           </div>
                         </div>
 
-                        {/* Item name + hot/dead icons */}
-                        <div className="flex items-center gap-1.5 mb-3">
-                          <h4 className="text-base font-black text-slate-800 dark:text-slate-100 leading-tight group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors truncate flex-1">{item.name}</h4>
+                        <div className="flex items-center justify-between gap-3 mb-6">
+                          <h4 className="text-lg font-bold text-slate-800 truncate leading-tight group-hover:text-primary transition-colors tracking-tight">{item.name}</h4>
                           {(hotItemsMap[item.id] || 0) >= 10 && (
-                            <div className="group/hot relative shrink-0">
-                              <Flame size={15} className="text-orange-500 animate-[pulse_2s_ease-in-out_infinite]" />
-                              <div className="hidden group-hover/hot:block absolute top-[130%] -right-2 bg-slate-800 text-white text-[10px] font-bold px-2.5 py-1.5 rounded-lg whitespace-nowrap z-[100] shadow-xl">
-                                🔥 {hotItemsMap[item.id]} {item.unit || 'كرتونة'} هذا الأسبوع
-                              </div>
+                            <div className="p-2 bg-amber-50 text-amber-500 rounded-xl animate-bounce" title={`🔥 ${hotItemsMap[item.id]} صادر مؤخراً`}>
+                              <Flame size={16} />
                             </div>
                           )}
                         </div>
 
-                        {/* Bottom: stock qty + actions */}
-                        <div className="flex items-center justify-between mt-auto gap-1">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-black border ${
-                            (item.stockQty || 0) <= 0
-                              ? 'bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-200'
-                              : 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-100'
-                          }`}>
-                            {item.stockQty ?? 0} <span className="text-[9px] mr-0.5 opacity-60">{item.unit}</span>
-                          </span>
-                          <div className="flex items-center gap-1">
+                        <div className="mt-auto flex items-center justify-between gap-3 pt-5 border-t border-slate-100">
+                          <div className={`px-4 py-1.5 rounded-xl text-sm font-black border transition-all duration-300 shadow-sm ${ (item.stockQty || 0) <= 0 ? 'bg-rose-50 text-status-danger border-rose-100' : 'bg-slate-50 text-slate-700 border-slate-100 group-hover:bg-primary group-hover:text-white group-hover:border-primary' }`}>
+                            {item.stockQty ?? 0} <span className="text-[10px] font-bold opacity-60 ml-0.5">{item.unit}</span>
+                          </div>
+                          
+                          <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all duration-300">
                             {expInfo && (
-                              <button onClick={e => { e.stopPropagation(); setBatchEyeItem(item); }} title="عرض الدفعات"
-                                className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 text-indigo-500 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-all">
-                                <Eye size={13} />
-                              </button>
+                              <button onClick={() => setBatchEyeItem(item)} className="p-2.5 bg-white text-slate-400 hover:text-primary hover:bg-slate-50 rounded-xl transition-all border border-slate-200 shadow-sm hover:shadow-md active:scale-90"><Eye size={16} /></button>
                             )}
                             {!isViewer && (
-                              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all duration-200">
-                                <button onClick={e => { e.stopPropagation(); openEditModal(item); }} title="تعديل" className="p-1.5 bg-white dark:bg-slate-800 rounded-lg text-slate-400 hover:text-emerald-500 shadow-sm border border-slate-100 dark:border-slate-700 transition-all"><Pencil size={13} /></button>
-                                <button onClick={e => { e.stopPropagation(); openDeleteModal(item); }} title="حذف" className="p-1.5 bg-white dark:bg-slate-800 rounded-lg text-slate-400 hover:text-rose-500 shadow-sm border border-slate-100 dark:border-slate-700 transition-all"><Trash2 size={13} /></button>
-                                <label className={`cursor-pointer p-1.5 rounded-lg flex items-center justify-center bg-white dark:bg-slate-800 shadow-sm border border-slate-100 dark:border-slate-700 transition-all ${selectedForDelete.includes(item.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-                                  <input type="checkbox" checked={selectedForDelete.includes(item.id)} onChange={() => toggleSelection(item.id)} className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/50 dark:border-slate-600 dark:bg-slate-700 cursor-pointer" />
+                              <>
+                                <button onClick={() => openEditModal(item)} className="p-2.5 bg-white text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-xl transition-all border border-slate-200 shadow-sm hover:shadow-md active:scale-90"><Pencil size={16} /></button>
+                                <button onClick={() => openDeleteModal(item)} className="p-2.5 bg-white text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all border border-slate-200 shadow-sm hover:shadow-md active:scale-90"><Trash2 size={16} /></button>
+                                <label className="p-2.5 bg-white rounded-xl border border-slate-200 cursor-pointer shadow-sm hover:shadow-md transition-all active:scale-95 flex items-center">
+                                  <input type="checkbox" checked={selectedForDelete.includes(item.id)} onChange={() => toggleSelection(item.id)} className="w-4 h-4 rounded-lg text-primary border-slate-300 focus:ring-primary/20 transition-all" />
                                 </label>
-                              </div>
+                              </>
                             )}
                           </div>
                         </div>
-
-                        {/* Accent line */}
-                        <div className="absolute bottom-0 right-0 w-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-400 group-hover:w-full transition-all duration-500 ease-out"></div>
+                        
+                        {/* Interactive accent bar */}
+                        <div className="absolute bottom-0 right-0 w-0 h-1.5 bg-primary group-hover:w-full transition-all duration-700 ease-out"></div>
                       </motion.div>
                     );
                   })}
                 </div>
-
               </div>
             ))}
           </motion.div>
@@ -722,9 +675,9 @@ export default function Items() {
         onClose={() => { setIsAddModalOpen(false); setIsEditModalOpen(false); }} 
         onSubmit={isEditModalOpen ? handleEditSubmit : handleAddSubmit}
       >
-        <div className="space-y-4 relative">
+        <div className="space-y-6 relative">
           <div className="relative group/nameItem">
-            <label className={LabelClass}>اسم الصنف <span className="text-rose-500">*</span></label>
+            <label className={LabelClass}>اسم الصنف <span className="text-status-danger">*</span></label>
             <input type="text" className={InputClass} placeholder="مثال: دجاج صافي 1000ج" value={formState.name} onChange={e => { setFormState({...formState, name: e.target.value}); setNameSearchActiveIndex(-1); }} onKeyDown={(e) => {
                 if (e.key === 'ArrowDown') { e.preventDefault(); setNameSearchActiveIndex(prev => prev < itemSuggestions.length - 1 ? prev + 1 : prev); }
                 else if (e.key === 'ArrowUp') { e.preventDefault(); setNameSearchActiveIndex(prev => prev > 0 ? prev - 1 : 0); }
@@ -736,9 +689,9 @@ export default function Items() {
             }} autoFocus required />
             
             {formState.name && itemSuggestions.length > 0 && (
-              <div className="hidden group-focus-within/nameItem:block absolute top-[100%] right-0 w-full max-h-40 overflow-y-auto bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-100 dark:border-slate-700/60 z-30 p-1 mt-1">
+              <div className="hidden group-focus-within/nameItem:block absolute top-[100%] right-0 w-full max-h-40 overflow-y-auto bg-white dark:bg-surface-dark rounded-xl shadow-xl border border-border-light dark:border-border-dark z-30 p-1 mt-1">
                 {itemSuggestions.map((suggestion, idx) => (
-                  <button key={idx} type="button" className={`w-full text-right px-3 py-2 border-b border-slate-50 dark:border-slate-700/60 last:border-0 transition-colors text-sm font-bold ${nameSearchActiveIndex === idx ? 'bg-blue-50 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50'}`} onMouseDown={(e) => { e.preventDefault(); setFormState({...formState, name: suggestion}); setNameSearchActiveIndex(-1); }}>
+                  <button key={idx} type="button" className={`w-full text-right px-3 py-2.5 border-b border-border-light dark:border-border-dark last:border-0 transition-colors text-sm font-bold ${nameSearchActiveIndex === idx ? 'bg-primary/10 dark:bg-primary/20' : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'}`} onMouseDown={(e) => { e.preventDefault(); setFormState({...formState, name: suggestion}); setNameSearchActiveIndex(-1); }}>
                     {suggestion}
                   </button>
                 ))}
@@ -759,9 +712,9 @@ export default function Items() {
             }} />
              
              {formState.company && companySuggestions.length > 0 && (
-              <div className="hidden group-focus-within/compItem:block absolute top-[100%] right-0 w-full max-h-40 overflow-y-auto bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-100 dark:border-slate-700/60 z-30 p-1 mt-1">
+              <div className="hidden group-focus-within/compItem:block absolute top-[100%] right-0 w-full max-h-40 overflow-y-auto bg-white dark:bg-surface-dark rounded-xl shadow-xl border border-border-light dark:border-border-dark z-30 p-1 mt-1">
                 {companySuggestions.map((suggestion, idx) => (
-                  <button key={idx} type="button" className={`w-full text-right px-3 py-2 border-b border-slate-50 dark:border-slate-700/60 last:border-0 transition-colors text-sm font-bold ${companySearchActiveIndex === idx ? 'bg-blue-50 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50'}`} onMouseDown={(e) => { e.preventDefault(); setFormState({...formState, company: suggestion}); setCompanySearchActiveIndex(-1); }}>
+                  <button key={idx} type="button" className={`w-full text-right px-3 py-2.5 border-b border-border-light dark:border-border-dark last:border-0 transition-colors text-sm font-bold ${companySearchActiveIndex === idx ? 'bg-primary/10 dark:bg-primary/20' : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'}`} onMouseDown={(e) => { e.preventDefault(); setFormState({...formState, company: suggestion}); setCompanySearchActiveIndex(-1); }}>
                     {suggestion}
                   </button>
                 ))}
@@ -769,7 +722,7 @@ export default function Items() {
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3 relative z-10">
+          <div className="grid grid-cols-2 gap-4 relative z-10">
             <div>
               <label className={LabelClass}>المجموعة (القسم)</label>
               <select className={InputClass} value={formState.cat} onChange={e => setFormState({...formState, cat: e.target.value})}>
@@ -777,9 +730,9 @@ export default function Items() {
               </select>
             </div>
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-black text-slate-700 dark:text-slate-300">وحدة القياس</label>
-                <button type="button" onClick={() => { setIsCustomUnit(!isCustomUnit); setFormState({...formState, unit: (!isCustomUnit) ? '' : 'كرتونة'}); }} className="text-[10px] bg-slate-100 dark:bg-slate-800 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded font-bold hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors flex items-center shadow-sm">
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-medium text-text-primary-light dark:text-text-primary-dark">وحدة القياس</label>
+                <button type="button" onClick={() => { setIsCustomUnit(!isCustomUnit); setFormState({...formState, unit: (!isCustomUnit) ? '' : 'كرتونة'}); }} className="text-[10px] bg-slate-100 dark:bg-slate-800 text-primary dark:text-accent-light px-2 py-1 rounded-lg font-bold hover:bg-primary/10 transition-all flex items-center shadow-sm">
                   {isCustomUnit ? 'قائمة' : <><Plus size={10} className="mr-0.5" /> مخصصة</>}
                 </button>
               </div>
@@ -804,14 +757,16 @@ export default function Items() {
         submitLabel="تأكيد الحذف نهائياً"
       >
         <div className="flex flex-col items-center text-center p-2">
-           <div className="w-16 h-16 bg-rose-50 dark:bg-rose-500/10 rounded-full flex items-center justify-center text-rose-500 mb-4 animate-pulse">
+           <div className="w-16 h-16 bg-status-danger/10 rounded-full flex items-center justify-center text-status-danger mb-4 animate-pulse">
               <AlertTriangle size={32} />
            </div>
-           <h4 className="text-lg font-black text-slate-800 dark:text-white mb-2">هل أنت متأكد من حذف هذا الصنف؟</h4>
-           <p className="text-sm font-bold text-slate-500 dark:text-slate-400 mb-2">
-             سيتم حذف <span className="text-rose-600 dark:text-rose-400">{selectedItem?.name}</span> من قائمة الأصناف بشكل نهائي. 
+           <h4 className="text-lg font-bold font-tajawal text-text-primary-light dark:text-text-primary-dark mb-2">هل أنت متأكد من حذف هذا الصنف؟</h4>
+           <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark mb-4">
+             سيتم حذف <span className="text-status-danger font-bold">{selectedItem?.name}</span> من قائمة الأصناف بشكل نهائي. 
            </p>
-           <p className="text-[10px] bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 px-3 py-1.5 rounded-lg border border-rose-100 dark:border-rose-500/20">هذا الإجراء لا يمكن التراجع عنه.</p>
+           <div className="bg-status-danger/5 text-status-danger text-[10px] font-bold px-4 py-2 rounded-xl border border-status-danger/10">
+             هذا الإجراء لا يمكن التراجع عنه.
+           </div>
         </div>
       </ModalWrapper>
 
@@ -824,14 +779,16 @@ export default function Items() {
         submitLabel="تأكيد الحذف نهائياً"
       >
         <div className="flex flex-col items-center text-center p-2">
-           <div className="w-16 h-16 bg-rose-50 dark:bg-rose-500/10 rounded-full flex items-center justify-center text-rose-500 mb-4 animate-pulse">
+           <div className="w-16 h-16 bg-status-danger/10 rounded-full flex items-center justify-center text-status-danger mb-4 animate-pulse">
               <AlertTriangle size={32} />
            </div>
-           <h4 className="text-lg font-black text-slate-800 dark:text-white mb-2">هل أنت متأكد من حذف هذه الأصناف؟</h4>
-           <p className="text-sm font-bold text-slate-500 dark:text-slate-400 mb-2">
-             سيتم حذف <span className="text-rose-600 dark:text-rose-400">{selectedForDelete.length}</span> أصناف محددة من قائمة المخزن بشكل نهائي. 
+           <h4 className="text-lg font-bold font-tajawal text-text-primary-light dark:text-text-primary-dark mb-2">هل أنت متأكد من حذف هذه الأصناف؟</h4>
+           <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark mb-4">
+             سيتم حذف <span className="text-status-danger font-bold">{selectedForDelete.length}</span> أصناف محددة من قائمة المخزن بشكل نهائي. 
            </p>
-           <p className="text-[10px] bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 px-3 py-1.5 rounded-lg border border-rose-100 dark:border-rose-500/20">لا يمكن التراجع عن هذا الإجراء وسيتم إجراء فحص الأرصدة أولاً.</p>
+           <div className="bg-status-danger/5 text-status-danger text-[10px] font-bold px-4 py-2 rounded-xl border border-status-danger/10">
+             لا يمكن التراجع عن هذا الإجراء وسيتم إجراء فحص الأرصدة أولاً.
+           </div>
         </div>
       </ModalWrapper>
 

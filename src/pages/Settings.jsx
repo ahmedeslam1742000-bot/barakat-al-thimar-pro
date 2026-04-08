@@ -70,6 +70,7 @@ const CARD_ACCENTS = {
   orange:  { icon: 'from-orange-500 to-amber-600 shadow-orange-500/25', badge: 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-500/10 border-orange-200 dark:border-orange-500/20', ring: 'focus:ring-orange-500/20 focus:border-orange-500' },
   teal:    { icon: 'from-teal-500 to-cyan-600 shadow-teal-500/25', badge: 'text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-500/10 border-teal-200 dark:border-teal-500/20', ring: 'focus:ring-teal-500/20 focus:border-teal-500' },
   indigo:  { icon: 'from-indigo-500 to-violet-600 shadow-indigo-500/25', badge: 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 border-indigo-200 dark:border-indigo-500/20', ring: 'focus:ring-indigo-500/20 focus:border-indigo-500' },
+  pink:    { icon: 'from-pink-500 to-rose-600 shadow-pink-500/25', badge: 'text-pink-600 dark:text-pink-400 bg-pink-50 dark:bg-pink-500/10 border-pink-200 dark:border-pink-500/20', ring: 'focus:ring-pink-500/20 focus:border-pink-500' },
 };
 
 function Card({ title, subtitle, icon: Icon, accent = 'emerald', number, children, className = '' }) {
@@ -883,13 +884,8 @@ export default function SettingsPage() {
               </div>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              {/* Dark mode quick-toggle */}
-              <button type="button" onClick={toggleTheme}
-                className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-emerald-600 hover:border-emerald-300 transition-all">
-                {isDarkMode ? <Sun size={17} /> : <Moon size={17} />}
-              </button>
               <button type="button" onClick={handleReset}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-sm text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 transition-all">
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-sm text-slate-500 hover:bg-slate-100 border border-slate-200 transition-all">
                 <RotateCcw size={14} /> إعادة ضبط
               </button>
               <button type="button" onClick={handleSave}
