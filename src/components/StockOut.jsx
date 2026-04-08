@@ -618,7 +618,7 @@ export default function StockOut() {
   const cardVariants = { hidden: { opacity: 0, y: 15, scale: 0.95 }, show: { opacity: 1, y: 0, scale: 1, transition: { type: 'spring', stiffness: 400, damping: 25 } } };
 
   return (
-    <div className="h-full w-full flex flex-col font-readex text-slate-800 overflow-hidden" dir="rtl">
+    <div className="flex-1 min-h-0 w-full flex flex-col font-readex text-slate-800 overflow-hidden" dir="rtl">
 
       {/* ─── HEADER ─── */}
       <div className="bg-white border-b border-slate-200 p-4 sm:p-6 shrink-0 z-20 transition-all">
