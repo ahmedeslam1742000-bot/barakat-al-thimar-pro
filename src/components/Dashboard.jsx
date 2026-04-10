@@ -3,14 +3,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Package, TrendingUp, Truck, AlertTriangle, ArrowUpRight, ArrowDownRight,
   Plus, X, FileText, RotateCcw, Search, Trash2, Bell, Clock, CheckCircle2, AlertOctagon,
-  Timer, Snowflake, Thermometer, ShieldAlert, History, ChevronDown, Layers
+  Timer, History, ChevronDown, Layers, FileCheck
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAudio } from '../contexts/AudioContext';
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
 
 // Firebase Imports
 import { db } from '../lib/firebase';
@@ -227,8 +225,23 @@ export default function Dashboard() {
   const [txFilter, setTxFilter] = useState('الكل');
   const [isMorningBriefOpen, setIsMorningBriefOpen] = useState(false);
 
+  // Voucher Status Tracking State
+  const [voucherTransactions, setVoucherTransactions] = useState([]);
+  const [isVoucherModalOpen, setIsVoucherModalOpen] = useState(false);
+  const [selectedVoucher, setSelectedVoucher] = useState(null);
+
   const containerVariants = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.1 } } };
   const itemVariants = { hidden: { opacity: 0, scale: 0.95 }, show: { opacity: 1, scale: 1, transition: { type: 'spring', stiffness: 300, damping: 24 } } };
+
+  // Card entry animations
+  const cardVariants = {
+    hidden: { opacity: 0, y: 20 },
+    show: { 
+      opacity: 1, 
+      y: 0, 
+      transition: { type: 'spring', stiffness: 200, damping: 18 } 
+    }
+  };
 
   // ---  LIVE FIREBASE CONNECTIVITY --- //
   useEffect(() => {
@@ -251,6 +264,28 @@ export default function Dashboard() {
       unsubscribeTrans();
     };
   }, []);
+
+  // Fetch voucher status (outbound non-invoiced transactions)
+  useEffect(() => {
+    if (!db || dbTransactionsList.length === 0) return;
+
+    const outboundTx = dbTransactionsList.filter(tx => 
+      tx.type === 'Issue' && !tx.invoiced
+    ).map(tx => {
+      // Find matching item to get client/rep info
+      const matchedItem = items.find(i => tx.item.includes(i.name));
+      return {
+        ...tx,
+        clientName: tx.loc || 'غير محدد',
+        itemName: tx.item,
+        quantity: Number(tx.qty || 0),
+        timestamp: tx.timestamp?.toDate ? tx.timestamp.toDate() : new Date(),
+        batchId: tx.batchId
+      };
+    });
+
+    setVoucherTransactions(outboundTx);
+  }, [dbTransactionsList, items]);
 
   if (!db) {
     return <div className="min-h-screen w-full flex items-center justify-center bg-slate-50 text-xl font-bold text-slate-500">Loading Firebase...</div>;
@@ -506,6 +541,30 @@ export default function Dashboard() {
     }
   };
 
+  // --- 5. MARK VOUCHER AS INVOICED --- //
+  const handleMarkAsInvoiced = async (voucher) => {
+    try {
+      // Find the original transaction in dbTransactionsList
+      const originalTx = dbTransactionsList.find(tx => tx.id === voucher.id);
+      
+      if (originalTx) {
+        // Update the transaction in Firestore
+        const txRef = doc(db, 'transactions', originalTx.id);
+        await updateDoc(txRef, { invoiced: true });
+        
+        // Remove from local state immediately for UI update
+        setVoucherTransactions(prev => prev.filter(v => v.id !== voucher.id));
+        
+        toast.success(`تم تحديد السند #${voucher.id.slice(-6)} كفوترة بنجاح ✅`);
+        playSuccess();
+        setIsVoucherModalOpen(false);
+        setSelectedVoucher(null);
+      }
+    } catch (err) {
+      toast.error("حدث خطأ أثناء تحديث حالة السند");
+    }
+  };
+
   // --- Derived Autocomplete State for Add Item --- //
   const uniqueItemNames = [...new Set(items.map(i => i.name))].filter(Boolean);
   const uniqueCompanies = [...new Set(items.map(i => i.company || 'بدون شركة'))].filter(Boolean);
@@ -618,51 +677,6 @@ export default function Dashboard() {
      return true;
   }).sort((a,b) => a.stockQty - b.stockQty);
 
-  const generatePDFReport = async () => {
-    try {
-       const doc = new jsPDF();
-       try {
-           const fontUrl = 'https://raw.githubusercontent.com/aliftype/amiri/main/fonts/ttf/amiri-regular.ttf';
-           const response = await fetch(fontUrl);
-           const buffer = await response.arrayBuffer();
-           const base64Font = btoa(new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), ''));
-           doc.addFileToVFS('Amiri.ttf', base64Font);
-           doc.addFont('Amiri.ttf', 'Amiri', 'normal');
-           doc.setFont('Amiri');
-       } catch (e) {
-           console.warn("Could not load Arabic font, falling back", e);
-       }
-
-       doc.setFontSize(20);
-       doc.text("Baraka Al Thimar PRO - Inventory Report", 105, 15, { align: 'center' });
-       doc.setFontSize(12);
-       doc.text(`Date: ${new Date().toLocaleDateString('ar-SA')}`, 195, 25, { align: 'right' });
-
-       const tableData = finalAlerts.map((i, idx) => [
-         idx + 1,
-         i.name,
-         i.company || '-',
-         i.cat,
-         `${i.stockQty} (${i.unit || 'كرتونة'})`,
-         i.stockQty < 50 ? 'Critical (حرج)' : i.stockQty < 100 ? 'Warning (تحذير)' : 'Safe (آمن)'
-       ]);
-
-       doc.autoTable({
-          startY: 30,
-          head: [['#', 'Item Name', 'Company', 'Category', 'Stock Qty', 'Status']],
-          body: tableData,
-          styles: { font: 'Amiri', halign: 'right' },
-          headStyles: { fillColor: [37, 99, 235], halign: 'center' }
-       });
-
-       doc.save(`Stock_Report_${Date.now()}.pdf`);
-       playSuccess();
-       toast.success("تم تصدير التقرير بنجاح");
-    } catch (err) {
-       toast.error("حدث خطأ أثناء التصدير");
-    }
-  };
-
   // --- Transactions Processing --- //
   const finalTransactions = dbTransactionsList.filter(tx => {
      if (txFilter === 'الكل') return true;
@@ -695,13 +709,12 @@ export default function Dashboard() {
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-5 min-h-0 overflow-hidden">
 
         {/* ─── RIGHT: Alerts ─── */}
-        <div className="flex flex-col bg-white rounded-[24px] border border-slate-100/80 shadow-sm overflow-hidden">
-          {/* Header: title right, ghost filters left */}
+        <motion.div 
+          variants={cardVariants}
+          className="flex flex-col bg-white rounded-[24px] border border-slate-100/80 shadow-sm overflow-hidden"
+        >
+          {/* Header: title right, inline filters left */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-slate-50 shrink-0">
-            <div className="flex items-center gap-1.5">
-              <select className="text-[10px] font-medium text-slate-400 outline-none cursor-pointer hover:text-slate-600 transition-colors border border-slate-100 rounded-full px-2.5 py-1" value={alertCatFilter} onChange={e => setAlertCatFilter(e.target.value)}><option>التصنيف</option>{[...new Set(items.map(i=>i.cat))].map(c => <option key={c}>{c}</option>)}</select>
-              <select className="text-[10px] font-medium text-slate-400 outline-none cursor-pointer hover:text-slate-600 transition-colors border border-slate-100 rounded-full px-2.5 py-1" value={alertUrgencyFilter} onChange={e => setAlertUrgencyFilter(e.target.value)}><option>الحالة</option><option>حرج</option><option>تحذير</option><option>آمن</option></select>
-            </div>
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-500">
                 <Bell size={15} />
@@ -711,12 +724,24 @@ export default function Dashboard() {
                 <p className="text-[10px] text-slate-400 font-readex font-medium">{finalAlerts.length}</p>
               </div>
             </div>
-          </div>
-          {/* Search */}
-          <div className="px-5 py-2.5 border-b border-slate-50/60 shrink-0">
-            <div className="relative">
-              <Search size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300" />
-              <input type="text" placeholder="بحث..." className="w-full bg-transparent border-0 text-[11px] rounded-lg pr-9 pl-3 py-1.5 outline-none font-readex placeholder:text-slate-300" value={alertSearch} onChange={e => setAlertSearch(e.target.value)} />
+            <div className="flex items-center gap-2">
+              <input 
+                type="text" 
+                placeholder="بحث..." 
+                className="w-28 bg-slate-50 border-0 text-[10px] rounded-lg px-3 py-1.5 outline-none font-readex placeholder:text-slate-300 focus:ring-2 focus:ring-amber-500/20 transition-all" 
+                value={alertSearch} 
+                onChange={e => setAlertSearch(e.target.value)} 
+              />
+              <select className="text-[10px] font-medium text-slate-500 outline-none cursor-pointer hover:text-slate-600 transition-colors border border-slate-100 rounded-lg px-2.5 py-1.5 bg-white hover:bg-slate-50" value={alertCatFilter} onChange={e => setAlertCatFilter(e.target.value)}>
+                <option>التصنيف</option>
+                {[...new Set(items.map(i=>i.cat))].map(c => <option key={c}>{c}</option>)}
+              </select>
+              <select className="text-[10px] font-medium text-slate-500 outline-none cursor-pointer hover:text-slate-600 transition-colors border border-slate-100 rounded-lg px-2.5 py-1.5 bg-white hover:bg-slate-50" value={alertUrgencyFilter} onChange={e => setAlertUrgencyFilter(e.target.value)}>
+                <option>الحالة</option>
+                <option>حرج</option>
+                <option>تحذير</option>
+                <option>آمن</option>
+              </select>
             </div>
           </div>
           {/* List */}
@@ -731,8 +756,13 @@ export default function Dashboard() {
               else if (i.stockQty < 100) { statusColor = '#F59E0B'; iconColor = 'text-amber-500'; icon = <AlertTriangle size={13} />; }
               const stockPct = Math.min((i.stockQty / 200) * 100, 100);
               return (
-                <div key={`${i.id}-${idx}`} className="flex items-center gap-3 mb-2.5 group/alert">
-                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${iconColor} bg-slate-50`}>{icon}</div>
+                <motion.div 
+                  key={`${i.id}-${idx}`} 
+                  whileHover={{ y: -1, backgroundColor: 'rgba(248, 250, 252, 0.5)' }}
+                  transition={{ duration: 0.2 }}
+                  className="flex items-center gap-3 mb-2.5 p-2 rounded-lg group/alert cursor-pointer"
+                >
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${iconColor} bg-white`}>{icon}</div>
                   <div className="min-w-0 flex-1">
                     <h4 className="text-[12px] font-bold text-[#0F2747] font-tajawal truncate">{i.name}</h4>
                     <div className="w-full h-1.5 bg-slate-100 rounded-full mt-1 overflow-hidden">
@@ -740,14 +770,17 @@ export default function Dashboard() {
                     </div>
                   </div>
                   <span className="text-xs font-bold tabular-nums shrink-0" style={{ color: statusColor }}>{i.stockQty}</span>
-                </div>
+                </motion.div>
               );
             })}
           </div>
-        </div>
+        </motion.div>
 
         {/* ─── MIDDLE: Transactions ─── */}
-        <div className="flex flex-col bg-white rounded-[24px] border border-slate-100/80 shadow-sm overflow-hidden">
+        <motion.div 
+          variants={cardVariants}
+          className="flex flex-col bg-white rounded-[24px] border border-slate-100/80 shadow-sm overflow-hidden"
+        >
           <div className="flex items-center justify-between px-6 py-4 border-b border-slate-50 shrink-0">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-500">
@@ -758,18 +791,18 @@ export default function Dashboard() {
                 <p className="text-[10px] text-slate-400 font-readex font-medium">{finalTransactions.length}</p>
               </div>
             </div>
-            {/* Segmented Picker */}
-            <div className="flex items-center bg-slate-100 rounded-full p-1 gap-0.5">
+            {/* Segmented Picker - Compact */}
+            <div className="flex items-center bg-slate-100 rounded-lg p-0.5 gap-0.5">
               {[
-                { key: 'الكل', icon: <FileText size={13} strokeWidth={2} /> },
-                { key: 'Restock', icon: <ArrowDownRight size={13} strokeWidth={2} /> },
-                { key: 'Issue', icon: <ArrowUpRight size={13} strokeWidth={2} /> },
-                { key: 'Return', icon: <RotateCcw size={13} strokeWidth={2} /> }
+                { key: 'الكل', icon: <FileText size={12} strokeWidth={2} /> },
+                { key: 'Restock', icon: <ArrowDownRight size={12} strokeWidth={2} /> },
+                { key: 'Issue', icon: <ArrowUpRight size={12} strokeWidth={2} /> },
+                { key: 'Return', icon: <RotateCcw size={12} strokeWidth={2} /> }
               ].map(f => (
                 <button
                   key={f.key}
                   onClick={() => setTxFilter(f.key)}
-                  className={`p-2 rounded-full transition-all duration-200 ${
+                  className={`p-1.5 rounded-md transition-all duration-200 ${
                     txFilter === f.key
                       ? 'bg-white shadow-sm text-[#0F2747]'
                       : 'text-slate-400 hover:text-slate-500'
@@ -786,7 +819,13 @@ export default function Dashboard() {
             ) : (
               <div className="space-y-1.5">
                 {finalTransactions.slice(0, 50).map((tx) => (
-                  <div key={tx.id} onClick={() => { setSelectedBatchTransactions(tx.batchId ? dbTransactionsList.filter(t => t.batchId === tx.batchId) : [tx]); setIsTransactionDetailOpen(true); }} className="flex items-center justify-between p-3 rounded-xl border border-transparent cursor-pointer hover:bg-slate-50 hover:border-slate-100 transition-all group">
+                  <motion.div 
+                    key={tx.id} 
+                    onClick={() => { setSelectedBatchTransactions(tx.batchId ? dbTransactionsList.filter(t => t.batchId === tx.batchId) : [tx]); setIsTransactionDetailOpen(true); }} 
+                    whileHover={{ y: -1, backgroundColor: 'rgba(248, 250, 252, 0.8)' }}
+                    transition={{ duration: 0.2 }}
+                    className="flex items-center justify-between p-3 rounded-xl border border-transparent cursor-pointer group"
+                  >
                     <div className="flex items-center gap-2.5 min-w-0 flex-1">
                       <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${tx.type === 'Issue' ? 'bg-amber-50 text-amber-500' : tx.type === 'Return' ? 'bg-red-50 text-red-500' : 'bg-emerald-50 text-emerald-500'}`}>
                         {tx.type === 'Issue' ? <ArrowUpRight size={14} /> : tx.type === 'Return' ? <RotateCcw size={14} /> : <ArrowDownRight size={14} />}
@@ -794,26 +833,86 @@ export default function Dashboard() {
                       <div className="min-w-0"><p className="text-[12px] font-bold text-[#0F2747] font-tajawal truncate group-hover:text-emerald-600 transition-colors">{tx.item}</p><p className="text-[10px] text-slate-400 font-readex">{tx.date}</p></div>
                     </div>
                     <span className={`text-sm font-bold tabular-nums shrink-0 ${tx.type === 'Issue' ? 'text-amber-500' : tx.type === 'Return' ? 'text-red-500' : 'text-emerald-500'}`}>{tx.type === 'Issue' ? '-' : '+'}{tx.qty}</span>
-                  </div>
+                  </motion.div>
                 ))}
               </div>
             )}
           </div>
-        </div>
+        </motion.div>
 
-        {/* ─── LEFT: Quick Access ─── */}
-        <div className="flex flex-col bg-white rounded-[24px] border border-slate-100/80 shadow-sm overflow-hidden">
-          <div className="flex items-center gap-2 px-6 py-4 border-b border-slate-50 shrink-0">
-            <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-500">
-              <Search size={15} />
-            </div>
-            <div className="text-right">
-              <h3 className="text-sm font-bold text-[#0F2747] font-tajawal leading-tight">وصول سريع للمخزون</h3>
-              <p className="text-[10px] text-slate-400 font-readex font-medium">بحث سريع</p>
+        {/* ─── LEFT: Voucher Status Tracking ─── */}
+        <motion.div 
+          variants={cardVariants}
+          className="flex flex-col bg-white rounded-[24px] border border-slate-100/80 shadow-sm overflow-hidden"
+        >
+          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-50 shrink-0">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-500">
+                <FileCheck size={15} />
+              </div>
+              <div className="text-right">
+                <h3 className="text-sm font-bold text-[#0F2747] font-tajawal leading-tight">حالة سندات الصرف</h3>
+                <p className="text-[10px] text-slate-400 font-readex font-medium">{voucherTransactions.length} قيد الانتظار</p>
+              </div>
             </div>
           </div>
-          <QuickAccessCard items={items} />
-        </div>
+          {/* Voucher List */}
+          <div className="flex-1 overflow-y-auto custom-scrollbar px-5 py-3">
+            {voucherTransactions.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-slate-300">
+                <FileCheck size={36} strokeWidth={1.2} className="mb-3" />
+                <p className="text-xs font-semibold">لا توجد سندات قيد الانتظار</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {voucherTransactions.slice(0, 15).map((voucher) => (
+                  <motion.div 
+                    key={voucher.id}
+                    whileHover={{ y: -1, backgroundColor: 'rgba(248, 250, 252, 0.8)' }}
+                    transition={{ duration: 0.2 }}
+                    className="p-3 rounded-xl border border-slate-100 bg-white group cursor-pointer"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                        <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center shrink-0 text-emerald-600">
+                          <FileText size={14} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h4 className="text-[12px] font-bold text-[#0F2747] font-tajawal truncate">{voucher.clientName}</h4>
+                            <span className="text-[9px] font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                              #{voucher.id.slice(-6)}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-slate-500 font-readex truncate">{voucher.itemName}</p>
+                          <div className="flex items-center gap-3 mt-1.5">
+                            <span className="text-[10px] text-slate-400 flex items-center gap-1">
+                              <Clock size={10} />
+                              {voucher.timestamp.toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' })}
+                            </span>
+                            <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">
+                              {voucher.quantity} وحدة
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedVoucher(voucher);
+                          setIsVoucherModalOpen(true);
+                        }}
+                        className="shrink-0 px-3 py-1.5 rounded-lg bg-emerald-500 text-white text-[10px] font-bold hover:bg-emerald-600 active:scale-95 transition-all"
+                      >
+                        تمت الفوترة
+                      </button>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+          </div>
+        </motion.div>
 
       </div>
 
@@ -1391,6 +1490,91 @@ export default function Dashboard() {
               <div className="px-7 py-4 border-t border-slate-100 flex items-center justify-between shrink-0 bg-slate-50/60">
                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider font-readex">مراجعة المخزون ضرورية</p>
                 <button onClick={() => setIsMorningBriefOpen(false)} className="px-5 py-2 rounded-xl text-sm font-bold text-white bg-[#10B981] hover:bg-emerald-600 shadow-lg shadow-emerald-500/20 transition-all font-tajawal">تم — متابعة</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Voucher Confirmation Modal */}
+      <AnimatePresence>
+        {isVoucherModalOpen && selectedVoucher && (
+          <motion.div
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-[#0F2747]/50 backdrop-blur-md"
+            dir="rtl" 
+            onClick={() => { setIsVoucherModalOpen(false); setSelectedVoucher(null); }}
+          >
+            <motion.div
+              onClick={e => e.stopPropagation()}
+              initial={{ opacity: 0, scale: 0.92, y: 24 }} 
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 24 }} 
+              transition={{ type: 'spring', damping: 26, stiffness: 300 }}
+              className="w-full max-w-md bg-white rounded-[24px] shadow-2xl border border-slate-100/60 overflow-hidden"
+            >
+              {/* Header */}
+              <div className="px-7 py-5 border-b border-slate-100 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
+                    <FileCheck size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-[#0F2747] font-tajawal">تأكيد الفوترة</h3>
+                    <p className="text-[11px] text-slate-400 font-readex">تحويل السند إلى فاتورة</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => { setIsVoucherModalOpen(false); setSelectedVoucher(null); }} 
+                  className="p-2 text-slate-400 hover:bg-slate-50 rounded-lg transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              
+              {/* Content */}
+              <div className="px-7 py-6">
+                <p className="text-sm text-slate-600 font-readex mb-4">
+                  هل أنت متأكد من تحويل السند التالي إلى حالة "تمت الفوترة"؟
+                </p>
+                
+                {/* Voucher Details Card */}
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-slate-500 font-readex">العميل:</span>
+                    <span className="text-sm font-bold text-[#0F2747] font-tajawal">{selectedVoucher.clientName}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-slate-500 font-readex">رقم السند:</span>
+                    <span className="text-xs font-mono bg-white px-2 py-1 rounded border border-slate-200">#{selectedVoucher.id.slice(-6)}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-slate-500 font-readex">الكمية:</span>
+                    <span className="text-sm font-bold text-amber-600">{selectedVoucher.quantity} وحدة</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-slate-500 font-readex">التاريخ:</span>
+                    <span className="text-xs text-slate-700">{selectedVoucher.timestamp.toLocaleDateString('ar-SA')}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer Actions */}
+              <div className="px-7 py-4 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-3">
+                <button 
+                  onClick={() => { setIsVoucherModalOpen(false); setSelectedVoucher(null); }}
+                  className="px-6 py-2.5 rounded-xl text-sm font-semibold text-slate-500 border border-slate-200 hover:bg-white transition-all font-readex"
+                >
+                  إلغاء
+                </button>
+                <button 
+                  onClick={() => handleMarkAsInvoiced(selectedVoucher)}
+                  className="px-6 py-2.5 rounded-xl text-sm font-bold text-white bg-emerald-500 hover:bg-emerald-600 shadow-lg shadow-emerald-500/20 transition-all font-tajawal"
+                >
+                  تأكيد الفوترة ✓
+                </button>
               </div>
             </motion.div>
           </motion.div>
