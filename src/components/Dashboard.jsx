@@ -1,13 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
+import {
   Package, TrendingUp, Truck, AlertTriangle, ArrowUpRight, ArrowDownRight,
-  Plus, X, FileText, RotateCcw, Search, Trash2, Bell, Clock, CheckCircle2, AlertOctagon, Printer,
-  Timer, Snowflake, Thermometer, ShieldAlert, History, ChevronDown
+  Plus, X, FileText, RotateCcw, Search, Trash2, Bell, Clock, CheckCircle2, AlertOctagon,
+  Timer, Snowflake, Thermometer, ShieldAlert, History, ChevronDown, Layers
 } from 'lucide-react';
-import { 
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
-} from 'recharts';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -37,30 +34,128 @@ const normalizeText = (text) => {
     .trim();
 };
 
+// --- Premium Stat Card with Action Button ---
+const StatCard = ({ icon: Icon, label, value, subtext, actionLabel, onClick, accentColor = '#10B981' }) => (
+  <motion.div
+    whileHover={{ y: -4, transition: { duration: 0.25 } }}
+    className="relative rounded-[20px] overflow-hidden cursor-pointer group bg-white shadow-sm hover:shadow-xl transition-all duration-300 border border-slate-100/80"
+    onClick={onClick}
+  >
+    <div className="p-6 pb-3 flex items-center gap-5">
+      <div
+        className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:rotate-3"
+        style={{ backgroundColor: accentColor + '18', color: accentColor }}
+      >
+        <Icon size={26} strokeWidth={1.8} />
+      </div>
+      <div className="flex flex-col">
+        <span className="text-[13px] font-medium text-slate-500 font-readex mb-1">{label}</span>
+        <span className="text-[32px] font-bold text-[#0F2747] font-tajawal leading-none tracking-tight">{value}</span>
+        {subtext && <span className="text-[11px] text-slate-400 font-readex mt-1.5">{subtext}</span>}
+      </div>
+    </div>
+    {/* Action Button */}
+    {actionLabel && (
+      <div className="px-6 pb-5">
+        <div
+          className="w-full flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-semibold font-tajawal transition-all duration-200 hover:brightness-95"
+          style={{ backgroundColor: accentColor + '12', color: accentColor }}
+        >
+          <Plus size={14} strokeWidth={2.5} />
+          {actionLabel}
+        </div>
+      </div>
+    )}
+    <div
+      className="absolute -top-6 -left-6 w-20 h-20 rounded-full opacity-[0.04] group-hover:opacity-[0.08] transition-opacity duration-500"
+      style={{ backgroundColor: accentColor }}
+    />
+  </motion.div>
+);
+
+/* ─── Quick Access Card ─── */
+function QuickAccessCard({ items }) {
+  const [qaSearch, setQaSearch] = useState('');
+  const threshold = 100;
+
+  const filtered = items
+    .filter(i => !qaSearch || i.name.includes(qaSearch) || i.company?.includes(qaSearch))
+    .sort((a, b) => b.stockQty - a.stockQty)
+    .slice(0, 5);
+
+  return (
+    <div className="flex flex-col flex-1 overflow-hidden">
+      {/* Pill search */}
+      <div className="px-5 py-3 shrink-0">
+        <div className="relative">
+          <Search size={14} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-300" />
+          <input
+            type="text"
+            placeholder="ابحث عن صنف..."
+            className="w-full bg-[#F9FAFB] border-0 text-[11px] rounded-full pr-10 pl-4 py-2.5 outline-none font-readex placeholder:text-slate-300"
+            value={qaSearch}
+            onChange={e => setQaSearch(e.target.value)}
+          />
+        </div>
+      </div>
+      {/* Items list */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar px-5 pb-4">
+        {filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-slate-300">
+            <Package size={36} strokeWidth={1.2} className="mb-3" />
+            <p className="text-xs font-semibold">لا توجد أصناف</p>
+          </div>
+        ) : filtered.map((item) => {
+          const stockPct = Math.min((item.stockQty / (threshold * 2)) * 100, 100);
+          const isLow = item.stockQty < 50;
+          const isMid = item.stockQty >= 50 && item.stockQty < threshold;
+          const barColor = isLow ? '#EF4444' : isMid ? '#F59E0B' : '#10B981';
+          return (
+            <div key={item.id} className="flex items-center gap-3 py-2.5 border-b border-slate-50 last:border-0">
+              <div className="w-7 h-7 rounded-lg bg-slate-50 flex items-center justify-center shrink-0 text-slate-400">
+                <Layers size={13} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between mb-1">
+                  <h4 className="text-[12px] font-bold text-[#0F2747] font-tajawal truncate">{item.name}</h4>
+                  <span className="text-xs font-bold tabular-nums shrink-0 mr-2" style={{ color: barColor }}>{item.stockQty}</span>
+                </div>
+                <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full transition-all duration-500" style={{ width: `${stockPct}%`, backgroundColor: barColor }} />
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 const ModalWrapper = ({ title, isOpen, onClose, children, onSubmit, maxWidth = "max-w-2xl", isSubmitDisabled = false }) => (
   <AnimatePresence>
     {isOpen && (
-      <motion.div 
-        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} 
-        className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-md transition-all duration-500" 
-        dir="rtl" onClick={onClose} 
+      <motion.div
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-[#0F2747]/60 backdrop-blur-md transition-all duration-300"
+        dir="rtl" onClick={onClose}
       >
-        <motion.div 
-          onClick={(e) => e.stopPropagation()} 
-          initial={{ opacity: 0, scale: 0.9, y: 40 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 40 }} transition={{ type: 'spring', damping: 25, stiffness: 300 }} 
-          className={`w-full ${maxWidth} bg-white rounded-[2rem] shadow-[0_32px_64px_-12px_rgba(0,0,0,0.3)] border border-slate-100 flex flex-col max-h-[90vh] overflow-hidden`}
+        <motion.div
+          onClick={(e) => e.stopPropagation()}
+          initial={{ opacity: 0, scale: 0.96, y: 24 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: 24 }} transition={{ type: 'spring', damping: 28, stiffness: 320 }}
+          className={`w-full ${maxWidth} bg-white rounded-[24px] shadow-2xl border border-slate-100/60 flex flex-col max-h-[92vh] overflow-hidden`}
         >
-          <div className="flex items-center justify-between p-8 border-b border-slate-100 bg-slate-50/30 shrink-0">
-            <h3 className="text-2xl font-black text-slate-800 tracking-tight">{title}</h3>
-            <button type="button" onClick={onClose} className="p-2.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 rounded-2xl transition-all active:scale-90">
+          <div className="flex items-center justify-between px-8 py-6 border-b border-slate-100 shrink-0">
+            <h3 className="text-2xl font-bold text-[#0F2747] font-tajawal tracking-tight">{title}</h3>
+            <button type="button" onClick={onClose} className="p-2.5 text-slate-400 hover:bg-slate-50 hover:text-slate-600 rounded-xl transition-all active:scale-90">
               <X size={22} />
             </button>
           </div>
           <form onSubmit={onSubmit} className="flex-1 flex flex-col overflow-hidden">
-              <div className="p-8 overflow-y-auto custom-scrollbar flex-1 relative">{children}</div>
-              <div className="p-8 border-t border-slate-100 bg-slate-50/30 flex space-x-4 space-x-reverse justify-end shrink-0">
-                  <button type="button" onClick={onClose} className="px-6 py-3 rounded-xl font-bold text-slate-500 border border-slate-200 hover:bg-slate-50 transition-all">إلغاء</button>
-                  <button type="submit" disabled={isSubmitDisabled} className="btn-primary px-8 py-3 shadow-primary/30">حفظ واعتماد العمليات</button>
+              <div className="px-8 py-6 overflow-y-auto custom-scrollbar flex-1 relative">{children}</div>
+              <div className="px-8 py-5 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-3 shrink-0">
+                  <button type="button" onClick={onClose} className="px-6 py-2.5 rounded-xl text-sm font-semibold text-slate-500 border border-slate-200 hover:bg-white transition-all font-readex">إلغاء</button>
+                  <button type="submit" disabled={isSubmitDisabled} className="px-8 py-2.5 rounded-xl text-sm font-bold text-white bg-[#10B981] hover:bg-emerald-600 shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed font-tajawal">حفظ واعتماد</button>
               </div>
           </form>
         </motion.div>
@@ -78,8 +173,8 @@ export default function Dashboard() {
   const [isSalesModalOpen, setIsSalesModalOpen] = useState(false);
   const [isReturnsModalOpen, setIsReturnsModalOpen] = useState(false);
 
-  // --- 🔥 RENAMED STATE VARIABLES TO FORCIBLY BYPASS VITE HMR --- //
-  const [items, setItems] = useState([]); 
+  // ---  RENAMED STATE VARIABLES TO FORCIBLY BYPASS VITE HMR --- //
+  const [items, setItems] = useState([]);
   const [dbTransactionsList, setDbTransactionsList] = useState([]);
 
   // Dynamic Locations State
@@ -89,20 +184,20 @@ export default function Dashboard() {
   const [itemForm, setItemForm] = useState({ name: '', company: '', cat: 'مجمدات', unit: 'كرتونة' });
   const [itemErrors, setItemErrors] = useState({});
 
-  const [stockForm, setStockForm] = useState({ 
-    loc: 'مستودع الرياض', date: new Date().toISOString().split('T')[0], items: [] 
+  const [stockForm, setStockForm] = useState({
+    loc: 'مستودع الرياض', date: new Date().toISOString().split('T')[0], items: []
   });
   const [currentStockItem, setCurrentStockItem] = useState({ name: '', selectedItem: null, cat: '', unit: '', qty: '' });
   const [stockErrors, setStockErrors] = useState({});
 
-  const [invoiceForm, setInvoiceForm] = useState({ 
-    rep: 'أحمد المندوب', date: new Date().toISOString().split('T')[0], items: [] 
+  const [invoiceForm, setInvoiceForm] = useState({
+    rep: 'أحمد المندوب', date: new Date().toISOString().split('T')[0], items: []
   });
   const [currentInvoiceItem, setCurrentInvoiceItem] = useState({ name: '', selectedItem: null, cat: '', unit: '', qty: '' });
   const [invoiceErrors, setInvoiceErrors] = useState({});
 
-  const [returnForm, setReturnForm] = useState({ 
-    rep: 'محمد المندوب', date: new Date().toISOString().split('T')[0], query: '', selectedItem: null, qty: '', reason: 'سليم (يعود للمخزون)', cat: '' 
+  const [returnForm, setReturnForm] = useState({
+    rep: 'محمد المندوب', date: new Date().toISOString().split('T')[0], query: '', selectedItem: null, qty: '', reason: 'سليم (يعود للمخزون)', cat: ''
   });
   const [returnErrors, setReturnErrors] = useState({});
   const [searchActiveIndex, setSearchActiveIndex] = useState(-1);
@@ -135,10 +230,10 @@ export default function Dashboard() {
   const containerVariants = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.1 } } };
   const itemVariants = { hidden: { opacity: 0, scale: 0.95 }, show: { opacity: 1, scale: 1, transition: { type: 'spring', stiffness: 300, damping: 24 } } };
 
-  // --- 🔥 LIVE FIREBASE CONNECTIVITY --- //
+  // ---  LIVE FIREBASE CONNECTIVITY --- //
   useEffect(() => {
     if (!db) return;
-    
+
     // 1. Fetch Items safely
     const qItems = query(collection(db, 'items'));
     const unsubscribeItems = onSnapshot(qItems, (snapshot) => {
@@ -222,7 +317,7 @@ export default function Dashboard() {
       setItemErrors({ name: true });
       return toast.error("يرجى إدخال اسم الصنف المكتمل.");
     }
-    
+
     const rawName = itemForm.name.trim();
     const rawCompany = itemForm.company.trim() || 'بدون شركة';
 
@@ -233,13 +328,13 @@ export default function Dashboard() {
         // Fetch all items from Firestore to guarantee absolute duplicate prevention across all entries
         const qCompanyItems = query(collection(db, 'items'));
         const querySnapshot = await getDocs(qCompanyItems);
-        
+
         let foundDuplicate = null;
         querySnapshot.forEach((docSnap) => {
            const dbItem = docSnap.data();
            const normDbCompany = normalizeText(dbItem.company || 'بدون شركة');
            const normDbName = normalizeText(dbItem.name);
-           
+
            if (normDbCompany === normalizedInputCompany && normDbName === normalizedInputName) {
                foundDuplicate = dbItem;
            }
@@ -277,11 +372,11 @@ export default function Dashboard() {
       if (currentStockItem.selectedItem && currentStockItem.qty) return toast.error("اضغط Enter لإضافة الصنف المفتوح إلى الجدول أولاً.");
       return toast.error("الجدول فارغ! الرجاء إضافة الأصناف أولاً.");
     }
-    
+
     try {
         const processPromises = [];
         const additions = {};
-        
+
         stockForm.items.forEach(it => {
             if (!additions[it.selectedItem.id]) additions[it.selectedItem.id] = { id: it.selectedItem.id, qty: 0 };
             additions[it.selectedItem.id].qty += Number(it.qty);
@@ -293,7 +388,7 @@ export default function Dashboard() {
                 processPromises.push(updateDoc(doc(db, 'items', id), { stockQty: currentItem.stockQty + payload.qty }));
             }
         }
-        
+
         const batchId = Date.now().toString();
         const userId = currentUser?.email?.split('@')[0] || 'مدير النظام';
         for (let it of stockForm.items) {
@@ -316,7 +411,7 @@ export default function Dashboard() {
   // --- 3. ADD INVOICE --- //
   const handleAddInvoice = async (e) => {
     e.preventDefault();
-    
+
     if (invoiceForm.items.length === 0) {
       if (currentInvoiceItem.selectedItem && currentInvoiceItem.qty) return toast.error("اضغط Enter لإضافة الصنف المفتوح إلى الفاتورة أولاً.");
       return toast.error("الفاتورة فارغة! الرجاء إضافة الأصناف أولاً.");
@@ -357,7 +452,7 @@ export default function Dashboard() {
                 processPromises.push(updateDoc(doc(db, 'items', id), { stockQty: newStock }));
             }
         }
-        
+
         const batchId = Date.now().toString();
         const userId = currentUser?.email?.split('@')[0] || 'مدير النظام';
         for (let it of invoiceForm.items) {
@@ -414,12 +509,12 @@ export default function Dashboard() {
   // --- Derived Autocomplete State for Add Item --- //
   const uniqueItemNames = [...new Set(items.map(i => i.name))].filter(Boolean);
   const uniqueCompanies = [...new Set(items.map(i => i.company || 'بدون شركة'))].filter(Boolean);
-  
+
   const normalizedInputName = normalizeText(itemForm.name);
   const normalizedInputCompany = normalizeText(itemForm.company || 'بدون شركة');
-  
-  const isDuplicateMatch = itemForm.name.trim() !== '' && items.some(i => 
-    normalizeText(i.name) === normalizedInputName && 
+
+  const isDuplicateMatch = itemForm.name.trim() !== '' && items.some(i =>
+    normalizeText(i.name) === normalizedInputName &&
     normalizeText(i.company || 'بدون شركة') === normalizedInputCompany
   );
 
@@ -471,7 +566,7 @@ export default function Dashboard() {
   const chartTransactions = finalizedTxs.filter(t => t.type === 'Issue').sort((a,b) => {
       const dateA = a.timestamp?.toDate ? a.timestamp.toDate() : new Date();
       const dateB = b.timestamp?.toDate ? b.timestamp.toDate() : new Date();
-      return dateA - dateB; 
+      return dateA - dateB;
   });
 
   let dynamicSalesData = chartTransactions.map((tx, index) => ({
@@ -495,15 +590,15 @@ export default function Dashboard() {
           <p className="font-bold font-tajawal text-text-primary-light dark:text-text-primary-dark text-sm mb-3 border-b border-border-light dark:border-border-dark pb-2 truncate">{data.name}</p>
           <div className="space-y-2">
              <div className="flex justify-between items-center text-xs">
-               <span className="text-text-secondary-light dark:text-text-secondary-dark font-medium">الشركة:</span> 
-               <span className="text-text-primary-light dark:text-text-primary-dark font-bold">{data.company}</span>
+               <span className="text-text-secondary-light dark:text-text-secondary-dark font-medium">الشركة:</span>
+               <span className="text-text-primary-light dark:text-text-primary-dark font-semibold">{data.company}</span>
              </div>
              <div className="flex justify-between items-center text-xs">
-               <span className="text-text-secondary-light dark:text-text-secondary-dark font-medium">الكمية المباعة:</span> 
+               <span className="text-text-secondary-light dark:text-text-secondary-dark font-medium">الكمية المباعة:</span>
                <span className="text-status-success font-bold">{data.sales}</span>
              </div>
              <div className="flex justify-between items-center text-xs">
-               <span className="text-text-secondary-light dark:text-text-secondary-dark font-medium">تاريخ الحركة:</span> 
+               <span className="text-text-secondary-light dark:text-text-secondary-dark font-medium">تاريخ الحركة:</span>
                <span className="text-text-primary-light dark:text-text-primary-dark font-bold">{data.date}</span>
              </div>
           </div>
@@ -537,12 +632,12 @@ export default function Dashboard() {
        } catch (e) {
            console.warn("Could not load Arabic font, falling back", e);
        }
-       
+
        doc.setFontSize(20);
        doc.text("Baraka Al Thimar PRO - Inventory Report", 105, 15, { align: 'center' });
        doc.setFontSize(12);
        doc.text(`Date: ${new Date().toLocaleDateString('ar-SA')}`, 195, 25, { align: 'right' });
-       
+
        const tableData = finalAlerts.map((i, idx) => [
          idx + 1,
          i.name,
@@ -551,7 +646,7 @@ export default function Dashboard() {
          `${i.stockQty} (${i.unit || 'كرتونة'})`,
          i.stockQty < 50 ? 'Critical (حرج)' : i.stockQty < 100 ? 'Warning (تحذير)' : 'Safe (آمن)'
        ]);
-       
+
        doc.autoTable({
           startY: 30,
           head: [['#', 'Item Name', 'Company', 'Category', 'Stock Qty', 'Status']],
@@ -559,7 +654,7 @@ export default function Dashboard() {
           styles: { font: 'Amiri', halign: 'right' },
           headStyles: { fillColor: [37, 99, 235], halign: 'center' }
        });
-       
+
        doc.save(`Stock_Report_${Date.now()}.pdf`);
        playSuccess();
        toast.success("تم تصدير التقرير بنجاح");
@@ -575,291 +670,150 @@ export default function Dashboard() {
   });
 
   return (
-    <div className="flex-1 min-h-0 h-full w-full flex flex-col gap-4 sm:gap-6 font-readex bg-transparent text-text-primary-light dark:text-text-primary-dark overflow-hidden box-border transition-colors duration-300">
-      
-      {/* 4 Stat Cards */}
-      <motion.div variants={containerVariants} initial="hidden" animate="show" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 shrink-0">
-        <motion.div variants={itemVariants} className="bg-white rounded-3xl p-6 flex flex-col justify-between group hover:border-primary/30 dark:hover:border-accent/30 hover:shadow-xl transition-all duration-500 relative overflow-hidden border border-slate-100 shadow-sm">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-700"></div>
-          <div className="flex justify-between items-start mb-6 relative z-10">
-            <div>
-              <p className="text-slate-400 text-[10px] font-bold mb-1 uppercase tracking-[0.15em]">إجمالي الأصناف</p>
-              <h3 className="text-slate-800 font-extrabold text-3xl sm:text-4xl">{items.length}</h3>
-            </div>
-            <div className="w-12 h-12 rounded-2xl bg-primary/10 dark:bg-primary/20 flex items-center justify-center text-primary dark:text-accent-light transition-all group-hover:rotate-12 duration-300 shadow-sm border border-primary/10">
-              <Package size={22} />
-            </div>
-          </div>
-          <button onClick={() => setIsItemModalOpen(true)} className="w-full py-2.5 text-xs flex items-center justify-center gap-2 rounded-xl font-bold transition-all bg-[#0F2747] text-white hover:bg-[#15345b] shadow-lg shadow-black/10 hover:shadow-xl relative z-10">
-            <Plus size={14} /> 
-            <span>إضافة صنف جديد</span>
-          </button>
-        </motion.div>
+    <div className="flex-1 min-h-0 h-full w-full flex flex-col gap-5 font-readex bg-transparent text-text-primary-light dark:text-text-primary-dark overflow-hidden box-border transition-colors duration-300">
+      {/* ── Page Header ── */}
+      <div className="flex items-center justify-between shrink-0">
+        <div>
+          <h1 className="text-[26px] font-bold text-[#0F2747] font-tajawal leading-tight">لوحة القيادة</h1>
+          <p className="text-[13px] text-slate-400 font-readex mt-1">نظرة عامة على المخزون والحركات</p>
+        </div>
+        <div className="flex items-center gap-2 text-xs text-slate-400 font-readex">
+          <Clock size={14} />
+          <span>{new Date().toLocaleDateString('ar-SA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+        </div>
+      </div>
 
-        <motion.div variants={itemVariants} className="bg-white rounded-3xl p-6 flex flex-col justify-between group hover:border-emerald-400/30 hover:shadow-xl transition-all duration-500 relative overflow-hidden border border-slate-100 shadow-sm">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-700"></div>
-          <div className="flex justify-between items-start mb-6 relative z-10">
-            <div>
-              <p className="text-slate-400 text-[10px] font-bold mb-1 uppercase tracking-[0.15em]">الوارد (الكمية)</p>
-              <h3 className="text-slate-800 font-extrabold text-3xl sm:text-4xl">{stockInCount}</h3>
-            </div>
-            <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-500 transition-all group-hover:rotate-12 duration-300 shadow-sm border border-emerald-100">
-              <Truck size={22} />
-            </div>
-          </div>
-          <button onClick={() => setIsStockInModalOpen(true)} className="w-full py-2.5 text-xs flex items-center justify-center gap-2 rounded-xl font-bold transition-all bg-[#10B981] text-white hover:bg-[#0ea5e9] shadow-lg shadow-emerald-500/20 hover:shadow-xl relative z-10">
-            <Plus size={14} /> 
-            <span>توريد بضاعة</span>
-          </button>
-        </motion.div>
+      {/* ── Stat Cards ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 shrink-0">
+        <StatCard icon={Package} label="إجمالي الأصناف" value={items.length} subtext="صنف مسجل" actionLabel="إضافة صنف" onClick={() => setIsItemModalOpen(true)} accentColor="#10B981" />
+        <StatCard icon={Truck} label="الوارد" value={stockInCount} subtext="وحدة مُورّدة" actionLabel="إضافة وارد" onClick={() => setIsStockInModalOpen(true)} accentColor="#3B82F6" />
+        <StatCard icon={TrendingUp} label="الصادر" value={salesCount} subtext="وحدة مُباعة" actionLabel="فاتورة جديدة" onClick={() => setIsSalesModalOpen(true)} accentColor="#F59E0B" />
+        <StatCard icon={RotateCcw} label={damageCount > 0 ? `المرتجعات (${damageCount} تالف)` : "المرتجعات"} value={returnsCount} subtext="وحدة مُرتجعة" actionLabel="تسجيل مرتجع" onClick={() => setIsReturnsModalOpen(true)} accentColor="#EF4444" />
+      </div>
 
-        <motion.div variants={itemVariants} className="bg-white rounded-3xl p-6 flex flex-col justify-between group hover:border-amber-400/30 hover:shadow-xl transition-all duration-500 relative overflow-hidden border border-slate-100 shadow-sm">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-amber-400/5 rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-700"></div>
-          <div className="flex justify-between items-start mb-6 relative z-10">
-            <div>
-              <p className="text-slate-400 text-[10px] font-bold mb-1 uppercase tracking-[0.15em]">الصادر (الكمية)</p>
-              <h3 className="text-slate-800 font-extrabold text-3xl sm:text-4xl">{salesCount}</h3>
-            </div>
-            <div className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-500 transition-all group-hover:rotate-12 duration-300 shadow-sm border border-amber-100">
-              <TrendingUp size={22} />
-            </div>
-          </div>
-          <button onClick={() => setIsSalesModalOpen(true)} className="w-full py-2.5 text-xs flex items-center justify-center gap-2 rounded-xl font-bold transition-all bg-amber-500 text-white hover:bg-amber-600 shadow-lg shadow-amber-500/20 hover:shadow-xl relative z-10">
-            <FileText size={14} /> 
-            <span>إصدار فاتورة صادر</span>
-          </button>
-        </motion.div>
+      {/* ── Bottom 3-Card Row ── */}
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-5 min-h-0 overflow-hidden">
 
-        <motion.div variants={itemVariants} className="bg-white rounded-3xl p-6 flex flex-col justify-between group hover:border-rose-400/30 hover:shadow-xl transition-all duration-500 relative overflow-hidden border border-slate-100 shadow-sm">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-rose-500/5 rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-700"></div>
-          <div className="flex justify-between items-start mb-6 relative z-10">
-            <div>
-              <p className="text-slate-400 text-[10px] font-bold mb-1 uppercase tracking-[0.15em]">المرتجعات</p>
-              <div className="flex items-center gap-2">
-                <h3 className="text-slate-800 font-extrabold text-3xl sm:text-4xl">{returnsCount}</h3>
-                {damageCount > 0 && (
-                  <span className="text-[9px] font-bold px-1.5 py-0.5 bg-rose-50 text-rose-600 rounded border border-rose-100 uppercase tracking-tighter">تالف: {damageCount}</span>
-                )}
+        {/* ─── RIGHT: Alerts ─── */}
+        <div className="flex flex-col bg-white rounded-[24px] border border-slate-100/80 shadow-sm overflow-hidden">
+          {/* Header: title right, ghost filters left */}
+          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-50 shrink-0">
+            <div className="flex items-center gap-1.5">
+              <select className="text-[10px] font-medium text-slate-400 outline-none cursor-pointer hover:text-slate-600 transition-colors border border-slate-100 rounded-full px-2.5 py-1" value={alertCatFilter} onChange={e => setAlertCatFilter(e.target.value)}><option>التصنيف</option>{[...new Set(items.map(i=>i.cat))].map(c => <option key={c}>{c}</option>)}</select>
+              <select className="text-[10px] font-medium text-slate-400 outline-none cursor-pointer hover:text-slate-600 transition-colors border border-slate-100 rounded-full px-2.5 py-1" value={alertUrgencyFilter} onChange={e => setAlertUrgencyFilter(e.target.value)}><option>الحالة</option><option>حرج</option><option>تحذير</option><option>آمن</option></select>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-500">
+                <Bell size={15} />
+              </div>
+              <div className="text-right">
+                <h3 className="text-sm font-bold text-[#0F2747] font-tajawal leading-tight">تنبيهات المخزن</h3>
+                <p className="text-[10px] text-slate-400 font-readex font-medium">{finalAlerts.length}</p>
               </div>
             </div>
-            <div className="w-12 h-12 rounded-2xl bg-rose-50 flex items-center justify-center text-rose-500 transition-all group-hover:rotate-12 duration-300 shadow-sm border border-rose-100">
-              <RotateCcw size={22} />
+          </div>
+          {/* Search */}
+          <div className="px-5 py-2.5 border-b border-slate-50/60 shrink-0">
+            <div className="relative">
+              <Search size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300" />
+              <input type="text" placeholder="بحث..." className="w-full bg-transparent border-0 text-[11px] rounded-lg pr-9 pl-3 py-1.5 outline-none font-readex placeholder:text-slate-300" value={alertSearch} onChange={e => setAlertSearch(e.target.value)} />
             </div>
           </div>
-          <button onClick={() => setIsReturnsModalOpen(true)} className="w-full py-2.5 text-xs flex items-center justify-center gap-2 rounded-xl font-bold transition-all bg-rose-500 text-white hover:bg-rose-600 shadow-lg shadow-rose-500/20 hover:shadow-xl relative z-10">
-            <Plus size={14} /> 
-            <span>تسجيل مرتجع جديد</span>
-          </button>
-        </motion.div>
-      </motion.div>
-
-      {/* Main Grid: 3 Equal Columns */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 min-h-0 pb-2">
-        
-        {/* Card 1: Alerts (Right) */}
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-white rounded-3xl p-6 flex flex-col h-full overflow-hidden border border-slate-100 shadow-sm transition-shadow duration-500 hover:shadow-lg">
-          
-          <div className="flex items-center justify-between mb-6 shrink-0">
-            <h3 className="text-lg font-bold font-tajawal text-text-primary-light dark:text-text-primary-dark flex items-center gap-3">
-              <div className="p-2 bg-status-warning/10 rounded-xl text-status-warning border border-status-warning/20">
-                <Bell size={20} className="animate-pulse" />
-              </div>
-              تنبيهات المخزن
-            </h3>
-            <button onClick={generatePDFReport} className="btn-outline py-1.5 px-3 text-[10px] flex items-center gap-2 rounded-full border-border-light dark:border-border-dark">
-               <Printer size={14} /> 
-               <span>تصدير PDF</span>
-            </button>
-          </div>
-          
-          {/* Smart Filters Horizontal Row */}
-          <div className="flex items-center gap-2 mb-6 shrink-0 overflow-x-auto pb-1 custom-scrollbar w-full">
-             <div className="relative flex-1 min-w-[120px]">
-               <Search size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted-light" />
-               <input type="text" placeholder="بحث بالأصناف..." className="w-full bg-slate-100/50 dark:bg-slate-900/40 border border-transparent focus:bg-white dark:focus:bg-slate-900 text-[10px] rounded-full pr-9 pl-3 py-2.5 focus:ring-4 focus:ring-primary/5 focus:border-primary/20 transition-all outline-none" value={alertSearch} onChange={e => setAlertSearch(e.target.value)} />
-             </div>
-             <select className="bg-slate-100/50 dark:bg-slate-900/40 border border-transparent text-[10px] font-bold rounded-full px-3 py-2.5 focus:ring-4 focus:ring-primary/5 transition-all outline-none cursor-pointer" value={alertCatFilter} onChange={e => setAlertCatFilter(e.target.value)}>
-               <option>التصنيف</option>
-               {[...new Set(items.map(i=>i.cat))].map(c => <option key={c}>{c}</option>)}
-             </select>
-             <select className="bg-slate-100/50 dark:bg-slate-900/40 border border-transparent text-[10px] font-bold rounded-full px-3 py-2.5 focus:ring-4 focus:ring-primary/5 transition-all outline-none cursor-pointer" value={alertUrgencyFilter} onChange={e => setAlertUrgencyFilter(e.target.value)}>
-               <option>الحالة</option><option>حرج</option><option>تحذير</option><option>آمن</option>
-             </select>
-          </div>
-
-          <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 relative">
-             <div className="space-y-2.5">
-               {finalAlerts.length === 0 ? (
-                  <div className="text-center text-text-muted-light py-16">
-                    <div className="w-16 h-16 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4 border border-border-light dark:border-border-dark">
-                      <CheckCircle2 size={32} className="opacity-20" />
+          {/* List */}
+          <div className="flex-1 overflow-y-auto custom-scrollbar px-5 py-3">
+            {finalAlerts.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-slate-300"><CheckCircle2 size={36} strokeWidth={1.2} className="mb-3" /><p className="text-xs font-semibold">لا توجد تنبيهات</p></div>
+            ) : finalAlerts.map((i, idx) => {
+              let statusColor = '#10B981';
+              let iconColor = 'text-emerald-500';
+              let icon = <CheckCircle2 size={13} />;
+              if (i.stockQty < 50) { statusColor = '#EF4444'; iconColor = 'text-red-500'; icon = <AlertOctagon size={13} />; }
+              else if (i.stockQty < 100) { statusColor = '#F59E0B'; iconColor = 'text-amber-500'; icon = <AlertTriangle size={13} />; }
+              const stockPct = Math.min((i.stockQty / 200) * 100, 100);
+              return (
+                <div key={`${i.id}-${idx}`} className="flex items-center gap-3 mb-2.5 group/alert">
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${iconColor} bg-slate-50`}>{icon}</div>
+                  <div className="min-w-0 flex-1">
+                    <h4 className="text-[12px] font-bold text-[#0F2747] font-tajawal truncate">{i.name}</h4>
+                    <div className="w-full h-1.5 bg-slate-100 rounded-full mt-1 overflow-hidden">
+                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${stockPct}%`, backgroundColor: statusColor }} />
                     </div>
-                    <p className="text-xs font-bold opacity-60">لا توجد تنبيهات حالياً</p>
                   </div>
-               ) : finalAlerts.map((i, idx) => {
-                 let statusStyles = "bg-status-success/5 text-status-success border-status-success/10"; 
-                 let iconColor = "text-status-success bg-status-success/10";
-                 let icon = <CheckCircle2 size={16} />;
-                 if (i.stockQty < 50) {
-                    statusStyles = "bg-status-danger/5 text-status-danger border-status-danger/10"; 
-                    iconColor = "text-status-danger bg-status-danger/10";
-                    icon = <AlertOctagon size={16} />;
-                 }
-                 else if (i.stockQty < 100) {
-                    statusStyles = "bg-status-warning/5 text-status-warning border-status-warning/10"; 
-                    iconColor = "text-status-warning bg-status-warning/10";
-                    icon = <AlertTriangle size={16} />;
-                 }
-                 return (
-                   <div key={`${i.id}-${idx}`} className={`flex items-center justify-between p-3 rounded-2xl border transition-all duration-300 group/alert hover:bg-white dark:hover:bg-slate-800 hover:shadow-md ${statusStyles}`}>
-                     <div className="flex items-center gap-3">
-                       <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm border border-black/5 ${iconColor}`}>{icon}</div>
-                       <div>
-                         <h4 className="font-bold text-xs text-text-primary-light dark:text-text-primary-dark">{i.name}</h4>
-                         <p className="text-[9px] font-bold opacity-50 uppercase tracking-widest">{i.company}</p>
-                       </div>
-                     </div>
-                     <div className="bg-white/80 dark:bg-black/20 px-3 py-1.5 rounded-xl text-center shrink-0 border border-black/5 shadow-sm">
-                       <span className="font-bold text-sm mr-1 tabular-nums">{i.stockQty}</span>
-                       <span className="text-[9px] font-bold opacity-60">{i.unit || 'كرتونة'}</span>
-                     </div>
-                   </div>
-                 );
-               })}
-             </div>
+                  <span className="text-xs font-bold tabular-nums shrink-0" style={{ color: statusColor }}>{i.stockQty}</span>
+                </div>
+              );
+            })}
           </div>
-        </motion.div>
+        </div>
 
-        {/* Card 2: Transactions (Middle) */}
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-white rounded-3xl p-6 flex flex-col h-full overflow-hidden border border-slate-100 shadow-sm transition-all duration-500 hover:shadow-lg">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 shrink-0 gap-4">
-            <h3 className="text-lg font-bold font-tajawal text-text-primary-light dark:text-text-primary-dark flex items-center gap-3">
-              <div className="p-2 bg-primary/10 rounded-xl text-primary dark:text-accent-light border border-primary/20">
-                <History size={20} />
+        {/* ─── MIDDLE: Transactions ─── */}
+        <div className="flex flex-col bg-white rounded-[24px] border border-slate-100/80 shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-50 shrink-0">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-500">
+                <History size={15} />
               </div>
-              آخر الحركات
-            </h3>
-            <div className="flex bg-slate-100/50 dark:bg-slate-900/40 p-1 rounded-full border border-border-light dark:border-border-dark w-full sm:w-auto">
-               {['الكل', 'Restock', 'Issue', 'Return'].map(filter => (
-                  <button key={filter} onClick={() => setTxFilter(filter)} className={`px-3 py-1.5 text-[9px] font-bold flex-1 rounded-full transition-all ${txFilter === filter ? 'bg-white dark:bg-slate-700 text-primary dark:text-accent-light shadow-sm' : 'text-text-secondary-light dark:text-text-secondary-dark hover:text-text-primary-light dark:hover:text-text-primary-dark'}`}>
-                    {filter === 'الكل' ? 'الكل' : filter === 'Restock' ? 'وارد' : filter === 'Issue' ? 'صادر' : 'مرتجع'}
-                  </button>
-               ))}
+              <div className="text-right">
+                <h3 className="text-sm font-bold text-[#0F2747] font-tajawal leading-tight">آخر الحركات</h3>
+                <p className="text-[10px] text-slate-400 font-readex font-medium">{finalTransactions.length}</p>
+              </div>
+            </div>
+            {/* Segmented Picker */}
+            <div className="flex items-center bg-slate-100 rounded-full p-1 gap-0.5">
+              {[
+                { key: 'الكل', icon: <FileText size={13} strokeWidth={2} /> },
+                { key: 'Restock', icon: <ArrowDownRight size={13} strokeWidth={2} /> },
+                { key: 'Issue', icon: <ArrowUpRight size={13} strokeWidth={2} /> },
+                { key: 'Return', icon: <RotateCcw size={13} strokeWidth={2} /> }
+              ].map(f => (
+                <button
+                  key={f.key}
+                  onClick={() => setTxFilter(f.key)}
+                  className={`p-2 rounded-full transition-all duration-200 ${
+                    txFilter === f.key
+                      ? 'bg-white shadow-sm text-[#0F2747]'
+                      : 'text-slate-400 hover:text-slate-500'
+                  }`}
+                >
+                  {f.icon}
+                </button>
+              ))}
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto pl-1 custom-scrollbar">
-             {finalTransactions.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-text-muted-light py-16">
-                  <div className="w-16 h-16 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4 border border-border-light dark:border-border-dark">
-                    <FileText className="opacity-20" size={32} />
-                  </div>
-                  <p className="text-xs font-bold opacity-60">لم يتم تسجيل حركات</p>
-                </div>
-             ) : (
-                <div className="space-y-2.5">
-                  {finalTransactions.slice(0, 50).map((activity, idx) => (
-                    <div key={activity.id + idx} onClick={() => {
-                        if (activity.batchId) setSelectedBatchTransactions(dbTransactionsList.filter(t => t.batchId === activity.batchId)); 
-                        else setSelectedBatchTransactions([activity]); 
-                        setIsTransactionDetailOpen(true);
-                    }} className="flex items-center justify-between p-3.5 rounded-xl border border-border-light dark:border-border-dark bg-slate-50/30 dark:bg-slate-900/30 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:border-primary/30 transition-all group/tx shadow-sm">
-                      <div className="flex items-center gap-4">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-all ${activity.type === 'Issue' ? 'bg-status-warning/10 text-status-warning' : activity.type === 'Return' ? 'bg-status-danger/10 text-status-danger' : 'bg-status-success/10 text-status-success'}`}>
-                          {activity.type === 'Issue' ? <Truck size={18} /> : activity.type === 'Return' ? <RotateCcw size={18} /> : <Package size={18} />}
-                        </div>
-                        <div className="overflow-hidden">
-                           <p className="text-sm font-bold text-text-primary-light dark:text-text-primary-dark group-hover/tx:text-primary dark:group-hover/tx:text-accent-light transition-colors truncate max-w-[150px]">{activity.item}</p>
-                           <div className="flex items-center gap-2 mt-1">
-                             <Clock size={10} className="text-text-muted-light" />
-                             <p className="text-[10px] font-medium text-text-secondary-light dark:text-text-secondary-dark truncate max-w-[180px]">{activity.date} • {activity.loc || 'المستودع'}</p>
-                           </div>
-                        </div>
+          <div className="flex-1 overflow-y-auto custom-scrollbar px-5 py-3">
+            {finalTransactions.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-slate-300"><FileText size={36} strokeWidth={1.2} className="mb-3" /><p className="text-xs font-semibold">لم يتم تسجيل حركات</p></div>
+            ) : (
+              <div className="space-y-1.5">
+                {finalTransactions.slice(0, 50).map((tx) => (
+                  <div key={tx.id} onClick={() => { setSelectedBatchTransactions(tx.batchId ? dbTransactionsList.filter(t => t.batchId === tx.batchId) : [tx]); setIsTransactionDetailOpen(true); }} className="flex items-center justify-between p-3 rounded-xl border border-transparent cursor-pointer hover:bg-slate-50 hover:border-slate-100 transition-all group">
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${tx.type === 'Issue' ? 'bg-amber-50 text-amber-500' : tx.type === 'Return' ? 'bg-red-50 text-red-500' : 'bg-emerald-50 text-emerald-500'}`}>
+                        {tx.type === 'Issue' ? <ArrowUpRight size={14} /> : tx.type === 'Return' ? <RotateCcw size={14} /> : <ArrowDownRight size={14} />}
                       </div>
-                      <div className="text-left shrink-0">
-                        <p dir="ltr" className={`text-base font-bold tabular-nums ${activity.type === 'Issue' ? 'text-status-warning' : activity.type === 'Return' ? 'text-status-danger' : 'text-status-success'}`}>
-                          {activity.type === 'Issue' ? '-' : '+'}{activity.qty}
-                        </p>
-                      </div>
+                      <div className="min-w-0"><p className="text-[12px] font-bold text-[#0F2747] font-tajawal truncate group-hover:text-emerald-600 transition-colors">{tx.item}</p><p className="text-[10px] text-slate-400 font-readex">{tx.date}</p></div>
                     </div>
-                  ))}
-                </div>
-             )}
-          </div>
-        </motion.div>
-
-        {/* Card 3: Sales (Left) */}
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-white rounded-3xl p-6 flex flex-col h-full overflow-hidden border border-slate-100 shadow-sm transition-all duration-500 hover:shadow-lg">
-          <div className="flex flex-col mb-6 shrink-0 gap-4">
-            <div className="flex justify-between items-center">
-              <h3 className="text-lg font-bold font-tajawal text-text-primary-light dark:text-text-primary-dark flex items-center gap-3">
-                <div className="p-2 bg-primary/10 rounded-xl text-primary dark:text-accent-light border border-primary/20">
-                  <TrendingUp size={20} />
-                </div>
-                إحصائيات المبيعات
-              </h3>
-              <div className="flex bg-slate-100/50 dark:bg-slate-900/40 p-1 rounded-full border border-border-light dark:border-border-dark">
-                 <button onClick={() => setChartMode('category')} className={`px-4 py-1.5 text-[9px] font-bold rounded-full transition-all ${chartMode === 'category' ? 'bg-white dark:bg-slate-700 text-primary dark:text-accent-light shadow-sm' : 'text-text-secondary-light dark:text-text-secondary-dark hover:text-text-primary-light'}`}>أقسام</button>
-                 <button onClick={() => setChartMode('item')} className={`px-4 py-1.5 text-[9px] font-bold rounded-full transition-all ${chartMode === 'item' ? 'bg-white dark:bg-slate-700 text-primary dark:text-accent-light shadow-sm' : 'text-text-secondary-light dark:text-text-secondary-dark hover:text-text-primary-light'}`}>أصناف</button>
+                    <span className={`text-sm font-bold tabular-nums shrink-0 ${tx.type === 'Issue' ? 'text-amber-500' : tx.type === 'Return' ? 'text-red-500' : 'text-emerald-500'}`}>{tx.type === 'Issue' ? '-' : '+'}{tx.qty}</span>
+                  </div>
+                ))}
               </div>
+            )}
+          </div>
+        </div>
+
+        {/* ─── LEFT: Quick Access ─── */}
+        <div className="flex flex-col bg-white rounded-[24px] border border-slate-100/80 shadow-sm overflow-hidden">
+          <div className="flex items-center gap-2 px-6 py-4 border-b border-slate-50 shrink-0">
+            <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-500">
+              <Search size={15} />
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-               <div className="relative group">
-                 <select className="w-full bg-slate-100/50 dark:bg-slate-900/40 border border-transparent text-[10px] font-bold rounded-full px-4 py-2.5 transition-all outline-none focus:ring-4 focus:ring-primary/5 cursor-pointer appearance-none" value={chartDateRange} onChange={e => setChartDateRange(e.target.value)}>
-                   <option>آخر 7 أيام</option><option>هذا الشهر</option><option>هذا العام</option><option>مخصص</option><option>الكل</option>
-                 </select>
-                 <ChevronDown size={12} className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted-light pointer-events-none group-hover:text-primary transition-colors" />
-               </div>
-               <div className="relative group">
-                 <select className="w-full bg-slate-100/50 dark:bg-slate-900/40 border border-transparent text-[10px] font-bold rounded-full px-4 py-2.5 transition-all outline-none focus:ring-4 focus:ring-primary/5 cursor-pointer appearance-none" value={chartCompanyFilter} onChange={e => setChartCompanyFilter(e.target.value)}>
-                   <option>الكل</option>
-                   {[...new Set(items.map(i=>i.company||'بدون شركة'))].map(c => <option key={c}>{c}</option>)}
-                 </select>
-                 <ChevronDown size={12} className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted-light pointer-events-none group-hover:text-primary transition-colors" />
-               </div>
-               {chartDateRange === 'مخصص' && (
-                 <div className="col-span-2 flex gap-2">
-                    <input type="date" className="bg-slate-100/50 dark:bg-slate-900/40 border border-transparent text-[10px] font-bold rounded-full px-4 py-2.5 flex-1 outline-none focus:ring-4 focus:ring-primary/5" value={chartCustomStartDate} onChange={e => setChartCustomStartDate(e.target.value)} />
-                    <input type="date" className="bg-slate-100/50 dark:bg-slate-900/40 border border-transparent text-[10px] font-bold rounded-full px-4 py-2.5 flex-1 outline-none focus:ring-4 focus:ring-primary/5" value={chartCustomEndDate} onChange={e => setChartCustomEndDate(e.target.value)} />
-                 </div>
-               )}
-               {chartMode === 'item' && (
-                 <div className="col-span-2 relative">
-                    <Search size={12} className="absolute right-4 top-1/2 -translate-y-1/2 text-text-muted-light" />
-                    <input type="text" placeholder="البحث عن صنف معين..." className="w-full bg-slate-100/50 dark:bg-slate-900/40 border border-transparent text-[10px] font-bold rounded-full pr-10 pl-4 py-2.5 outline-none focus:ring-4 focus:ring-primary/5 focus:bg-white dark:focus:bg-slate-900 transition-all" value={chartItemFilter !== 'الكل' ? chartItemFilter : chartItemSearchQuery} onChange={e => {
-                       setChartItemFilter('الكل');
-                       setChartItemSearchQuery(e.target.value);
-                       setIsChartItemSearchOpen(true);
-                    }} onFocus={() => setIsChartItemSearchOpen(true)} onBlur={() => setTimeout(()=>setIsChartItemSearchOpen(false), 200)} />
-                    {isChartItemSearchOpen && (
-                        <div className="absolute top-[110%] right-0 w-full max-h-48 overflow-y-auto bg-white dark:bg-surface-dark rounded-2xl shadow-2xl border border-border-light dark:border-border-dark z-30 p-1.5 mt-2 transition-all">
-                           <button onClick={() => { setChartItemFilter('الكل'); setChartItemSearchQuery(''); setIsChartItemSearchOpen(false); }} className="w-full text-right px-4 py-2 text-[10px] font-bold text-text-secondary-light dark:text-text-secondary-dark hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition-colors">عرض الكل</button>
-                           {[...new Set(items.map(i=>i.name))].filter(n => n.includes(chartItemSearchQuery)).map(n => (
-                               <button key={n} onClick={() => { setChartItemFilter(n); setChartItemSearchQuery(''); setIsChartItemSearchOpen(false); }} className="w-full text-right px-4 py-2 text-[10px] font-bold text-text-primary-light dark:text-text-primary-dark hover:bg-primary/5 dark:hover:bg-primary/20 rounded-xl transition-colors">{n}</button>
-                           ))}
-                        </div>
-                    )}
-                 </div>
-               )}
+            <div className="text-right">
+              <h3 className="text-sm font-bold text-[#0F2747] font-tajawal leading-tight">وصول سريع للمخزون</h3>
+              <p className="text-[10px] text-slate-400 font-readex font-medium">بحث سريع</p>
             </div>
           </div>
-          <div className="flex-1 w-full min-h-0" dir="ltr">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={dynamicSalesData} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={isDarkMode ? '#10B981' : '#0F2747'} stopOpacity={0.25}/>
-                    <stop offset="95%" stopColor={isDarkMode ? '#10B981' : '#0F2747'} stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDarkMode ? '#334155' : '#E2E8F0'} strokeOpacity={0.5} />
-                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: isDarkMode ? '#94A3B8' : '#64748B', fontSize: 9, fontWeight: 600 }} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: isDarkMode ? '#94A3B8' : '#64748B', fontSize: 9, fontWeight: 600 }} dx={10} orientation="right" />
-                <Tooltip content={<CustomChartTooltip />} />
-                <Area type="monotone" dataKey="sales" stroke={isDarkMode ? '#10B981' : '#0F2747'} strokeWidth={3} fillOpacity={1} fill="url(#colorSales)" activeDot={{ r: 6, fill: isDarkMode ? '#10B981' : '#0F2747', stroke: isDarkMode ? '#0B1220' : '#fff', strokeWidth: 3 }} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </motion.div>
+          <QuickAccessCard items={items} />
+        </div>
 
       </div>
 
@@ -886,7 +840,7 @@ export default function Dashboard() {
                     <tr key={idx} className="bg-white dark:bg-surface-dark hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                       <td className="px-4 py-3 text-xs font-bold text-text-muted-light text-center">{idx + 1}</td>
                       <td className="px-4 py-3 text-sm font-bold text-text-primary-light dark:text-text-primary-dark">{tx.item}</td>
-                      <td className="px-4 py-3 text-xs font-bold text-center">
+                      <td className="px-4 py-3 text-center">
                         <span className={`px-2 py-1 rounded-md ${tx.type === 'Issue' ? 'bg-status-warning/10 text-status-warning' : 'bg-status-success/10 text-status-success'}`}>
                           {tx.type === 'Issue' ? 'صادر' : 'وارد'}
                         </span>
@@ -908,12 +862,12 @@ export default function Dashboard() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="relative group/nameItem">
               <label className={LabelClass}>اسم الصنف <span className="text-status-danger">*</span></label>
-              <input 
+              <input
                 id="addItemNameInput"
-                type="text" 
-                className={`${InputClass} ${isDuplicateMatch || itemErrors.name ? 'border-status-danger' : ''}`} 
-                placeholder="مثال: فراولة" 
-                value={itemForm.name} 
+                type="text"
+                className={`${InputClass} ${isDuplicateMatch || itemErrors.name ? 'border-status-danger' : ''}`}
+                placeholder="مثال: فراولة"
+                value={itemForm.name}
                 onChange={(e) => {
                     setItemForm({...itemForm, name: e.target.value});
                     setItemFormSearchActiveIndex(-1);
@@ -937,12 +891,12 @@ export default function Dashboard() {
               {itemForm.name && !isDuplicateMatch && itemSuggestions.length > 0 && (
                 <div className="hidden group-focus-within/nameItem:block absolute top-[100%] right-0 w-full max-h-48 overflow-y-auto bg-white dark:bg-surface-dark rounded-xl shadow-2xl border border-border-light dark:border-border-dark z-30 p-1 mt-1 transition-colors">
                   {itemSuggestions.map((suggestionName, idx) => (
-                     <button 
-                       key={idx} 
-                       type="button" 
-                       className={`w-full text-right px-3 py-2.5 border-b border-border-light dark:border-border-dark last:border-0 transition-colors ${itemFormSearchActiveIndex === idx ? 'bg-primary/10 dark:bg-primary/20' : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'}`} 
+                     <button
+                       key={idx}
+                       type="button"
+                       className={`w-full text-right px-3 py-2.5 border-b border-border-light dark:border-border-dark last:border-0 transition-colors ${itemFormSearchActiveIndex === idx ? 'bg-primary/10 dark:bg-primary/20' : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
                        onMouseDown={(e) => {
-                         e.preventDefault(); 
+                         e.preventDefault();
                          setItemForm(prev => ({...prev, name: suggestionName}));
                          setItemFormSearchActiveIndex(-1);
                          setTimeout(() => document.getElementById('addItemCompanyInput')?.focus(), 10);
@@ -955,12 +909,12 @@ export default function Dashboard() {
             </div>
             <div className="relative group/companyItem">
               <label className={LabelClass}>الشركة الموردة</label>
-              <input 
+              <input
                 id="addItemCompanyInput"
-                type="text" 
-                className={InputClass} 
-                placeholder="ماريتا" 
-                value={itemForm.company} 
+                type="text"
+                className={InputClass}
+                placeholder="ماريتا"
+                value={itemForm.company}
                 onChange={(e) => {
                     setItemForm({...itemForm, company: e.target.value});
                     setCompanyFormSearchActiveIndex(-1);
@@ -981,12 +935,12 @@ export default function Dashboard() {
               {itemForm.company && companySuggestions.length > 0 && (
                 <div className="hidden group-focus-within/companyItem:block absolute top-[100%] right-0 w-full max-h-48 overflow-y-auto bg-white dark:bg-surface-dark rounded-xl shadow-2xl border border-border-light dark:border-border-dark z-30 p-1 mt-1 transition-colors">
                   {companySuggestions.map((suggestionCompany, idx) => (
-                     <button 
-                       key={idx} 
-                       type="button" 
-                       className={`w-full text-right px-3 py-2.5 border-b border-border-light dark:border-border-dark last:border-0 transition-colors ${companyFormSearchActiveIndex === idx ? 'bg-primary/10 dark:bg-primary/20' : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'}`} 
+                     <button
+                       key={idx}
+                       type="button"
+                       className={`w-full text-right px-3 py-2.5 border-b border-border-light dark:border-border-dark last:border-0 transition-colors ${companyFormSearchActiveIndex === idx ? 'bg-primary/10 dark:bg-primary/20' : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
                        onMouseDown={(e) => {
-                         e.preventDefault(); 
+                         e.preventDefault();
                          setItemForm(prev => ({...prev, company: suggestionCompany}));
                          setCompanyFormSearchActiveIndex(-1);
                          setTimeout(() => document.getElementById('addItemCatInput')?.focus(), 10);
@@ -1037,24 +991,24 @@ export default function Dashboard() {
              </div>
              <div><label className={LabelClass}>تاريخ التوريد</label><input type="date" className={InputClass} value={stockForm.date} onChange={(e) => setStockForm({...stockForm, date: e.target.value})} /></div>
           </div>
-          
+
           {/* Top Section (Fixed Entry) */}
           <div className="bg-primary/5 dark:bg-primary/10 p-5 rounded-2xl border border-primary/10 mb-6 shadow-sm transition-colors">
              <h4 className="text-sm font-bold text-primary dark:text-accent-light mb-4 transition-colors">إضافة صنف للجدول (اضغط Enter للإدراج)</h4>
              <div className="grid grid-cols-12 gap-4 items-end">
                <div className="col-span-12 md:col-span-5 relative group/item">
                  <label className="block text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark mb-2">البحث عن الصنف</label>
-                 <input type="text" id="stockSearchInput" className={`${InputClass} py-2.5 text-sm bg-white dark:bg-slate-900/50 focus:ring-primary/20`} placeholder="اكتب للبحث..." value={currentStockItem.name} 
+                 <input type="text" id="stockSearchInput" className={`${InputClass} py-2.5 text-sm bg-white dark:bg-slate-900/50 focus:ring-primary/20`} placeholder="اكتب للبحث..." value={currentStockItem.name}
                  onChange={(e) => {
                    setCurrentStockItem({...currentStockItem, name: e.target.value, selectedItem: null, cat: '', unit: ''});
                    setSearchActiveIndex(-1);
-                 }} 
+                 }}
                  onKeyDown={(e) => {
                    const suggestions = items.filter(i => i.name.includes(currentStockItem.name) || i.company.includes(currentStockItem.name));
                    if (e.key === 'ArrowDown') { e.preventDefault(); setSearchActiveIndex(prev => prev < suggestions.length - 1 ? prev + 1 : prev); }
                    else if (e.key === 'ArrowUp') { e.preventDefault(); setSearchActiveIndex(prev => prev > 0 ? prev - 1 : 0); }
                    else if (e.key === 'Enter') {
-                     e.preventDefault(); 
+                     e.preventDefault();
                      if (searchActiveIndex >= 0 && suggestions[searchActiveIndex]) {
                        const invItem = suggestions[searchActiveIndex];
                        setCurrentStockItem({ ...currentStockItem, name: `${invItem.name} - ${invItem.company}`, selectedItem: invItem, cat: invItem.cat, unit: invItem.unit });
@@ -1067,14 +1021,14 @@ export default function Dashboard() {
                    <div className="hidden group-focus-within/item:block absolute top-[110%] right-0 w-full max-h-48 overflow-y-auto bg-white dark:bg-surface-dark rounded-xl shadow-2xl border border-border-light dark:border-border-dark z-30 p-1">
                      {items.filter(i => i.name.includes(currentStockItem.name) || i.company.includes(currentStockItem.name)).map((invItem, idx) => (
                           <button key={invItem.id} type="button" className={`w-full text-right px-3 py-2.5 border-b border-border-light dark:border-border-dark last:border-0 transition-colors ${searchActiveIndex === idx ? 'bg-primary/10 dark:bg-primary/20' : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'}`} onMouseDown={(e) => {
-                            e.preventDefault(); 
+                            e.preventDefault();
                             setCurrentStockItem({
-                              ...currentStockItem, 
-                              name: `${invItem.name} - ${invItem.company}`, 
-                              selectedItem: invItem, 
-                              cat: invItem.cat, 
-                              unit: invItem.unit 
-                            }); 
+                              ...currentStockItem,
+                              name: `${invItem.name} - ${invItem.company}`,
+                              selectedItem: invItem,
+                              cat: invItem.cat,
+                              unit: invItem.unit
+                            });
                             setSearchActiveIndex(-1);
                             setTimeout(() => { document.getElementById('stockQtyInput').focus(); }, 10);
                           }}>
@@ -1095,18 +1049,18 @@ export default function Dashboard() {
                <div className="col-span-12 md:col-span-3">
                  <label className="block text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark mb-2">الكمية الموردة</label>
                  <div className="flex gap-2">
-                   <input type="number" id="stockQtyInput" className={`${InputClass} py-2.5 text-sm bg-white dark:bg-slate-900/50 focus:ring-primary/20`} placeholder="الرقم" value={currentStockItem.qty} onChange={(e) => setCurrentStockItem({...currentStockItem, qty: e.target.value})} onKeyDown={(e) => { 
-                     if (e.key === 'Enter') { 
-                       e.preventDefault(); 
+                   <input type="number" id="stockQtyInput" className={`${InputClass} py-2.5 text-sm bg-white dark:bg-slate-900/50 focus:ring-primary/20`} placeholder="الرقم" value={currentStockItem.qty} onChange={(e) => setCurrentStockItem({...currentStockItem, qty: e.target.value})} onKeyDown={(e) => {
+                     if (e.key === 'Enter') {
+                       e.preventDefault();
                        if (!currentStockItem.selectedItem) return toast.error("حدد الصنف أولاً!");
                        if (!currentStockItem.qty || currentStockItem.qty <= 0) return toast.error("أدخل كمية صحيحة!");
                        setStockForm({...stockForm, items: [
                          {...currentStockItem, qty: Number(currentStockItem.qty)},
                          ...stockForm.items
-                       ]}); 
+                       ]});
                        setCurrentStockItem({name:'', selectedItem: null, cat:'', unit:'', qty:''});
                        setTimeout(() => document.getElementById('stockSearchInput').focus(), 50);
-                     } 
+                     }
                    }} />
                    <button type="button" className="btn-primary px-4 flex items-center justify-center transition-colors shadow-sm" onClick={() => {
                        if (!currentStockItem.selectedItem) return toast.error("حدد الصنف أولاً!");
@@ -1114,7 +1068,7 @@ export default function Dashboard() {
                        setStockForm({...stockForm, items: [
                          {...currentStockItem, qty: Number(currentStockItem.qty)},
                          ...stockForm.items
-                       ]}); 
+                       ]});
                        setCurrentStockItem({name:'', selectedItem: null, cat:'', unit:'', qty:''});
                        setTimeout(() => document.getElementById('stockSearchInput').focus(), 50);
                    }}><Plus size={18} /></button>
@@ -1176,24 +1130,24 @@ export default function Dashboard() {
              <div><label className={LabelClass}>جهة العميل / المستلم</label><input type="text" className={InputClass} value={invoiceForm.rep} onChange={(e) => setInvoiceForm({...invoiceForm, rep: e.target.value})} /></div>
              <div><label className={LabelClass}>تاريخ الفاتورة</label><input type="date" className={InputClass} value={invoiceForm.date} onChange={(e) => setInvoiceForm({...invoiceForm, date: e.target.value})} /></div>
           </div>
-          
+
           {/* Top Section (Fixed Entry) */}
           <div className="bg-primary/5 dark:bg-primary/10 p-5 rounded-2xl border border-primary/10 mb-6 shadow-sm transition-colors">
              <h4 className="text-sm font-bold text-primary dark:text-accent-light mb-4 transition-colors">إضافة صنف للفاتورة (اضغط Enter للإدراج)</h4>
              <div className="grid grid-cols-12 gap-4 items-end">
                <div className="col-span-12 md:col-span-5 relative group/item">
                  <label className="block text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark mb-2">البحث عن الصنف</label>
-                 <input type="text" id="invoiceSearchInput" className={`${InputClass} py-2.5 text-sm bg-white dark:bg-slate-900/50 focus:ring-primary/20`} placeholder="اكتب للبحث..." value={currentInvoiceItem.name} 
+                 <input type="text" id="invoiceSearchInput" className={`${InputClass} py-2.5 text-sm bg-white dark:bg-slate-900/50 focus:ring-primary/20`} placeholder="اكتب للبحث..." value={currentInvoiceItem.name}
                  onChange={(e) => {
                    setCurrentInvoiceItem({...currentInvoiceItem, name: e.target.value, selectedItem: null, cat: '', unit: ''});
                    setSearchActiveIndex(-1);
-                 }} 
+                 }}
                  onKeyDown={(e) => {
                    const suggestions = items.filter(i => i.name.includes(currentInvoiceItem.name) || i.company.includes(currentInvoiceItem.name));
                    if (e.key === 'ArrowDown') { e.preventDefault(); setSearchActiveIndex(prev => prev < suggestions.length - 1 ? prev + 1 : prev); }
                    else if (e.key === 'ArrowUp') { e.preventDefault(); setSearchActiveIndex(prev => prev > 0 ? prev - 1 : 0); }
                    else if (e.key === 'Enter') {
-                     e.preventDefault(); 
+                     e.preventDefault();
                      if (searchActiveIndex >= 0 && suggestions[searchActiveIndex]) {
                        const invItem = suggestions[searchActiveIndex];
                        setCurrentInvoiceItem({ ...currentInvoiceItem, name: `${invItem.name} - ${invItem.company}`, selectedItem: invItem, cat: invItem.cat, unit: invItem.unit });
@@ -1206,14 +1160,14 @@ export default function Dashboard() {
                    <div className="hidden group-focus-within/item:block absolute top-[110%] right-0 w-full max-h-48 overflow-y-auto bg-white dark:bg-surface-dark rounded-xl shadow-2xl border border-border-light dark:border-border-dark z-30 p-1">
                      {items.filter(i => i.name.includes(currentInvoiceItem.name) || i.company.includes(currentInvoiceItem.name)).map((invItem, idx) => (
                           <button key={invItem.id} type="button" className={`w-full text-right px-3 py-2.5 border-b border-border-light dark:border-border-dark last:border-0 transition-colors ${searchActiveIndex === idx ? 'bg-primary/10 dark:bg-primary/20' : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'}`} onMouseDown={(e) => {
-                            e.preventDefault(); 
+                            e.preventDefault();
                             setCurrentInvoiceItem({
-                              ...currentInvoiceItem, 
-                              name: `${invItem.name} - ${invItem.company}`, 
-                              selectedItem: invItem, 
-                              cat: invItem.cat, 
-                              unit: invItem.unit 
-                            }); 
+                              ...currentInvoiceItem,
+                              name: `${invItem.name} - ${invItem.company}`,
+                              selectedItem: invItem,
+                              cat: invItem.cat,
+                              unit: invItem.unit
+                            });
                             setSearchActiveIndex(-1);
                             setTimeout(() => { document.getElementById('invoiceQtyInput').focus(); }, 10);
                           }}>
@@ -1237,20 +1191,20 @@ export default function Dashboard() {
                <div className="col-span-12 md:col-span-3">
                  <label className="block text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark mb-2">الكمية الصادرة</label>
                  <div className="flex gap-2">
-                   <input type="number" id="invoiceQtyInput" className={`${InputClass} py-2.5 text-sm bg-white dark:bg-slate-900/50 focus:ring-primary/20`} placeholder="الرقم" value={currentInvoiceItem.qty} onChange={(e) => setCurrentInvoiceItem({...currentInvoiceItem, qty: e.target.value})} onKeyDown={(e) => { 
-                     if (e.key === 'Enter') { 
-                       e.preventDefault(); 
+                   <input type="number" id="invoiceQtyInput" className={`${InputClass} py-2.5 text-sm bg-white dark:bg-slate-900/50 focus:ring-primary/20`} placeholder="الرقم" value={currentInvoiceItem.qty} onChange={(e) => setCurrentInvoiceItem({...currentInvoiceItem, qty: e.target.value})} onKeyDown={(e) => {
+                     if (e.key === 'Enter') {
+                       e.preventDefault();
                        if (!currentInvoiceItem.selectedItem) return toast.error("حدد الصنف أولاً!");
                        if (!currentInvoiceItem.qty || currentInvoiceItem.qty <= 0) return toast.error("أدخل كمية صحيحة!");
                        if (Number(currentInvoiceItem.qty) > currentInvoiceItem.selectedItem.stockQty) return toast.error(`الكمية غير كافية! الرصيد المتوفر ${currentInvoiceItem.selectedItem.stockQty}`);
-                       
+
                        setInvoiceForm({...invoiceForm, items: [
                          {...currentInvoiceItem, qty: Number(currentInvoiceItem.qty)},
                          ...invoiceForm.items
-                       ]}); 
+                       ]});
                        setCurrentInvoiceItem({name:'', selectedItem: null, cat:'', unit:'', qty:''});
                        setTimeout(() => document.getElementById('invoiceSearchInput').focus(), 50);
-                     } 
+                     }
                    }} />
                    <button type="button" className="btn-primary px-4 flex items-center justify-center transition-colors shadow-sm" onClick={() => {
                        if (!currentInvoiceItem.selectedItem) return toast.error("حدد الصنف أولاً!");
@@ -1259,7 +1213,7 @@ export default function Dashboard() {
                        setInvoiceForm({...invoiceForm, items: [
                          {...currentInvoiceItem, qty: Number(currentInvoiceItem.qty)},
                          ...invoiceForm.items
-                       ]}); 
+                       ]});
                        setCurrentInvoiceItem({name:'', selectedItem: null, cat:'', unit:'', qty:''});
                        setTimeout(() => document.getElementById('invoiceSearchInput').focus(), 50);
                    }}><Plus size={18} /></button>
@@ -1322,12 +1276,12 @@ export default function Dashboard() {
                <label className={LabelClass}>البحث عن صنف للإرجاع <span className="text-status-danger">*</span></label>
                <div className="relative">
                  <Search size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-text-muted-light group-focus-within/ret:text-primary transition-colors" />
-                 <input 
-                   type="text" 
-                   id="returnSearchInput" 
-                   className={`${InputClass} pr-11 ${returnErrors.query ? 'border-status-danger' : ''}`} 
-                   placeholder="ابحث بالاسم أو الشركة..." 
-                   value={returnForm.query} 
+                 <input
+                   type="text"
+                   id="returnSearchInput"
+                   className={`${InputClass} pr-11 ${returnErrors.query ? 'border-status-danger' : ''}`}
+                   placeholder="ابحث بالاسم أو الشركة..."
+                   value={returnForm.query}
                    onChange={(e) => { setReturnForm({...returnForm, query: e.target.value, selectedItem: null, cat: ''}); setSearchActiveIndex(-1); }}
                    onKeyDown={(e) => {
                      const suggestions = items.filter(i => i.name.includes(returnForm.query) || i.company.includes(returnForm.query));
@@ -1342,14 +1296,14 @@ export default function Dashboard() {
                          setTimeout(() => { document.getElementById('returnQtyInput').focus(); }, 10);
                        }
                      }
-                   }} 
+                   }}
                  />
                </div>
                {returnForm.query && !returnForm.selectedItem && (
                  <div className="hidden group-focus-within/ret:block absolute top-[100%] right-0 w-full max-h-48 overflow-y-auto bg-white dark:bg-surface-dark rounded-xl shadow-2xl border border-border-light dark:border-border-dark z-50 p-1 mt-1 transition-colors">
                    {items.filter(i => i.name.includes(returnForm.query) || i.company.includes(returnForm.query)).map((invItem, idx) => (
                         <button key={invItem.id} type="button" className={`w-full text-right px-3 py-2.5 border-b border-border-light dark:border-border-dark last:border-0 transition-colors ${searchActiveIndex === idx ? 'bg-primary/10 dark:bg-primary/20' : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'}`} onMouseDown={(e) => {
-                            e.preventDefault(); 
+                            e.preventDefault();
                             setReturnForm({...returnForm, query: `${invItem.name} - ${invItem.company}`, selectedItem: invItem, cat: invItem.cat});
                             setSearchActiveIndex(-1);
                             setTimeout(() => { document.getElementById('returnQtyInput').focus(); }, 10);
@@ -1396,85 +1350,47 @@ export default function Dashboard() {
         {isMorningBriefOpen && morningBriefData.atRiskItems.length > 0 && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/40 dark:bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-[#0F2747]/40 backdrop-blur-sm"
             dir="rtl" onClick={() => setIsMorningBriefOpen(false)}
           >
             <motion.div
               onClick={e => e.stopPropagation()}
-              initial={{ opacity: 0, scale: 0.9, y: 30 }} animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 30 }} transition={{ type: 'spring', damping: 22, stiffness: 260 }}
-              className="w-full max-w-lg bg-white dark:bg-surface-dark rounded-card shadow-2xl border border-border-light dark:border-border-dark overflow-hidden flex flex-col max-h-[90vh]"
+              initial={{ opacity: 0, scale: 0.92, y: 24 }} animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 24 }} transition={{ type: 'spring', damping: 24, stiffness: 280 }}
+              className="w-full max-w-lg bg-white rounded-[24px] shadow-2xl border border-slate-100/60 overflow-hidden flex flex-col max-h-[88vh]"
             >
               {/* Header */}
-              <div className="p-6 bg-slate-50/50 dark:bg-slate-800/50 border-b border-border-light dark:border-border-dark shrink-0">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-status-warning/10 flex items-center justify-center text-status-warning shadow-sm">
-                      <AlertTriangle size={24} />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-bold font-tajawal text-text-primary-light dark:text-text-primary-dark">تقرير الصباح — تنبيهات هامة</h3>
-                      <p className="text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark">{new Date().toLocaleDateString('ar-SA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                    </div>
-                  </div>
-                  <button onClick={() => setIsMorningBriefOpen(false)} className="p-2 text-text-muted-light hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors">
-                    <X size={18} />
-                  </button>
+              <div className="px-7 py-5 border-b border-slate-100 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center text-amber-500"><AlertTriangle size={20} /></div>
+                  <div><h3 className="text-base font-bold text-[#0F2747] font-tajawal">تقرير الصباح</h3><p className="text-[11px] text-slate-400 font-readex">{new Date().toLocaleDateString('ar-SA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p></div>
                 </div>
+                <button onClick={() => setIsMorningBriefOpen(false)} className="p-2 text-slate-400 hover:bg-slate-50 rounded-lg transition-colors"><X size={18} /></button>
               </div>
-
               {/* Summary Banner */}
-              <div className="mx-6 mt-6 p-5 rounded-2xl bg-primary text-white shadow-lg shadow-primary/20 shrink-0">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-medium opacity-80 uppercase tracking-wider mb-1">أصناف معرضة للخطر</p>
-                    <p className="text-3xl font-bold font-tajawal">{morningBriefData.atRiskItems.length} <span className="text-sm font-medium opacity-70">صنف</span></p>
-                  </div>
-                  <div className="text-left border-r border-white/20 pr-6">
-                    <p className="text-xs font-medium opacity-80 uppercase tracking-wider mb-1">إجمالي الكمية المعرضة</p>
-                    <p className="text-3xl font-bold font-tajawal">{morningBriefData.totalQty} <span className="text-sm font-medium opacity-70">وحدة</span></p>
-                  </div>
-                </div>
+              <div className="mx-7 mt-5 p-5 rounded-2xl bg-gradient-to-r from-[#0F2747] to-[#15345b] text-white flex items-center justify-between shrink-0">
+                <div><p className="text-[11px] opacity-70 mb-1 font-readex">أصناف معرضة</p><p className="text-2xl font-bold font-tajawal">{morningBriefData.atRiskItems.length}</p></div>
+                <div className="text-left border-r border-white/20 pr-6"><p className="text-[11px] opacity-70 mb-1 font-readex">إجمالي الكمية</p><p className="text-2xl font-bold font-tajawal">{morningBriefData.totalQty} وحدة</p></div>
               </div>
-
               {/* Items List */}
-              <div className="p-6 space-y-3 overflow-y-auto flex-1 custom-scrollbar">
-                {morningBriefData.atRiskItems.slice(0, 15).map((item, idx) => (
-                  <div key={item.id} className={`flex items-center justify-between p-4 rounded-xl border transition-all ${
-                    item.isExpired ? 'bg-status-danger/5 border-status-danger/20'
-                    : item.isUrgent ? 'bg-status-danger/5 border-status-danger/20 expiry-blink'
-                    : 'bg-status-warning/5 border-status-warning/20'
-                  }`}>
+              <div className="px-7 py-4 space-y-2 overflow-y-auto custom-scrollbar flex-1">
+                {morningBriefData.atRiskItems.slice(0, 12).map((item) => (
+                  <div key={item.id} className={`flex items-center justify-between p-3 rounded-xl border ${item.isExpired || item.isUrgent ? 'bg-red-50/60 border-red-100/60' : 'bg-amber-50/60 border-amber-100/60'}`}>
                     <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <div className="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 border border-border-light dark:border-border-dark flex items-center justify-center shrink-0 shadow-sm transition-colors">
-                        {item.cat === 'مجمدات' ? <Package size={16} className="text-primary dark:text-accent-light" /> : <Package size={16} className="text-text-muted-light" />}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-bold text-text-primary-light dark:text-text-primary-dark truncate">{item.name}</p>
-                        <p className="text-[10px] font-medium text-text-secondary-light dark:text-text-secondary-dark truncate uppercase tracking-wider">{item.company} • {item.cat}</p>
-                      </div>
+                      <div className="w-9 h-9 rounded-lg bg-white border border-slate-100 flex items-center justify-center shrink-0 shadow-sm"><Layers size={15} className="text-[#0F2747]" /></div>
+                      <div className="min-w-0"><p className="text-[13px] font-bold text-[#0F2747] font-tajawal truncate">{item.name}</p><p className="text-[10px] text-slate-400 font-readex">{item.company} • {item.cat}</p></div>
                     </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      <span className="text-xs font-bold text-text-primary-light dark:text-text-primary-dark bg-white dark:bg-slate-800 px-3 py-1 rounded-lg border border-border-light dark:border-border-dark shadow-sm">{item.totalQtyAtRisk} وحدة</span>
-                      <span className={`inline-flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-lg font-bold ${
-                        item.isExpired ? 'bg-status-danger text-white shadow-sm'
-                        : item.isUrgent ? 'bg-status-danger/10 text-status-danger'
-                        : 'bg-status-warning/10 text-status-warning'
-                      }`}>
-                        <Clock size={12} />
-                        {item.isExpired ? 'منتهي' : `${item.daysLeft} يوم`}
-                      </span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-xs font-bold bg-white border border-slate-100 px-2.5 py-1 rounded-lg shadow-sm tabular-nums">{item.totalQtyAtRisk}</span>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-lg font-bold flex items-center gap-1 font-readex ${item.isExpired ? 'bg-red-500 text-white' : item.isUrgent ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'}`}><Clock size={11} />{item.isExpired ? 'منتهي' : `${item.daysLeft} يوم`}</span>
                     </div>
                   </div>
                 ))}
               </div>
-
               {/* Footer */}
-              <div className="p-6 border-t border-border-light dark:border-border-dark bg-slate-50/50 dark:bg-slate-800/50 flex items-center justify-between shrink-0">
-                <p className="text-[10px] text-text-muted-light font-medium uppercase tracking-widest">⚠️ مراجعة المخزون ضرورية</p>
-                <button onClick={() => setIsMorningBriefOpen(false)} className="btn-accent px-6 py-2.5 shadow-lg shadow-accent/20">
-                  تم الاطلاع والمتابعة
-                </button>
+              <div className="px-7 py-4 border-t border-slate-100 flex items-center justify-between shrink-0 bg-slate-50/60">
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider font-readex">مراجعة المخزون ضرورية</p>
+                <button onClick={() => setIsMorningBriefOpen(false)} className="px-5 py-2 rounded-xl text-sm font-bold text-white bg-[#10B981] hover:bg-emerald-600 shadow-lg shadow-emerald-500/20 transition-all font-tajawal">تم — متابعة</button>
               </div>
             </motion.div>
           </motion.div>

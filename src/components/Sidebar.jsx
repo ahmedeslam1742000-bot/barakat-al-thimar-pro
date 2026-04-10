@@ -100,17 +100,17 @@ export default function Sidebar({ isSidebarOpen, setIsSidebarOpen, activeView, s
           animate={{ x: 0, opacity: 1 }}
           exit={{ x: 300, opacity: 0 }}
           transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-          className="fixed inset-y-0 right-0 z-50 h-full w-72 bg-sidebar flex flex-col font-readex"
+          className="fixed inset-y-0 right-0 z-50 h-full w-72 bg-white/70 dark:bg-slate-900/70 backdrop-blur-2xl shadow-2xl shadow-primary/10 border-l border-slate-100 dark:border-slate-800 flex flex-col font-readex transition-all duration-300"
         >
           {/* Brand Area */}
-          <div className="h-16 flex items-center justify-between px-6 border-b border-slate-100 shrink-0 bg-slate-50/50">
+          <div className="h-20 flex items-center justify-between px-8 border-b border-slate-100 shrink-0 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/20 border border-white/10">
-                <Warehouse size={20} className="text-white" />
+              <div className="w-12 h-12 bg-gradient-to-br from-primary to-emerald-400 rounded-2xl flex items-center justify-center shadow-xl shadow-primary/20 border border-white/10">
+                <Warehouse size={26} className="text-white drop-shadow-lg" />
               </div>
-              <div className="flex flex-col text-right">
-                <span className="font-tajawal font-bold text-base text-slate-800 tracking-tight leading-none">بركة الثمار</span>
-                <span className="text-[9px] text-emerald-500 font-bold tracking-widest uppercase mt-0.5">Operational Pro</span>
+              <div className="flex flex-col text-right ml-2">
+                <span className="font-tajawal font-extrabold text-lg text-slate-900 dark:text-white tracking-tight leading-none drop-shadow">بركة الثمار</span>
+                <span className="text-[10px] text-emerald-500 font-bold tracking-widest uppercase mt-0.5 drop-shadow">Operational Pro</span>
               </div>
             </div>
             <button 
@@ -121,39 +121,35 @@ export default function Sidebar({ isSidebarOpen, setIsSidebarOpen, activeView, s
             </button>
           </div>
           
-          <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-0.5 custom-scrollbar" dir="rtl">
+          <nav className="flex-1 overflow-y-auto py-6 px-4 space-y-1 custom-scrollbar" dir="rtl">
             {menuGroups.map((group) => {
               const Icon = group.icon;
               const isActive = isGroupActive(group);
               const isOpen = openGroup === group.id;
 
               return (
-                <div key={group.id} className="flex flex-col rounded-xl overflow-hidden mb-0.5">
+                <div key={group.id} className="flex flex-col rounded-2xl overflow-hidden mb-1 shadow-none group/sidebar transition-all duration-300">
                   <button
                     onClick={() => group.isStatic ? handleStaticClick(group.view) : toggleGroup(group.id)}
-                    className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all duration-300 group/btn relative ${
-                      isActive 
-                        ? 'bg-primary/5 text-primary shadow-sm' 
-                        : 'text-slate-500 hover:bg-slate-100/50 hover:text-slate-800'
-                    }`}
+                    className={`w-full flex items-center justify-between px-5 py-3 rounded-2xl transition-all duration-300 group/btn relative font-bold text-base tracking-tight shadow-none border border-transparent backdrop-blur-xl
+                      ${isActive 
+                        ? 'bg-gradient-to-l from-primary/10 to-white/60 dark:from-primary/20 dark:to-slate-900/60 text-primary shadow-lg border-primary/10' 
+                        : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100/60 dark:hover:bg-slate-800/40 hover:text-primary border-transparent'}
+                    `}
                   >
                     {/* Active Indicator Bar - More subtle */}
                     {isActive && (
                       <motion.div 
                         layoutId="activeIndicator"
-                        className="absolute right-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-primary rounded-l-full"
+                        className="absolute right-0 top-1/2 -translate-y-1/2 w-1.5 h-7 bg-gradient-to-b from-primary to-emerald-400 rounded-l-full shadow-lg"
                       ></motion.div>
                     )}
 
                     <div className="flex items-center gap-3">
-                      <div className={`p-1.5 rounded-lg transition-colors duration-300 ${isActive ? 'bg-primary/10' : 'bg-transparent group-hover/btn:bg-slate-100'}`}>
-                        <Icon size={18} className={`${
-                          isActive 
-                            ? 'text-primary' 
-                            : 'text-slate-400 group-hover/btn:text-primary'
-                        } transition-colors duration-300`} />
+                      <div className={`p-2 rounded-xl transition-colors duration-300 shadow-sm ${isActive ? 'bg-primary/20' : 'bg-slate-100/60 dark:bg-slate-800/40 group-hover/btn:bg-primary/10'}`}>
+                        <Icon size={22} className={`drop-shadow ${isActive ? 'text-primary' : 'text-slate-400 group-hover/btn:text-primary'} transition-colors duration-300`} />
                       </div>
-                      <span className={`font-medium text-sm text-right ${isActive ? 'font-bold' : ''}`}>{group.label}</span>
+                      <span className={`font-tajawal text-base text-right ${isActive ? 'font-extrabold' : 'font-bold'}`}>{group.label}</span>
                     </div>
                     
                     {!group.isStatic && (
@@ -174,22 +170,22 @@ export default function Sidebar({ isSidebarOpen, setIsSidebarOpen, activeView, s
                           transition={{ duration: 0.2, ease: "easeInOut" }}
                           className="overflow-hidden"
                         >
-                          <div className="flex flex-col py-0.5 mt-0.5 pr-11 space-y-0.5">
+                          <div className="flex flex-col py-1 mt-1 pr-12 space-y-1">
                             {group.subItems.map((sub) => {
                               const isSubActive = activeView === sub.view;
                               return (
                                 <button
                                   key={sub.id}
                                   onClick={() => handleSubItemClick(sub.view)}
-                                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-all duration-200 text-xs ${
-                                    isSubActive
-                                      ? 'bg-primary/5 text-primary font-bold'
-                                      : 'text-slate-500 hover:bg-slate-100/50 hover:text-slate-800'
-                                  }`}
+                                  className={`w-full flex items-center justify-between px-4 py-2 rounded-xl transition-all duration-200 text-sm font-bold tracking-tight
+                                    ${isSubActive
+                                      ? 'bg-gradient-to-l from-primary/10 to-white/60 dark:from-primary/20 dark:to-slate-900/60 text-primary shadow border border-primary/10'
+                                      : 'text-slate-500 dark:text-slate-300 hover:bg-slate-100/60 dark:hover:bg-slate-800/40 hover:text-primary border-transparent'}
+                                  `}
                                 >
-                                  <span className="text-right flex-1">{sub.label}</span>
+                                  <span className="text-right flex-1 font-tajawal">{sub.label}</span>
                                   {isSubActive && (
-                                    <div className="w-1 h-1 rounded-full bg-primary ml-1 shadow-[0_0_8px_rgba(15,39,71,0.4)]"></div>
+                                    <div className="w-2 h-2 rounded-full bg-gradient-to-br from-primary to-emerald-400 ml-2 shadow-[0_0_8px_rgba(15,39,71,0.4)]"></div>
                                   )}
                                 </button>
                               );
@@ -204,7 +200,7 @@ export default function Sidebar({ isSidebarOpen, setIsSidebarOpen, activeView, s
             })}
           </nav>
           
-          <div className="p-4 border-t border-slate-100 shrink-0 space-y-1.5 bg-slate-50/30">
+          <div className="p-6 border-t border-slate-100 shrink-0 space-y-2 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl">
             {isAdmin && (
               <button 
                 onClick={() => setActiveView('settings')} 

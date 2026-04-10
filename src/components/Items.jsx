@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Search, Plus, X, Pencil, Trash2, FileText, Image, 
   Snowflake, Package, Archive, Box, AlertTriangle, 
   Download, ChevronDown, Flame, Thermometer, Eye, Timer,
-  CalendarDays, Truck, PackageX
+  CalendarDays, Truck, PackageX, LayoutGrid, Keyboard,
+  CheckCircle2, CornerDownLeft, Save, Trash, RotateCcw
 } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { collection, onSnapshot, query, orderBy, deleteDoc, doc, updateDoc, addDoc, serverTimestamp, getDocs } from 'firebase/firestore';
@@ -37,7 +38,7 @@ const getCatIcon = (catName) => {
   return categoryIcons[catName] || <Package size={18} className="text-text-muted-light" />;
 };
 
-// --- SHARED MODAL COMPONENT ---
+// --- SHARED MODAL COMPONENT (kept for Edit/Delete) ---
 const ModalWrapper = ({ title, isOpen, onClose, children, onSubmit, maxWidth = "max-w-md", submitLabel = "حفظ واعتماد" }) => (
   <AnimatePresence>
     {isOpen && (
@@ -71,6 +72,462 @@ const ModalWrapper = ({ title, isOpen, onClose, children, onSubmit, maxWidth = "
   </AnimatePresence>
 );
 
+// ─────────────────────────────────────────────────────────────────────────────
+// BULK ADD MODAL — keyboard-first, data-grid entry for 100+ items/day
+// ─────────────────────────────────────────────────────────────────────────────
+const CATS = ['مجمدات', 'بلاستيك', 'تبريد'];
+const UNITS = ['كرتونة', 'قطعة', 'كيلو', 'لتر', 'طرد', 'علبة'];
+const COLS = ['name', 'company', 'cat', 'unit'];
+const COL_COUNT = COLS.length;
+
+const emptyRow = () => ({ name: '', company: '', cat: 'مجمدات', unit: 'كرتونة', _id: Math.random() });
+
+function BulkAddModal({ isOpen, onClose, onSaveAll, existingItems, uniqueCompanies }) {
+  const [rows, setRows]           = useState([emptyRow()]);
+  const [saving, setSaving]       = useState(false);
+  const [discardDlg, setDiscardDlg] = useState(false);
+  const [customUnit, setCustomUnit] = useState({});
+  const cellRefs = useRef({});
+
+  // reset when the modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setRows([emptyRow()]);
+      setSaving(false);
+      setDiscardDlg(false);
+      setCustomUnit({});
+    }
+  }, [isOpen]);
+
+  // focus first cell on open
+  useEffect(() => {
+    if (isOpen && rows.length > 0) {
+      setTimeout(() => {
+        const key = `${rows[0]._id}-0`;
+        cellRefs.current[key]?.focus();
+      }, 80);
+    }
+  }, [isOpen]);
+
+  const hasUnsaved = rows.some(r => r.name.trim() !== '');
+
+  // ── close guard ──
+  const handleClose = useCallback(() => {
+    if (hasUnsaved) { setDiscardDlg(true); return; }
+    onClose();
+  }, [hasUnsaved, onClose]);
+
+  // ── Esc key on the modal backdrop ──
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e) => { if (e.key === 'Escape') handleClose(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [isOpen, handleClose]);
+
+  // ── field update ──
+  const updateCell = (rowId, field, value) => {
+    setRows(prev => prev.map(r => r._id === rowId ? { ...r, [field]: value } : r));
+  };
+
+  // ── add new row ──
+  const addRow = (focusColIdx = 0) => {
+    const nr = emptyRow();
+    setRows(prev => [...prev, nr]);
+    setTimeout(() => {
+      const key = `${nr._id}-${focusColIdx}`;
+      cellRefs.current[key]?.focus();
+    }, 30);
+  };
+
+  // ── delete row ──
+  const deleteRow = (rowId) => {
+    setRows(prev => prev.length === 1 ? [emptyRow()] : prev.filter(r => r._id !== rowId));
+  };
+
+  // ── keyboard navigation inside a cell ──
+  const handleCellKey = (e, rowIdx, colIdx, row) => {
+    // Enter → commit row, move to next row same column / add row
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (rowIdx === rows.length - 1) {
+        addRow(colIdx);
+      } else {
+        const nextRow = rows[rowIdx + 1];
+        const key = `${nextRow._id}-${colIdx}`;
+        cellRefs.current[key]?.focus();
+      }
+      return;
+    }
+    // Tab → next cell, wrap to new row at end
+    if (e.key === 'Tab' && !e.shiftKey) {
+      if (colIdx === COL_COUNT - 1) {
+        e.preventDefault();
+        if (rowIdx === rows.length - 1) addRow(0);
+        else {
+          const nextRow = rows[rowIdx + 1];
+          const key = `${nextRow._id}-0`;
+          cellRefs.current[key]?.focus();
+        }
+      }
+    }
+  };
+
+  // ── save all non-empty rows ──
+  const handleSaveAll = async () => {
+    const valid = rows.filter(r => r.name.trim());
+    if (!valid.length) { toast.error('أدخل اسم صنف واحد على الأقل'); return; }
+    setSaving(true);
+    try {
+      await onSaveAll(valid);
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const validCount = rows.filter(r => r.name.trim()).length;
+
+  if (!isOpen) return null;
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[70] flex items-center justify-center p-4"
+          dir="rtl"
+        >
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="absolute inset-0 bg-slate-900/70 backdrop-blur-md"
+            onClick={handleClose}
+          />
+
+          {/* Modal */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 32 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 32 }}
+            transition={{ type: 'spring', damping: 28, stiffness: 320 }}
+            className="relative w-full max-w-5xl max-h-[90vh] bg-white dark:bg-slate-900 rounded-[2rem] shadow-[0_40px_80px_-12px_rgba(0,0,0,0.4)] border border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* ── Header ── */}
+            <div className="shrink-0 flex items-center justify-between px-8 py-5 border-b border-slate-100 dark:border-slate-800 bg-gradient-to-l from-slate-50 to-white dark:from-slate-800/60 dark:to-slate-900">
+              <div className="flex items-center gap-4">
+                <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-primary to-primary-light flex items-center justify-center text-white shadow-lg shadow-primary/20">
+                  <LayoutGrid size={22} />
+                </div>
+                <div>
+                  <h2 className="text-xl font-black font-tajawal text-slate-800 dark:text-white tracking-tight">إدخال أصناف جديدة</h2>
+                  <p className="text-[11px] font-bold text-slate-400 mt-0.5">أدخل بيانات الصنف في كل صف • Enter للانتقال • Tab للتنقل بين الحقول</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                {validCount > 0 && (
+                  <span className="flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30 text-xs font-black px-3 py-1.5 rounded-full">
+                    <CheckCircle2 size={13} />
+                    {validCount} صنف جاهز
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  className="p-2.5 text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-2xl transition-all active:scale-90"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+
+            {/* ── Keyboard hints bar ── */}
+            <div className="shrink-0 flex items-center gap-6 px-8 py-2.5 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
+              {[
+                { icon: <CornerDownLeft size={11} />, label: 'Enter — صف جديد' },
+                { icon: <Keyboard size={11} />, label: 'Tab — الحقل التالي' },
+                { icon: <X size={11} />, label: 'Esc — إغلاق' },
+              ].map((hint, i) => (
+                <span key={i} className="flex items-center gap-1.5 text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                  <span className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-md px-1.5 py-0.5 text-slate-500 dark:text-slate-300 shadow-sm">{hint.icon}</span>
+                  {hint.label}
+                </span>
+              ))}
+            </div>
+
+            {/* ── Grid Table ── */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar">
+              <table className="w-full table-fixed border-collapse" style={{ borderSpacing: 0 }}>
+                <colgroup>
+                  <col style={{ width: '3rem' }} />
+                  <col style={{ width: '34%' }} />
+                  <col style={{ width: '22%' }} />
+                  <col style={{ width: '16%' }} />
+                  <col style={{ width: '16%' }} />
+                  <col style={{ width: '3.5rem' }} />
+                </colgroup>
+                <thead className="sticky top-0 z-10">
+                  <tr className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700">
+                    <th className="px-4 py-3 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest border-none">#</th>
+                    <th className="px-4 py-3 text-right text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest border-none">
+                      اسم الصنف <span className="text-rose-500">*</span>
+                    </th>
+                    <th className="px-4 py-3 text-right text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest border-none">الشركة المنتجة</th>
+                    <th className="px-4 py-3 text-right text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest border-none">القسم</th>
+                    <th className="px-4 py-3 text-right text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest border-none">وحدة القياس</th>
+                    <th className="px-4 py-3 border-none"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row, rowIdx) => {
+                    const isDuplicate = row.name.trim() && existingItems.some(
+                      i => i.name.trim().toLowerCase() === row.name.trim().toLowerCase()
+                        && (i.company || '') .trim().toLowerCase() === row.company.trim().toLowerCase()
+                    );
+                    const hasDuplicateInGrid = row.name.trim() && rows.some(
+                      (r, ri) => ri !== rowIdx && r.name.trim().toLowerCase() === row.name.trim().toLowerCase()
+                        && r.company.trim().toLowerCase() === row.company.trim().toLowerCase()
+                    );
+                    const hasError = isDuplicate || hasDuplicateInGrid;
+
+                    return (
+                      <tr
+                        key={row._id}
+                        className={`group border-b border-slate-100 dark:border-slate-800/80 transition-colors duration-150 ${
+                          hasError
+                            ? 'bg-rose-50/60 dark:bg-rose-500/5'
+                            : row.name.trim()
+                            ? 'bg-emerald-50/30 dark:bg-emerald-500/5'
+                            : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/40'
+                        }`}
+                      >
+                        {/* Row number */}
+                        <td className="px-3 py-2 text-center border-none">
+                          <span className={`text-[11px] font-black tabular-nums ${
+                            hasError ? 'text-rose-400' : row.name.trim() ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-300'
+                          }`}>{rowIdx + 1}</span>
+                        </td>
+
+                        {/* Name */}
+                        <td className="px-2 py-1.5 border-none">
+                          <div className="relative">
+                            <input
+                              ref={el => { cellRefs.current[`${row._id}-0`] = el; }}
+                              type="text"
+                              placeholder="اسم الصنف..."
+                              value={row.name}
+                              onChange={e => updateCell(row._id, 'name', e.target.value)}
+                              onKeyDown={e => handleCellKey(e, rowIdx, 0, row)}
+                              className={`w-full text-sm font-bold rounded-xl px-3 py-2.5 outline-none transition-all border ${
+                                hasError
+                                  ? 'bg-rose-50 dark:bg-rose-500/10 border-rose-300 dark:border-rose-500/40 text-rose-700 dark:text-rose-300 placeholder:text-rose-300'
+                                  : 'bg-slate-100/60 dark:bg-slate-800/60 border-transparent focus:bg-white dark:focus:bg-slate-800 focus:border-primary/30 focus:ring-2 focus:ring-primary/10 text-slate-800 dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-600'
+                              }`}
+                            />
+                            {hasError && (
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[9px] font-black text-rose-500 bg-rose-100 dark:bg-rose-500/20 px-1.5 py-0.5 rounded-md whitespace-nowrap">
+                                {isDuplicate ? 'موجود' : 'مكرر'}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Company */}
+                        <td className="px-2 py-1.5 border-none">
+                          <input
+                            ref={el => { cellRefs.current[`${row._id}-1`] = el; }}
+                            type="text"
+                            list={`companies-${row._id}`}
+                            placeholder="الشركة..."
+                            value={row.company}
+                            onChange={e => updateCell(row._id, 'company', e.target.value)}
+                            onKeyDown={e => handleCellKey(e, rowIdx, 1, row)}
+                            className="w-full text-sm font-bold rounded-xl px-3 py-2.5 outline-none bg-slate-100/60 dark:bg-slate-800/60 border border-transparent focus:bg-white dark:focus:bg-slate-800 focus:border-primary/30 focus:ring-2 focus:ring-primary/10 transition-all text-slate-800 dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-600"
+                          />
+                          <datalist id={`companies-${row._id}`}>
+                            {uniqueCompanies.map((c, i) => <option key={i} value={c} />)}
+                          </datalist>
+                        </td>
+
+                        {/* Category */}
+                        <td className="px-2 py-1.5 border-none">
+                          <select
+                            ref={el => { cellRefs.current[`${row._id}-2`] = el; }}
+                            value={row.cat}
+                            onChange={e => updateCell(row._id, 'cat', e.target.value)}
+                            onKeyDown={e => handleCellKey(e, rowIdx, 2, row)}
+                            className="w-full text-sm font-bold rounded-xl px-3 py-2.5 outline-none bg-slate-100/60 dark:bg-slate-800/60 border border-transparent focus:bg-white dark:focus:bg-slate-800 focus:border-primary/30 focus:ring-2 focus:ring-primary/10 transition-all text-slate-800 dark:text-white appearance-none cursor-pointer"
+                          >
+                            {CATS.map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                        </td>
+
+                        {/* Unit */}
+                        <td className="px-2 py-1.5 border-none">
+                          {customUnit[row._id] ? (
+                            <input
+                              ref={el => { cellRefs.current[`${row._id}-3`] = el; }}
+                              type="text"
+                              placeholder="وحدة مخصصة..."
+                              value={row.unit}
+                              onChange={e => updateCell(row._id, 'unit', e.target.value)}
+                              onKeyDown={e => handleCellKey(e, rowIdx, 3, row)}
+                              className="w-full text-sm font-bold rounded-xl px-3 py-2.5 outline-none bg-slate-100/60 dark:bg-slate-800/60 border border-transparent focus:bg-white dark:focus:bg-slate-800 focus:border-primary/30 focus:ring-2 focus:ring-primary/10 transition-all text-slate-800 dark:text-white"
+                            />
+                          ) : (
+                            <div className="flex gap-1">
+                              <select
+                                ref={el => { cellRefs.current[`${row._id}-3`] = el; }}
+                                value={UNITS.includes(row.unit) ? row.unit : 'كرتونة'}
+                                onChange={e => updateCell(row._id, 'unit', e.target.value)}
+                                onKeyDown={e => handleCellKey(e, rowIdx, 3, row)}
+                                className="flex-1 text-sm font-bold rounded-xl px-3 py-2.5 outline-none bg-slate-100/60 dark:bg-slate-800/60 border border-transparent focus:bg-white dark:focus:bg-slate-800 focus:border-primary/30 focus:ring-2 focus:ring-primary/10 transition-all text-slate-800 dark:text-white appearance-none cursor-pointer"
+                              >
+                                {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                              </select>
+                              <button
+                                type="button"
+                                onClick={() => setCustomUnit(p => ({ ...p, [row._id]: true }))}
+                                title="وحدة مخصصة"
+                                className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-primary hover:bg-primary/10 transition-all text-[10px] font-black border border-transparent shrink-0"
+                              >
+                                <Plus size={12} />
+                              </button>
+                            </div>
+                          )}
+                        </td>
+
+                        {/* Delete row */}
+                        <td className="px-2 py-1.5 text-center border-none">
+                          <button
+                            type="button"
+                            onClick={() => deleteRow(row._id)}
+                            className="p-2 rounded-xl text-slate-300 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all opacity-0 group-hover:opacity-100"
+                          >
+                            <Trash size={14} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+
+                  {/* Add row placeholder */}
+                  <tr className="border-none">
+                    <td colSpan={6} className="px-4 py-3 border-none">
+                      <button
+                        type="button"
+                        onClick={() => addRow(0)}
+                        className="flex items-center gap-2 text-xs font-black text-slate-400 hover:text-primary dark:hover:text-primary-light transition-colors group/add"
+                      >
+                        <span className="w-7 h-7 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 flex items-center justify-center group-hover/add:border-primary/50 group-hover/add:text-primary transition-all">
+                          <Plus size={14} />
+                        </span>
+                        <span className="group-hover/add:translate-x-[-2px] transition-transform">إضافة صف جديد</span>
+                        <kbd className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md px-1.5 py-0.5 text-[9px] font-black text-slate-400">Enter</kbd>
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* ── Footer ── */}
+            <div className="shrink-0 flex items-center justify-between gap-4 px-8 py-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40">
+              <div className="flex items-center gap-3">
+                <span className="text-[11px] font-black text-slate-400">
+                  {rows.length} صف • {validCount} صنف صالح للحفظ
+                </span>
+                {rows.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setRows([emptyRow()])}
+                    className="flex items-center gap-1.5 text-[11px] font-black text-slate-400 hover:text-rose-500 transition-colors"
+                  >
+                    <RotateCcw size={11} /> تفريغ الكل
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  className="btn-outline px-6 py-3 text-sm"
+                  disabled={saving}
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveAll}
+                  disabled={saving || validCount === 0}
+                  className="flex items-center gap-2.5 btn-primary px-8 py-3 text-sm shadow-primary/20 disabled:opacity-50"
+                >
+                  {saving ? (
+                    <><div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />جاري الحفظ...</>
+                  ) : (
+                    <><Save size={16} />حفظ {validCount > 0 ? validCount : ''} صنف</>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* ── Discard confirmation dialog ── */}
+            <AnimatePresence>
+              {discardDlg && (
+                <motion.div
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  className="absolute inset-0 z-20 flex items-center justify-center bg-black/40 backdrop-blur-sm rounded-[2rem]"
+                  onClick={e => e.stopPropagation()}
+                >
+                  <motion.div
+                    initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
+                    transition={{ type: 'spring', damping: 25 }}
+                    className="bg-white dark:bg-slate-800 rounded-[1.5rem] shadow-2xl p-8 max-w-sm w-full mx-4 border border-slate-200 dark:border-slate-700"
+                    dir="rtl"
+                  >
+                    <div className="w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 flex items-center justify-center mx-auto mb-5">
+                      <AlertTriangle size={28} className="text-amber-500" />
+                    </div>
+                    <h4 className="text-lg font-black font-tajawal text-slate-800 dark:text-white text-center mb-2">هل تريد حفظ البيانات؟</h4>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 text-center mb-7 leading-relaxed">
+                      لديك <span className="font-black text-slate-700 dark:text-slate-200">{validCount}</span> صنف غير محفوظ. ماذا تريد أن تفعل؟
+                    </p>
+                    <div className="flex flex-col gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => { setDiscardDlg(false); handleSaveAll(); }}
+                        className="w-full flex items-center justify-center gap-2 btn-primary py-3.5 text-sm"
+                      >
+                        <Save size={16} /> حفظ الأصناف ومتابعة
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setDiscardDlg(false); onClose(); }}
+                        className="w-full py-3.5 rounded-2xl text-sm font-black text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 transition-all"
+                      >
+                        تجاهل والخروج
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDiscardDlg(false)}
+                        className="w-full py-3 rounded-2xl text-sm font-black text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all"
+                      >
+                        إلغاء والعودة للإدخال
+                      </button>
+                    </div>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
 const InputClass = "w-full bg-slate-100/50 dark:bg-slate-900/40 border border-transparent text-text-primary-light dark:text-text-primary-dark text-sm rounded-2xl focus:bg-white dark:focus:bg-slate-900 focus:ring-4 focus:ring-primary/5 focus:border-primary/20 block px-5 py-4 outline-none transition-all duration-300 placeholder:text-text-muted-light/40";
 const LabelClass = "block text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark mb-2.5 mr-1 uppercase tracking-wider transition-colors duration-300";
 
@@ -84,9 +541,8 @@ export default function Items() {
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('الكل');
   const [companyFilter, setCompanyFilter] = useState('الكل');
-  const [showHotOnly, setShowHotOnly] = useState(false);
-
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isBulkAddOpen, setIsBulkAddOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   
@@ -100,7 +556,6 @@ export default function Items() {
 
   const [selectedForDelete, setSelectedForDelete] = useState([]);
   const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
-  const [sortByExpiry, setSortByExpiry] = useState(false);
   const [batchEyeItem, setBatchEyeItem] = useState(null);
 
   // --- LIVE FIREBASE SYNC ---
@@ -205,18 +660,12 @@ export default function Items() {
                           (item.company || '').toLowerCase().includes(searchQuery.toLowerCase());
       const matchCat = categoryFilter === 'الكل' || item.cat === categoryFilter;
       const matchComp = companyFilter === 'الكل' || (item.company || 'بدون شركة') === companyFilter;
-      const matchHot = showHotOnly ? ((hotItemsMap[item.id] || 0) >= 10) : true;
-      return matchSearch && matchCat && matchComp && matchHot;
+      return matchSearch && matchCat && matchComp;
     });
-    if (sortByExpiry) {
-      result = [...result].sort((a, b) => {
-        const da = expiryMap[a.id]?.[0] ? Math.ceil((new Date(expiryMap[a.id][0].expiryDate) - Date.now()) / 86400000) : Infinity;
-        const db = expiryMap[b.id]?.[0] ? Math.ceil((new Date(expiryMap[b.id][0].expiryDate) - Date.now()) / 86400000) : Infinity;
-        return da - db;
-      });
-    }
     return result;
-  }, [items, searchQuery, categoryFilter, companyFilter, showHotOnly, hotItemsMap, sortByExpiry, expiryMap]);
+  }, [items, searchQuery, categoryFilter, companyFilter]);
+
+  const totalItemsCount = filteredItems.length;
 
   const groupedItems = useMemo(() => {
     const groups = {};
@@ -263,6 +712,35 @@ export default function Items() {
       toast.error("حدث خطأ أثناء الإضافة.");
     }
   };
+
+  // ── Bulk add handler (called by BulkAddModal) ──
+  const handleBulkSaveAll = useCallback(async (validRows) => {
+    let added = 0;
+    let skipped = 0;
+    for (const row of validRows) {
+      const rawName    = row.name.trim();
+      const rawCompany = row.company.trim() || 'بدون شركة';
+      const normName    = normalizeText(rawName);
+      const normCompany = normalizeText(rawCompany);
+      const isDup = items.some(
+        i => normalizeText(i.name) === normName && normalizeText(i.company || 'بدون شركة') === normCompany
+      );
+      if (isDup) { skipped++; continue; }
+      await addDoc(collection(db, 'items'), {
+        name: rawName,
+        company: rawCompany,
+        cat: row.cat,
+        unit: row.unit,
+        stockQty: 0,
+        searchKey: `${rawName} ${rawCompany}`.toLowerCase(),
+        createdAt: serverTimestamp()
+      });
+      added++;
+    }
+    if (added > 0) { toast.success(`✅ تمت إضافة ${added} صنف بنجاح!`); playSuccess(); }
+    if (skipped > 0) toast.warning(`⚠️ تم تخطي ${skipped} صنف مكرر.`);
+    setIsBulkAddOpen(false);
+  }, [items, playSuccess]);
 
   const openEditModal = (item) => {
     setSelectedItem(item);
@@ -384,94 +862,118 @@ export default function Items() {
   const cardVariants = { hidden: { opacity: 0, y: 15, scale: 0.95 }, show: { opacity: 1, y: 0, scale: 1, transition: { type: 'spring', stiffness: 400, damping: 25 } } };
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 gap-4 sm:gap-6 font-readex h-full overflow-hidden" dir="rtl">
-      {/* Header & Main Actions */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
-        <div>
-          <h1 className="text-2xl font-bold font-tajawal text-text-primary-light dark:text-text-primary-dark">دليل الأصناف والمخزون</h1>
-          <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark mt-1">إدارة المنتجات ومراقبة مستويات التوفر والصلاحية</p>
+    <div className="flex-1 flex flex-col min-h-0 gap-2 font-readex h-full overflow-hidden" dir="rtl">
+
+      {/* ═══ COMPACT TOP BAR — title + filters + actions on one line ═══ */}
+      <div className="shrink-0 flex items-center gap-3 flex-wrap">
+
+        {/* Title + badges */}
+        <div className="flex items-center gap-2.5 shrink-0">
+          <h1 className="text-2xl font-black font-tajawal tracking-tight text-slate-900 dark:text-white leading-none">
+            دليل الأصناف
+          </h1>
+          <span className="rounded-full bg-slate-100 text-slate-500 border border-slate-200 px-2.5 py-1 text-[11px] font-black dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400 tabular-nums">
+            {Object.keys(groupedItems).length} قسم
+          </span>
+          <span className="rounded-full bg-primary/8 text-primary border border-primary/15 px-2.5 py-1 text-[11px] font-black dark:bg-primary/10 tabular-nums flex items-center gap-1">
+            <Package size={11} />{totalItemsCount}
+          </span>
         </div>
-        <div className="flex items-center gap-3">
+
+        {/* Divider */}
+        <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 shrink-0" />
+
+        {/* Search */}
+        <div className="relative flex-1 min-w-[180px]">
+          <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          <input
+            type="text" dir="rtl"
+            placeholder="ابحث عن صنف أو شركة..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-white text-sm font-bold rounded-xl pr-9 pl-3 py-2 outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary/30 transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 shadow-sm"
+          />
+        </div>
+
+        {/* Category filter */}
+        <select
+          value={categoryFilter}
+          onChange={e => setCategoryFilter(e.target.value)}
+          className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-sm font-bold rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary/30 transition-all appearance-none cursor-pointer shadow-sm"
+        >
+          <option>الكل</option><option>مجمدات</option><option>بلاستيك</option><option>تبريد</option>
+        </select>
+
+        {/* Company filter */}
+        <select
+          value={companyFilter}
+          onChange={e => setCompanyFilter(e.target.value)}
+          className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-sm font-bold rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary/30 transition-all appearance-none cursor-pointer shadow-sm max-w-[160px] truncate"
+        >
+          {dynamicCompanies.map(c => <option key={c}>{c}</option>)}
+        </select>
+
+        {/* Spacer */}
+        <div className="flex-1" />
+
+        {/* Export button */}
+        <div className="relative">
+          <button
+            onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
+            className="flex items-center gap-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-sm font-black rounded-xl px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all shadow-sm"
+          >
+            <Download size={15} />
+            <span>تصدير</span>
+            <ChevronDown size={12} className={`transition-transform duration-200 ${isExportMenuOpen ? 'rotate-180' : ''}`} />
+          </button>
           <AnimatePresence>
-            {!isViewer && selectedForDelete.length > 0 && (
-              <motion.button
-                initial={{ opacity: 0, scale: 0.9, width: 0 }} animate={{ opacity: 1, scale: 1, width: 'auto' }} exit={{ opacity: 0, scale: 0.9, width: 0 }}
-                onClick={() => setIsBulkDeleteModalOpen(true)} 
-                className="flex items-center whitespace-nowrap gap-2 px-4 py-2.5 bg-status-danger/10 border border-status-danger/20 text-status-danger rounded-xl font-bold text-sm transition-all"
+            {isExportMenuOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -6, scale: 0.97 }}
+                transition={{ duration: 0.15 }}
+                className="absolute left-0 top-[calc(100%+6px)] z-50 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden min-w-[160px]"
               >
-                <Trash2 size={16} />
-                <span>حذف ({selectedForDelete.length})</span>
-              </motion.button>
+                <button onClick={handleExportPDF} className="w-full flex items-center gap-2.5 px-4 py-3 text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-right">
+                  <FileText size={15} className="text-slate-400" /> PDF
+                </button>
+                <button onClick={handleExportPNG} className="w-full flex items-center gap-2.5 px-4 py-3 text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-right border-t border-slate-100 dark:border-slate-700">
+                  <Image size={15} className="text-slate-400" /> PNG / طباعة
+                </button>
+              </motion.div>
             )}
           </AnimatePresence>
-
-          <div className="relative">
-            <button onClick={() => setIsExportMenuOpen(!isExportMenuOpen)} className="btn-outline flex items-center gap-2">
-              <Download size={18} />
-              <span>تصدير</span>
-              <ChevronDown size={14} className={`transition-transform duration-200 ${isExportMenuOpen ? 'rotate-180' : ''}`} />
-            </button>
-            
-            <AnimatePresence>
-              {isExportMenuOpen && (
-                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute left-0 mt-2 w-48 bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-xl shadow-xl z-30 p-1">
-                  <button onClick={() => { handleExportPDF(); setIsExportMenuOpen(false); }} className="w-full text-right px-4 py-2.5 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg flex items-center gap-2">
-                    <FileText size={16} className="text-status-danger" />
-                    <span>تصدير PDF</span>
-                  </button>
-                  <button onClick={() => { handleExportPNG(); setIsExportMenuOpen(false); }} className="w-full text-right px-4 py-2.5 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg flex items-center gap-2">
-                    <Image size={16} className="text-status-success" />
-                    <span>طباعة الكتالوج</span>
-                  </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-          {!isViewer && (
-            <button onClick={() => { setFormState({ name: '', company: '', cat: 'مجمدات', unit: 'كرتونة' }); setIsCustomUnit(false); setIsAddModalOpen(true); }} className="btn-primary flex items-center gap-2">
-               <Plus size={18} />
-               <span>صنف جديد</span>
-            </button>
-          )}
         </div>
-      </div>
 
-      {/* Filters Bar */}
-      <div className="card p-4 flex flex-col lg:flex-row lg:items-center gap-4 shrink-0">
-        <div className="relative flex-1 group">
-          <Search size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted-light group-focus-within:text-primary transition-colors" />
-          <input type="text" placeholder="بحث عن صنف أو شركة..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className={`${InputClass} pr-10 py-2.5`} />
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} className={`${InputClass} w-auto min-w-[120px] py-2.5`}>
-            <option>الكل</option><option>مجمدات</option><option>بلاستيك</option><option>تبريد</option>
-          </select>
-          <select value={companyFilter} onChange={e => setCompanyFilter(e.target.value)} className={`${InputClass} w-auto min-w-[120px] py-2.5`}>
-            {dynamicCompanies.map(c => <option key={c}>{c}</option>)}
-          </select>
-          <button onClick={() => setShowHotOnly(!showHotOnly)}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border ${showHotOnly ? 'bg-status-warning/10 text-status-warning border-status-warning/20' : 'bg-slate-50 dark:bg-slate-800/50 text-text-secondary-light dark:text-text-secondary-dark border-border-light dark:border-border-dark'}`}
+        {/* Primary CTA */}
+        {!isViewer && (
+          <button
+            onClick={() => setIsBulkAddOpen(true)}
+            className="btn-primary flex items-center gap-2 px-5 py-2.5 text-sm shadow-primary/20 shrink-0"
           >
-            <Flame size={14} className={showHotOnly ? 'animate-bounce' : ''} />
-            الأكثر طلباً
+            <LayoutGrid size={16} />
+            <span>+ أضف صنف</span>
           </button>
-          <button onClick={() => setSortByExpiry(!sortByExpiry)}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border ${sortByExpiry ? 'bg-primary/10 text-primary dark:text-accent-light border-primary/20' : 'bg-slate-50 dark:bg-slate-800/50 text-text-secondary-light dark:text-text-secondary-dark border-border-light dark:border-border-dark'}`}
-          >
-            <CalendarDays size={14} />
-            الصلاحية
-          </button>
-        </div>
+        )}
       </div>
 
       {/* Directory Grid */}
       <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 pb-10" id="printable-directory">
         {Object.keys(groupedItems).length === 0 ? (
-           <div className="h-full flex flex-col items-center justify-center text-center p-12 bg-white/20 dark:bg-black/10 rounded-[2rem] border-2 border-dashed border-border-light dark:border-border-dark">
-              <Package size={64} className="text-text-muted-light mb-6 opacity-20" />
-              <h3 className="text-xl font-bold font-tajawal text-text-primary-light dark:text-text-primary-dark mb-2">لا توجد نتائج</h3>
-              <p className="text-text-secondary-light dark:text-text-secondary-dark mb-8 max-w-xs">جرب تغيير كلمات البحث أو الفلاتر للعثور على ما تبحث عنه.</p>
+           <div className="h-full flex flex-col items-center justify-center text-center p-12 bg-gradient-to-br from-slate-50 via-slate-100 to-white rounded-[2rem] border border-slate-200 shadow-sm">
+              <div className="flex h-24 w-24 items-center justify-center rounded-[2rem] bg-slate-100 text-slate-400 shadow-inner mb-6">
+                <Package size={44} />
+              </div>
+              <h3 className="text-2xl font-black font-tajawal text-slate-900 mb-2">لا توجد نتائج</h3>
+              <p className="text-sm text-slate-500 mb-6 max-w-md">
+                قم بتعديل البحث أو الفلاتر لعرض الأصناف المناسبة. إذا كان الكتالوج فارغاً، ابدأ بإضافة صنف جديد الآن.
+              </p>
+              {!isViewer && (
+                <button onClick={() => setIsBulkAddOpen(true)} className="btn-primary px-8 py-3 shadow-primary/20 flex items-center gap-2">
+                  <LayoutGrid size={16} /> أضف أول صنف
+                </button>
+              )}
            </div>
         ) : (
           <motion.div variants={containerVariants} initial="hidden" animate="show" className="space-y-10">
@@ -668,12 +1170,22 @@ export default function Items() {
       </AnimatePresence>
 
       {/* --- MODALS --- */}
-      {/* ADD/EDIT MODAL */}
+
+      {/* BULK ADD MODAL */}
+      <BulkAddModal
+        isOpen={isBulkAddOpen}
+        onClose={() => setIsBulkAddOpen(false)}
+        onSaveAll={handleBulkSaveAll}
+        existingItems={items}
+        uniqueCompanies={uniqueCompanies}
+      />
+
+      {/* EDIT MODAL (single item) */}
       <ModalWrapper 
-        title={isEditModalOpen ? "تحديث بيانات الصنف" : "تسجيل صنف جديد"} 
-        isOpen={isAddModalOpen || isEditModalOpen} 
-        onClose={() => { setIsAddModalOpen(false); setIsEditModalOpen(false); }} 
-        onSubmit={isEditModalOpen ? handleEditSubmit : handleAddSubmit}
+        title="تحديث بيانات الصنف"
+        isOpen={isEditModalOpen} 
+        onClose={() => { setIsEditModalOpen(false); }} 
+        onSubmit={handleEditSubmit}
       >
         <div className="space-y-6 relative">
           <div className="relative group/nameItem">
@@ -687,7 +1199,6 @@ export default function Items() {
                   setNameSearchActiveIndex(-1);
                 }
             }} autoFocus required />
-            
             {formState.name && itemSuggestions.length > 0 && (
               <div className="hidden group-focus-within/nameItem:block absolute top-[100%] right-0 w-full max-h-40 overflow-y-auto bg-white dark:bg-surface-dark rounded-xl shadow-xl border border-border-light dark:border-border-dark z-30 p-1 mt-1">
                 {itemSuggestions.map((suggestion, idx) => (
@@ -698,7 +1209,6 @@ export default function Items() {
               </div>
             )}
           </div>
-          
           <div className="relative group/compItem">
              <label className={LabelClass}>الشركة المنتجة</label>
              <input type="text" className={InputClass} placeholder="مثال: الوطنية، ساديا..." value={formState.company} onChange={e => { setFormState({...formState, company: e.target.value}); setCompanySearchActiveIndex(-1); }} onKeyDown={(e) => {
@@ -710,7 +1220,6 @@ export default function Items() {
                   setCompanySearchActiveIndex(-1);
                 }
             }} />
-             
              {formState.company && companySuggestions.length > 0 && (
               <div className="hidden group-focus-within/compItem:block absolute top-[100%] right-0 w-full max-h-40 overflow-y-auto bg-white dark:bg-surface-dark rounded-xl shadow-xl border border-border-light dark:border-border-dark z-30 p-1 mt-1">
                 {companySuggestions.map((suggestion, idx) => (
@@ -721,7 +1230,6 @@ export default function Items() {
               </div>
             )}
           </div>
-
           <div className="grid grid-cols-2 gap-4 relative z-10">
             <div>
               <label className={LabelClass}>المجموعة (القسم)</label>
