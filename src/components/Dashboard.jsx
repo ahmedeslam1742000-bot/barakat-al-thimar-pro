@@ -542,20 +542,24 @@ export default function Dashboard() {
   };
 
   // --- 5. MARK VOUCHER AS INVOICED --- //
-  const handleMarkAsInvoiced = async (voucher) => {
+  const handleMarkAsInvoiced = async () => {
+    if (!selectedVoucher) return;
+    
     try {
       // Find the original transaction in dbTransactionsList
-      const originalTx = dbTransactionsList.find(tx => tx.id === voucher.id);
-      
+      const originalTx = dbTransactionsList.find(tx => tx.id === selectedVoucher.id);
+
       if (originalTx) {
         // Update the transaction in Firestore
         const txRef = doc(db, 'transactions', originalTx.id);
         await updateDoc(txRef, { invoiced: true });
-        
-        // Remove from local state immediately for UI update
-        setVoucherTransactions(prev => prev.filter(v => v.id !== voucher.id));
-        
-        toast.success(`تم تحديد السند #${voucher.id.slice(-6)} كفوترة بنجاح ✅`);
+
+        // Update local state - mark as invoiced and move to bottom
+        setVoucherTransactions(prev => 
+          prev.map(v => v.id === selectedVoucher.id ? { ...v, invoiced: true } : v)
+        );
+
+        toast.success(`تم تحديد السند #${selectedVoucher.id.slice(-6)} كفوترة بنجاح ✅`);
         playSuccess();
         setIsVoucherModalOpen(false);
         setSelectedVoucher(null);
@@ -705,82 +709,15 @@ export default function Dashboard() {
         <StatCard icon={RotateCcw} label={damageCount > 0 ? `المرتجعات (${damageCount} تالف)` : "المرتجعات"} value={returnsCount} subtext="وحدة مُرتجعة" actionLabel="تسجيل مرتجع" onClick={() => setIsReturnsModalOpen(true)} accentColor="#EF4444" />
       </div>
 
-      {/* ── Bottom 3-Card Row ── */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-5 min-h-0 overflow-hidden">
+      {/* ── Bottom 2-Card Row ── */}
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-5 min-h-0 overflow-hidden">
 
-        {/* ─── RIGHT: Alerts ─── */}
-        <motion.div 
+        {/* ─── RIGHT: Recent Movements ─── */}
+        <motion.div
           variants={cardVariants}
           className="flex flex-col bg-white rounded-[24px] border border-slate-100/80 shadow-sm overflow-hidden"
         >
-          {/* Header: title right, inline filters left */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-50 shrink-0">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-500">
-                <Bell size={15} />
-              </div>
-              <div className="text-right">
-                <h3 className="text-sm font-bold text-[#0F2747] font-tajawal leading-tight">تنبيهات المخزن</h3>
-                <p className="text-[10px] text-slate-400 font-readex font-medium">{finalAlerts.length}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <input 
-                type="text" 
-                placeholder="بحث..." 
-                className="w-28 bg-slate-50 border-0 text-[10px] rounded-lg px-3 py-1.5 outline-none font-readex placeholder:text-slate-300 focus:ring-2 focus:ring-amber-500/20 transition-all" 
-                value={alertSearch} 
-                onChange={e => setAlertSearch(e.target.value)} 
-              />
-              <select className="text-[10px] font-medium text-slate-500 outline-none cursor-pointer hover:text-slate-600 transition-colors border border-slate-100 rounded-lg px-2.5 py-1.5 bg-white hover:bg-slate-50" value={alertCatFilter} onChange={e => setAlertCatFilter(e.target.value)}>
-                <option>التصنيف</option>
-                {[...new Set(items.map(i=>i.cat))].map(c => <option key={c}>{c}</option>)}
-              </select>
-              <select className="text-[10px] font-medium text-slate-500 outline-none cursor-pointer hover:text-slate-600 transition-colors border border-slate-100 rounded-lg px-2.5 py-1.5 bg-white hover:bg-slate-50" value={alertUrgencyFilter} onChange={e => setAlertUrgencyFilter(e.target.value)}>
-                <option>الحالة</option>
-                <option>حرج</option>
-                <option>تحذير</option>
-                <option>آمن</option>
-              </select>
-            </div>
-          </div>
-          {/* List */}
-          <div className="flex-1 overflow-y-auto custom-scrollbar px-5 py-3">
-            {finalAlerts.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 text-slate-300"><CheckCircle2 size={36} strokeWidth={1.2} className="mb-3" /><p className="text-xs font-semibold">لا توجد تنبيهات</p></div>
-            ) : finalAlerts.map((i, idx) => {
-              let statusColor = '#10B981';
-              let iconColor = 'text-emerald-500';
-              let icon = <CheckCircle2 size={13} />;
-              if (i.stockQty < 50) { statusColor = '#EF4444'; iconColor = 'text-red-500'; icon = <AlertOctagon size={13} />; }
-              else if (i.stockQty < 100) { statusColor = '#F59E0B'; iconColor = 'text-amber-500'; icon = <AlertTriangle size={13} />; }
-              const stockPct = Math.min((i.stockQty / 200) * 100, 100);
-              return (
-                <motion.div 
-                  key={`${i.id}-${idx}`} 
-                  whileHover={{ y: -1, backgroundColor: 'rgba(248, 250, 252, 0.5)' }}
-                  transition={{ duration: 0.2 }}
-                  className="flex items-center gap-3 mb-2.5 p-2 rounded-lg group/alert cursor-pointer"
-                >
-                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${iconColor} bg-white`}>{icon}</div>
-                  <div className="min-w-0 flex-1">
-                    <h4 className="text-[12px] font-bold text-[#0F2747] font-tajawal truncate">{i.name}</h4>
-                    <div className="w-full h-1.5 bg-slate-100 rounded-full mt-1 overflow-hidden">
-                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${stockPct}%`, backgroundColor: statusColor }} />
-                    </div>
-                  </div>
-                  <span className="text-xs font-bold tabular-nums shrink-0" style={{ color: statusColor }}>{i.stockQty}</span>
-                </motion.div>
-              );
-            })}
-          </div>
-        </motion.div>
-
-        {/* ─── MIDDLE: Transactions ─── */}
-        <motion.div 
-          variants={cardVariants}
-          className="flex flex-col bg-white rounded-[24px] border border-slate-100/80 shadow-sm overflow-hidden"
-        >
+          {/* Header: title right-aligned, filters on same line */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-slate-50 shrink-0">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-500">
@@ -791,7 +728,7 @@ export default function Dashboard() {
                 <p className="text-[10px] text-slate-400 font-readex font-medium">{finalTransactions.length}</p>
               </div>
             </div>
-            {/* Segmented Picker - Compact */}
+            {/* Segmented Picker - Compact on same line */}
             <div className="flex items-center bg-slate-100 rounded-lg p-0.5 gap-0.5">
               {[
                 { key: 'الكل', icon: <FileText size={12} strokeWidth={2} /> },
@@ -813,102 +750,174 @@ export default function Dashboard() {
               ))}
             </div>
           </div>
+          {/* List with compact rows and descriptions */}
           <div className="flex-1 overflow-y-auto custom-scrollbar px-5 py-3">
             {finalTransactions.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-slate-300"><FileText size={36} strokeWidth={1.2} className="mb-3" /><p className="text-xs font-semibold">لم يتم تسجيل حركات</p></div>
             ) : (
-              <div className="space-y-1.5">
-                {finalTransactions.slice(0, 50).map((tx) => (
-                  <motion.div 
-                    key={tx.id} 
-                    onClick={() => { setSelectedBatchTransactions(tx.batchId ? dbTransactionsList.filter(t => t.batchId === tx.batchId) : [tx]); setIsTransactionDetailOpen(true); }} 
-                    whileHover={{ y: -1, backgroundColor: 'rgba(248, 250, 252, 0.8)' }}
-                    transition={{ duration: 0.2 }}
-                    className="flex items-center justify-between p-3 rounded-xl border border-transparent cursor-pointer group"
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${tx.type === 'Issue' ? 'bg-amber-50 text-amber-500' : tx.type === 'Return' ? 'bg-red-50 text-red-500' : 'bg-emerald-50 text-emerald-500'}`}>
-                        {tx.type === 'Issue' ? <ArrowUpRight size={14} /> : tx.type === 'Return' ? <RotateCcw size={14} /> : <ArrowDownRight size={14} />}
+              <div className="space-y-1">
+                {finalTransactions.slice(0, 50).map((tx) => {
+                  const txType = tx.type === 'Issue' ? 'صادر' : tx.type === 'Return' ? 'مرتجع' : 'وارد';
+                  const txDate = tx.timestamp?.toDate ? tx.timestamp.toDate() : new Date();
+                  const formattedDate = txDate.toLocaleDateString('ar-SA', { month: 'short', day: 'numeric', year: 'numeric' });
+                  const formattedTime = txDate.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
+                  
+                  return (
+                    <motion.div
+                      key={tx.id}
+                      layout
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      transition={{ duration: 0.2 }}
+                      onClick={() => { setSelectedBatchTransactions(tx.batchId ? dbTransactionsList.filter(t => t.batchId === tx.batchId) : [tx]); setIsTransactionDetailOpen(true); }}
+                      whileHover={{ backgroundColor: 'rgba(248, 250, 252, 0.8)' }}
+                      className="flex items-center justify-between p-2.5 rounded-lg border border-transparent cursor-pointer group"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${tx.type === 'Issue' ? 'bg-amber-50 text-amber-500' : tx.type === 'Return' ? 'bg-red-50 text-red-500' : 'bg-emerald-50 text-emerald-500'}`}>
+                          {tx.type === 'Issue' ? <ArrowUpRight size={13} /> : tx.type === 'Return' ? <RotateCcw size={13} /> : <ArrowDownRight size={13} />}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[11px] font-bold text-[#0F2747] font-tajawal truncate group-hover:text-emerald-600 transition-colors">{tx.item}</p>
+                          <p className="text-[10px] text-slate-400 font-readex mt-0.5">{txType} - {formattedDate} - {formattedTime}</p>
+                        </div>
                       </div>
-                      <div className="min-w-0"><p className="text-[12px] font-bold text-[#0F2747] font-tajawal truncate group-hover:text-emerald-600 transition-colors">{tx.item}</p><p className="text-[10px] text-slate-400 font-readex">{tx.date}</p></div>
-                    </div>
-                    <span className={`text-sm font-bold tabular-nums shrink-0 ${tx.type === 'Issue' ? 'text-amber-500' : tx.type === 'Return' ? 'text-red-500' : 'text-emerald-500'}`}>{tx.type === 'Issue' ? '-' : '+'}{tx.qty}</span>
-                  </motion.div>
-                ))}
+                      <span className={`text-xs font-bold tabular-nums shrink-0 ${tx.type === 'Issue' ? 'text-amber-500' : tx.type === 'Return' ? 'text-red-500' : 'text-emerald-500'}`}>
+                        {tx.type === 'Issue' ? '-' : '+'}{tx.qty}
+                      </span>
+                    </motion.div>
+                  );
+                })}
               </div>
             )}
           </div>
         </motion.div>
 
-        {/* ─── LEFT: Voucher Status Tracking ─── */}
-        <motion.div 
+        {/* ─── LEFT: Voucher Status Tracking (Converted from Alerts) ─── */}
+        <motion.div
           variants={cardVariants}
           className="flex flex-col bg-white rounded-[24px] border border-slate-100/80 shadow-sm overflow-hidden"
         >
+          {/* Header: title right-aligned, no search bar */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-slate-50 shrink-0">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-500">
                 <FileCheck size={15} />
               </div>
               <div className="text-right">
-                <h3 className="text-sm font-bold text-[#0F2747] font-tajawal leading-tight">حالة سندات الصرف</h3>
-                <p className="text-[10px] text-slate-400 font-readex font-medium">{voucherTransactions.length} قيد الانتظار</p>
+                <h3 className="text-sm font-bold text-[#0F2747] font-tajawal leading-tight">حالة السندات</h3>
+                <p className="text-[10px] text-slate-400 font-readex font-medium">{voucherTransactions.filter(v => !v.invoiced).length} قيد الانتظار</p>
               </div>
             </div>
           </div>
-          {/* Voucher List */}
+          {/* Voucher List with checkboxes and sorting */}
           <div className="flex-1 overflow-y-auto custom-scrollbar px-5 py-3">
-            {voucherTransactions.length === 0 ? (
+            {voucherTransactions.filter(v => !v.invoiced).length === 0 && voucherTransactions.filter(v => v.invoiced).length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-slate-300">
                 <FileCheck size={36} strokeWidth={1.2} className="mb-3" />
-                <p className="text-xs font-semibold">لا توجد سندات قيد الانتظار</p>
+                <p className="text-xs font-semibold">لا توجد سندات</p>
               </div>
             ) : (
-              <div className="space-y-2">
-                {voucherTransactions.slice(0, 15).map((voucher) => (
-                  <motion.div 
-                    key={voucher.id}
-                    whileHover={{ y: -1, backgroundColor: 'rgba(248, 250, 252, 0.8)' }}
-                    transition={{ duration: 0.2 }}
-                    className="p-3 rounded-xl border border-slate-100 bg-white group cursor-pointer"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                        <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center shrink-0 text-emerald-600">
-                          <FileText size={14} />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h4 className="text-[12px] font-bold text-[#0F2747] font-tajawal truncate">{voucher.clientName}</h4>
-                            <span className="text-[9px] font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
-                              #{voucher.id.slice(-6)}
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-slate-500 font-readex truncate">{voucher.itemName}</p>
-                          <div className="flex items-center gap-3 mt-1.5">
-                            <span className="text-[10px] text-slate-400 flex items-center gap-1">
-                              <Clock size={10} />
-                              {voucher.timestamp.toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' })}
-                            </span>
-                            <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">
-                              {voucher.quantity} وحدة
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedVoucher(voucher);
-                          setIsVoucherModalOpen(true);
-                        }}
-                        className="shrink-0 px-3 py-1.5 rounded-lg bg-emerald-500 text-white text-[10px] font-bold hover:bg-emerald-600 active:scale-95 transition-all"
+              <div className="space-y-1.5">
+                {/* Un-invoiced vouchers at top (newest first) */}
+                <AnimatePresence>
+                  {voucherTransactions
+                    .filter(v => !v.invoiced)
+                    .sort((a, b) => b.timestamp - a.timestamp)
+                    .slice(0, 15)
+                    .map((voucher) => (
+                      <motion.div
+                        key={voucher.id}
+                        layout
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 20, transition: { duration: 0.3 } }}
+                        transition={{ duration: 0.3, layout: { duration: 0.3 } }}
+                        className="p-2.5 rounded-lg border border-slate-100 bg-white group cursor-pointer hover:bg-slate-50"
                       >
-                        تمت الفوترة
-                      </button>
+                        <div className="flex items-start gap-2">
+                          {/* Checkbox */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedVoucher(voucher);
+                              setIsVoucherModalOpen(true);
+                            }}
+                            className="shrink-0 mt-1 w-5 h-5 rounded border-2 border-slate-300 hover:border-emerald-500 flex items-center justify-center transition-all hover:bg-emerald-50"
+                          >
+                            <CheckCircle2 size={14} className="text-emerald-500 opacity-0" />
+                          </button>
+                          <div className="min-w-0 flex-1">
+                            {/* Title: Type - Item Name */}
+                            <h4 className="text-[11px] font-bold text-[#0F2747] font-tajawal truncate">
+                              صادر - {voucher.itemName}
+                            </h4>
+                            {/* Description: Customer/Source - Date - Time */}
+                            <p className="text-[10px] text-slate-400 font-readex mt-0.5">
+                              {voucher.clientName} - {voucher.timestamp.toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' })} - {voucher.timestamp.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">
+                                {voucher.quantity} وحدة
+                              </span>
+                              <span className="text-[9px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                                #{voucher.id.slice(-6)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))
+                  }
+                </AnimatePresence>
+                
+                {/* Invoiced vouchers at bottom (green status) */}
+                {voucherTransactions.filter(v => v.invoiced).length > 0 && (
+                  <>
+                    <div className="flex items-center gap-2 mt-3 mb-2">
+                      <div className="h-px flex-1 bg-slate-200"></div>
+                      <span className="text-[10px] font-medium text-slate-400 font-readex">السندات المفوترة</span>
+                      <div className="h-px flex-1 bg-slate-200"></div>
                     </div>
-                  </motion.div>
-                ))}
+                    <AnimatePresence>
+                      {voucherTransactions
+                        .filter(v => v.invoiced)
+                        .slice(0, 10)
+                        .map((voucher) => (
+                          <motion.div
+                            key={voucher.id}
+                            layout
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ duration: 0.3 }}
+                            className="p-2.5 rounded-lg border border-emerald-200 bg-emerald-50/30 group opacity-75"
+                          >
+                            <div className="flex items-start gap-2">
+                              {/* Green checkbox */}
+                              <div className="shrink-0 mt-1 w-5 h-5 rounded bg-emerald-500 flex items-center justify-center">
+                                <CheckCircle2 size={14} className="text-white" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <h4 className="text-[11px] font-bold text-[#0F2747] font-tajawal truncate">
+                                  صادر - {voucher.itemName}
+                                </h4>
+                                <p className="text-[10px] text-slate-400 font-readex mt-0.5">
+                                  {voucher.clientName} - {voucher.timestamp.toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' })} - {voucher.timestamp.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })}
+                                </p>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded">
+                                    {voucher.quantity} وحدة
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </motion.div>
+                        ))
+                      }
+                    </AnimatePresence>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -955,6 +964,79 @@ export default function Dashboard() {
             </div>
          </div>
       </ModalWrapper>
+
+      {/* 0.5 Voucher Confirmation Modal */}
+      <AnimatePresence>
+        {isVoucherModalOpen && selectedVoucher && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-[#0F2747]/60 backdrop-blur-md transition-all duration-300"
+            dir="rtl"
+            onClick={() => { setIsVoucherModalOpen(false); setSelectedVoucher(null); }}
+          >
+            <motion.div
+              onClick={(e) => e.stopPropagation()}
+              initial={{ opacity: 0, scale: 0.96, y: 24 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 24 }}
+              transition={{ type: 'spring', damping: 28, stiffness: 320 }}
+              className="w-full max-w-md bg-white rounded-[24px] shadow-2xl border border-slate-100/60 flex flex-col overflow-hidden"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-8 py-6 border-b border-slate-100 shrink-0">
+                <h3 className="text-xl font-bold text-[#0F2747] font-tajawal tracking-tight">تأكيد الفوترة</h3>
+                <button
+                  type="button"
+                  onClick={() => { setIsVoucherModalOpen(false); setSelectedVoucher(null); }}
+                  className="p-2.5 text-slate-400 hover:bg-slate-50 hover:text-slate-600 rounded-xl transition-all active:scale-90"
+                >
+                  <X size={22} />
+                </button>
+              </div>
+              
+              {/* Body */}
+              <div className="px-8 py-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center text-amber-500">
+                    <FileText size={22} />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="text-sm font-bold text-[#0F2747] font-tajawal">صادر - {selectedVoucher.itemName}</h4>
+                    <p className="text-xs text-slate-400 font-readex mt-0.5">
+                      {selectedVoucher.clientName} - {selectedVoucher.timestamp.toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' })}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between bg-slate-50 rounded-lg p-3">
+                  <span className="text-xs text-slate-500 font-readex">الكمية:</span>
+                  <span className="text-sm font-bold text-amber-600">{selectedVoucher.quantity} وحدة</span>
+                </div>
+                <p className="text-sm text-slate-600 font-tajawal mt-4 text-center">هل تمت الفوترة؟</p>
+              </div>
+              
+              {/* Footer Buttons */}
+              <div className="px-8 py-5 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-3 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => { setIsVoucherModalOpen(false); setSelectedVoucher(null); }}
+                  className="px-6 py-2.5 rounded-xl text-sm font-semibold text-slate-500 border border-slate-200 hover:bg-white transition-all font-readex"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="button"
+                  onClick={handleMarkAsInvoiced}
+                  className="px-8 py-2.5 rounded-xl text-sm font-bold text-white bg-emerald-500 hover:bg-emerald-600 shadow-lg shadow-emerald-500/20 transition-all font-tajawal"
+                >
+                  نعم، تمت الفوترة
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* 1. Add Item */}
       <ModalWrapper title="إضافة صنف جديد" isOpen={isItemModalOpen} onClose={() => setIsItemModalOpen(false)} onSubmit={handleAddItem} isSubmitDisabled={isDuplicateMatch}>
