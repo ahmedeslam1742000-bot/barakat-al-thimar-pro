@@ -710,8 +710,8 @@ export default function Dashboard() {
         <StatCard icon={RotateCcw} label={damageCount > 0 ? `المرتجعات (${damageCount} تالف)` : "المرتجعات"} value={returnsCount} subtext="وحدة مُرتجعة" actionLabel="تسجيل مرتجع" onClick={() => setIsReturnsModalOpen(true)} accentColor="#EF4444" />
       </div>
 
-      {/* ── Bottom 2-Card Row ── */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-5 min-h-0 overflow-hidden">
+      {/* ── Bottom 3-Card Row ── */}
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-5 min-h-0 overflow-hidden">
 
         {/* ─── RIGHT: Recent Movements ─── */}
         <motion.div
@@ -939,6 +939,113 @@ export default function Dashboard() {
                     </AnimatePresence>
                   </>
                 )}
+              </div>
+            )}
+          </div>
+        </motion.div>
+
+        {/* ─── CENTER: Inventory Alerts (تنبيهات المخزن) ─── */}
+        <motion.div
+          variants={cardVariants}
+          className="flex flex-col bg-white rounded-[24px] border border-slate-100/80 shadow-sm overflow-hidden"
+        >
+          {/* Header: title right-aligned, category filter on same line */}
+          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-50 shrink-0">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-500">
+                <AlertTriangle size={15} />
+              </div>
+              <div className="text-right">
+                <h3 className="text-sm font-bold text-[#0F2747] font-tajawal leading-tight">تنبيهات المخزن</h3>
+                <p className="text-[10px] text-slate-400 font-readex font-medium">{finalAlerts.length} صنف</p>
+              </div>
+            </div>
+            {/* Category Filter Dropdown */}
+            <select
+              className="text-[10px] font-medium text-slate-500 outline-none cursor-pointer hover:text-slate-600 transition-colors border border-slate-100 rounded-lg px-2.5 py-1.5 bg-white hover:bg-slate-50"
+              value={alertCatFilter}
+              onChange={e => setAlertCatFilter(e.target.value)}
+            >
+              <option value="الكل">الأقسام</option>
+              {[...new Set(items.map(i => i.cat).filter(Boolean))].map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          {/* Alerts List with progress bars */}
+          <div className="flex-1 overflow-y-auto custom-scrollbar px-5 py-3">
+            {finalAlerts.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-slate-300">
+                <CheckCircle2 size={32} strokeWidth={1.2} className="mb-2" />
+                <p className="text-xs font-semibold">المخزون آمن</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <AnimatePresence>
+                  {finalAlerts.map((item, idx) => {
+                    // Color coding logic
+                    let statusColor, iconColor, icon, barColor, urgencyLabel, urgencyBg;
+                    if (item.stockQty < 70) {
+                      statusColor = '#EF4444';
+                      iconColor = 'text-red-500';
+                      icon = <AlertOctagon size={12} />;
+                      barColor = '#EF4444';
+                      urgencyLabel = 'حرج';
+                      urgencyBg = 'bg-red-50 text-red-600';
+                    } else if (item.stockQty >= 70 && item.stockQty <= 100) {
+                      statusColor = '#F59E0B';
+                      iconColor = 'text-amber-500';
+                      icon = <AlertTriangle size={12} />;
+                      barColor = '#F59E0B';
+                      urgencyLabel = 'تحذير';
+                      urgencyBg = 'bg-amber-50 text-amber-600';
+                    } else {
+                      statusColor = '#10B981';
+                      iconColor = 'text-emerald-500';
+                      icon = <CheckCircle2 size={12} />;
+                      barColor = '#10B981';
+                      urgencyLabel = 'آمن';
+                      urgencyBg = 'bg-emerald-50 text-emerald-600';
+                    }
+                    const stockPct = Math.min((item.stockQty / 200) * 100, 100);
+                    
+                    return (
+                      <motion.div
+                        key={`${item.id}-${idx}`}
+                        layout
+                        initial={{ opacity: 0, x: -15 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 15, transition: { duration: 0.25 } }}
+                        transition={{ duration: 0.25, layout: { duration: 0.3 } }}
+                        whileHover={{ backgroundColor: 'rgba(248, 250, 252, 0.6)' }}
+                        className="p-2.5 rounded-lg border border-slate-100 bg-white group/alert cursor-pointer"
+                      >
+                        <div className="flex items-start gap-2">
+                          <div className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 ${iconColor} bg-white border border-slate-100`}>
+                            {icon}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between mb-1">
+                              <h4 className="text-[11px] font-bold text-[#0F2747] font-tajawal truncate">{item.name}</h4>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${urgencyBg}`}>{urgencyLabel}</span>
+                                <span className="text-xs font-bold tabular-nums" style={{ color: statusColor }}>{item.stockQty}</span>
+                              </div>
+                            </div>
+                            {/* Progress Bar */}
+                            <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                              <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${stockPct}%` }}
+                                transition={{ duration: 0.5, delay: idx * 0.05 }}
+                                className="h-full rounded-full transition-all duration-500"
+                                style={{ backgroundColor: barColor }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </AnimatePresence>
               </div>
             )}
           </div>
