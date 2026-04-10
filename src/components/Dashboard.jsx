@@ -265,12 +265,12 @@ export default function Dashboard() {
     };
   }, []);
 
-  // Fetch voucher status (outbound non-invoiced transactions)
+  // Fetch voucher status (outbound non-invoiced transactions) - syncs in real-time
   useEffect(() => {
     if (!db || dbTransactionsList.length === 0) return;
 
-    const outboundTx = dbTransactionsList.filter(tx => 
-      tx.type === 'Issue' && !tx.invoiced
+    const outboundTx = dbTransactionsList.filter(tx =>
+      tx.type === 'Issue'
     ).map(tx => {
       // Find matching item to get client/rep info
       const matchedItem = items.find(i => tx.item.includes(i.name));
@@ -280,7 +280,8 @@ export default function Dashboard() {
         itemName: tx.item,
         quantity: Number(tx.qty || 0),
         timestamp: tx.timestamp?.toDate ? tx.timestamp.toDate() : new Date(),
-        batchId: tx.batchId
+        batchId: tx.batchId,
+        invoiced: tx.invoiced || false
       };
     });
 
@@ -750,18 +751,35 @@ export default function Dashboard() {
               ))}
             </div>
           </div>
-          {/* List with compact rows and descriptions */}
+          {/* List with compact rows and descriptions - proper type labeling */}
           <div className="flex-1 overflow-y-auto custom-scrollbar px-5 py-3">
             {finalTransactions.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-slate-300"><FileText size={36} strokeWidth={1.2} className="mb-3" /><p className="text-xs font-semibold">لم يتم تسجيل حركات</p></div>
             ) : (
               <div className="space-y-1">
                 {finalTransactions.slice(0, 50).map((tx) => {
-                  const txType = tx.type === 'Issue' ? 'صادر' : tx.type === 'Return' ? 'مرتجع' : 'وارد';
+                  // Proper type labeling based on transaction source
+                  let txType = tx.status === 'مرتجع تالف' ? 'مرتجع تالف' :
+                               tx.type === 'Return' ? 'مرتجع' :
+                               tx.type === 'Issue' ? 'سند إخراج' :
+                               tx.type === 'Restock' ? 'وارد' : tx.type;
+                  let txTypeColor = tx.type === 'Issue' ? 'text-red-500 bg-red-50' :
+                                    tx.type === 'Return' ? 'text-amber-500 bg-amber-50' :
+                                    'text-emerald-500 bg-emerald-50';
+                  let IconComponent = tx.type === 'Issue' ? ArrowUpRight :
+                                      tx.type === 'Return' ? RotateCcw :
+                                      ArrowDownRight;
+                  let iconBgColor = tx.type === 'Issue' ? 'bg-red-50 text-red-500' :
+                                    tx.type === 'Return' ? 'bg-amber-50 text-amber-500' :
+                                    'bg-emerald-50 text-emerald-500';
+                  let valueColor = tx.type === 'Issue' ? 'text-red-500' :
+                                   tx.type === 'Return' ? 'text-amber-500' :
+                                   'text-emerald-500';
+
                   const txDate = tx.timestamp?.toDate ? tx.timestamp.toDate() : new Date();
-                  const formattedDate = txDate.toLocaleDateString('ar-SA', { month: 'short', day: 'numeric', year: 'numeric' });
+                  const formattedDate = txDate.toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' });
                   const formattedTime = txDate.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
-                  
+
                   return (
                     <motion.div
                       key={tx.id}
@@ -775,15 +793,18 @@ export default function Dashboard() {
                       className="flex items-center justify-between p-2.5 rounded-lg border border-transparent cursor-pointer group"
                     >
                       <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${tx.type === 'Issue' ? 'bg-amber-50 text-amber-500' : tx.type === 'Return' ? 'bg-red-50 text-red-500' : 'bg-emerald-50 text-emerald-500'}`}>
-                          {tx.type === 'Issue' ? <ArrowUpRight size={13} /> : tx.type === 'Return' ? <RotateCcw size={13} /> : <ArrowDownRight size={13} />}
+                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${iconBgColor}`}>
+                          <IconComponent size={13} />
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="text-[11px] font-bold text-[#0F2747] font-tajawal truncate group-hover:text-emerald-600 transition-colors">{tx.item}</p>
-                          <p className="text-[10px] text-slate-400 font-readex mt-0.5">{txType} - {formattedDate} - {formattedTime}</p>
+                          <p className="text-[10px] text-slate-400 font-readex mt-0.5">
+                            <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold ml-1 ${txTypeColor}`}>{txType}</span>
+                            - {formattedDate}
+                          </p>
                         </div>
                       </div>
-                      <span className={`text-xs font-bold tabular-nums shrink-0 ${tx.type === 'Issue' ? 'text-amber-500' : tx.type === 'Return' ? 'text-red-500' : 'text-emerald-500'}`}>
+                      <span className={`text-xs font-bold tabular-nums shrink-0 ${valueColor}`}>
                         {tx.type === 'Issue' ? '-' : '+'}{tx.qty}
                       </span>
                     </motion.div>

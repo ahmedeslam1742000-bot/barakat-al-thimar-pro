@@ -85,8 +85,8 @@ export default function MainLayout({ children, activeView, setActiveView }) {
       />
 
       {/* Main Content Area */}
-      <main 
-        className={`flex-1 flex flex-col h-full overflow-hidden transition-all duration-300 ease-in-out ${isSidebarOpen ? 'lg:mr-72' : 'mr-0'}`}
+      <main
+        className={`flex-1 flex flex-col h-full overflow-hidden transition-all duration-300 ease-in-out ${isSidebarOpen ? 'lg:mr-56' : 'mr-0'}`}
       >
         {/* Top Navbar - Slimmer and more functional */}
         <header className="w-full h-12 bg-white border-b border-slate-100 shrink-0 z-40 flex items-center justify-between px-4 sm:px-6 transition-all duration-300">
@@ -290,7 +290,7 @@ export default function MainLayout({ children, activeView, setActiveView }) {
 
         {/* Page Content */}
         <div className="flex-1 flex flex-col min-h-0 bg-slate-50/30 p-4 sm:p-6 lg:p-8 overflow-hidden">
-          <div className="w-full max-w-7xl mx-auto flex-1 flex flex-col min-h-0">
+          <div className="w-full flex-1 flex flex-col min-h-0">
             {children}
           </div>
         </div>
