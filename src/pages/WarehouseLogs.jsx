@@ -36,8 +36,8 @@ const TX_TYPES = {
   'وارد': { label: 'وارد', color: 'emerald', icon: TrendingUp, bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-200' },
   'صادر': { label: 'صادر', color: 'orange', icon: TrendingDown, bg: 'bg-orange-50', text: 'text-orange-600', border: 'border-orange-200' },
   'مرتجع': { label: 'مرتجع', color: 'amber', icon: RotateCcw, bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-200' },
-  'سند إدخال صوري': { label: 'سند إدخال', color: 'teal', icon: FileText, bg: 'bg-teal-50', text: 'text-teal-600', border: 'border-teal-200' },
-  'سند إخراج صوري': { label: 'سند إخراج', color: 'purple', icon: FileText, bg: 'bg-purple-50', text: 'text-purple-600', border: 'border-purple-200' },
+  'سند إدخال': { label: 'سند إدخال', color: 'teal', icon: FileText, bg: 'bg-teal-50', text: 'text-teal-600', border: 'border-teal-200' },
+  'سند إخراج': { label: 'سند إخراج', color: 'purple', icon: FileText, bg: 'bg-purple-50', text: 'text-purple-600', border: 'border-purple-200' },
 };
 
 const getTxStyle = (type) => TX_TYPES[type] || { label: type, color: 'slate', icon: Package, bg: 'bg-slate-50', text: 'text-slate-500', border: 'border-slate-200' };
@@ -196,8 +196,8 @@ function DailyActivity({ transactions }) {
             <option value="وارد">وارد</option>
             <option value="صادر">صادر</option>
             <option value="مرتجع">مرتجع</option>
-            <option value="سند إدخال صوري">سند إدخال</option>
-            <option value="سند إخراج صوري">سند إخراج</option>
+            <option value="سند إدخال">سند إدخال</option>
+            <option value="سند إخراج">سند إخراج</option>
           </select>
         </div>
 

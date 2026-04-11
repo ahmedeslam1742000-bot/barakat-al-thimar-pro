@@ -41,8 +41,8 @@ export const DEFAULT_SETTINGS = {
 
   // ─── 9. Custom Dictionary (Overrides)
   labels: {
-    voucherIn: 'سند إدخال صوري',
-    voucherOut: 'سند إخراج صوري',
+    voucherIn: 'سند إدخال',
+    voucherOut: 'سند إخراج',
     stockIn: 'وارد',
     stockOut: 'صادر',
     returns: 'مرتجع',

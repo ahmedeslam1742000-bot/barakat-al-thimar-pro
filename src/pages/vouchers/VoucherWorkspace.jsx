@@ -29,29 +29,28 @@ const formatDate = (date) => {
 
 const KIND_CONFIG = {
   in: {
-    txType: 'سند إدخال صوري',
+    txType: 'سند إدخال',
     codePrefix: 'IN',
     counterKey: 'in',
-    pageTitle: 'سند إدخال صوري',
-    pageSubtitle:
-      'مرجع توريد سريع للأرشفة — لا يعدّل رصيد المخزن (لتفادي الازدواج مع حركة الوارد الفعلية)',
-    modalTitle: 'سند إدخال صوري (مرجع توريد)',
+    pageTitle: 'سند إدخال',
+    pageSubtitle: 'اعتماد وارد رسمي ينعكس مباشرة على دورة السندات والحركات المخزنية.',
+    modalTitle: 'سند إدخال',
     accent: 'emerald',
     Icon: Package,
     sessionFields: [{ key: 'supplier', label: 'اسم المورد', required: true, placeholder: 'مثال: شركة التوريدات' }],
-    pdfTitle: 'إيصال مرجعي — سند إدخال صوري',
+    pdfTitle: 'إيصال رسمي — سند إدخال',
   },
   outward: {
-    txType: 'سند إخراج صوري',
+    txType: 'سند إخراج',
     codePrefix: 'OUT',
     counterKey: 'out',
-    pageTitle: 'عهدة المندوب (سند إخراج صوري)',
-    pageSubtitle: 'إثبات تسليم أصناف بعهدة مندوب — سند صوري لا يغيّر رصيد المخزن',
-    modalTitle: 'سند إخراج صوري (عهدة مندوب)',
+    pageTitle: 'عهدة المندوب (سند إخراج)',
+    pageSubtitle: 'إثبات تسليم أصناف بعهدة مندوب مع اعتماد فعلي داخل دورة السندات والفواتير.',
+    modalTitle: 'سند إخراج (عهدة مندوب)',
     accent: 'blue',
     Icon: Truck,
     sessionFields: [{ key: 'rep', label: 'اسم المندوب', required: true, placeholder: 'مثال: أحمد محمد' }],
-    pdfTitle: 'إيصال عهدة — سند إخراج صوري',
+    pdfTitle: 'إيصال عهدة — سند إخراج',
   },
 };
 
@@ -103,6 +102,148 @@ const LabelClass = 'block text-xs font-black text-slate-700 mb-1.5';
 
 const actionBtnBase =
   'inline-flex items-center justify-center rounded-xl border font-bold text-xs transition-all duration-200';
+
+/** Memoized voucher group row for table (desktop) */
+const VoucherGroupRow = React.memo(function VoucherGroupRow({
+  group, kind, expandedGroupId, isExporting, isViewer, theme, headerPartyLabel,
+  triggerExport, openEditGroup, openDeleteGroup, setExpandedGroupId, openEdit, openDelete,
+}) {
+  const isExpanded = expandedGroupId === group.groupId;
+
+  return (
+    <React.Fragment key={group.groupId}>
+      <tr
+        className="group hover:bg-slate-50/50 transition-colors hover-stable no-select-click"
+        style={{ willChange: 'transform, opacity', backfaceVisibility: 'hidden', transform: 'translate3d(0, 0, 0)' }}
+      >
+        <td className="px-6 py-5 font-black text-primary">{group.voucherCode || '—'}</td>
+        <td className="px-6 py-5 font-bold text-slate-500">{group.date || '—'}</td>
+        <td className="px-6 py-5">
+          <div className="font-black text-slate-800 max-w-[300px] truncate">
+            {kind === 'in' ? group.supplier || '—' : group.rep || '—'}
+          </div>
+        </td>
+        <td className="px-6 py-5 text-center">
+          <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-slate-100 text-slate-600 font-black text-sm border border-slate-200">
+            {group.lineCount}
+          </span>
+        </td>
+        <td className="px-6 py-5">
+          <div className="flex items-center justify-center gap-2">
+            <button
+              type="button"
+              disabled={isExporting}
+              onClick={() => triggerExport(group, 'png')}
+              className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-100 transition-all shadow-sm"
+              title="حفظ كصورة"
+            >
+              <ImageIcon size={16} className="stroke-[2.5]" />
+            </button>
+            {!isViewer && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => openEditGroup(group)}
+                  className="p-2.5 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-100 transition-all shadow-sm"
+                  title="تعديل السند"
+                >
+                  <Pencil size={16} className="stroke-[2.5]" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openDeleteGroup(group)}
+                  className="p-2.5 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-100 transition-all shadow-sm"
+                  title="حذف السند"
+                >
+                  <Trash2 size={16} className="stroke-[2.5]" />
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={() => setExpandedGroupId((id) => (id === group.groupId ? null : group.groupId))}
+              className={`p-2.5 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 border border-slate-200 transition-all shadow-sm ${isExpanded ? 'rotate-180' : ''}`}
+              title="تفاصيل السند"
+            >
+              <ChevronDown size={16} className="stroke-[2.5]" />
+            </button>
+          </div>
+        </td>
+      </tr>
+    </React.Fragment>
+  );
+}, (prev, next) => (
+  prev.group.groupId === next.group.groupId &&
+  prev.expandedGroupId === next.expandedGroupId &&
+  prev.isExporting === next.isExporting &&
+  prev.isViewer === next.isViewer &&
+  prev.kind === next.kind &&
+  prev.headerPartyLabel === next.headerPartyLabel
+));
+
+/** Memoized expanded details section */
+const VoucherGroupDetails = React.memo(function VoucherGroupDetails({
+  group, kind, isViewer, theme, openEdit, openDelete,
+}) {
+  return (
+    <tr>
+      <td colSpan="5" className="px-6 py-0">
+        <motion.div
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: 'auto', opacity: 1 }}
+          exit={{ height: 0, opacity: 0 }}
+          transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
+          className="overflow-hidden bg-slate-50/50 rounded-[1.5rem] mb-6 border border-slate-100 shadow-inner hover-stable"
+          style={{ willChange: 'transform, opacity', backfaceVisibility: 'hidden', transform: 'translate3d(0, 0, 0)' }}
+        >
+          <div className="p-5">
+            <table className="w-full text-right text-xs border-separate border-spacing-y-1">
+              <thead>
+                <tr className="text-slate-400 font-black uppercase tracking-widest text-[10px]">
+                  <th className="px-4 py-2">الصنف والمواصفات</th>
+                  <th className="px-4 py-2 text-center">الكمية</th>
+                  <th className="px-4 py-2 text-center">تاريخ الصلاحية</th>
+                  <th className="px-4 py-2">ملاحظات السطر</th>
+                  {!isViewer && <th className="px-4 py-2 text-center">إجراء</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {group.lines.map((l) => (
+                  <tr key={l.id} className="bg-white hover:bg-slate-50 transition-all rounded-xl shadow-sm no-select-click"
+                      style={{ transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)' }}>
+                    <td className="px-4 py-3 font-black text-slate-800 rounded-r-xl border-y border-r border-slate-50">
+                      {l.item} <span className="text-[10px] font-bold text-slate-400 mr-1">({l.company})</span>
+                    </td>
+                    <td className="px-4 py-3 text-center border-y border-slate-50">
+                      <span className={`px-3 py-1 rounded-lg font-black ${theme.qtyBadge}`}>
+                        {l.qty} {l.unit}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-center font-bold text-slate-500 border-y border-slate-50">{l.expiryDate || '—'}</td>
+                    <td className="px-4 py-3 text-slate-400 font-bold max-w-[200px] truncate border-y border-slate-50">{l.lineNote || '—'}</td>
+                    {!isViewer && (
+                      <td className="px-4 py-3 text-center rounded-l-xl border-y border-l border-slate-50">
+                        <div className="flex items-center justify-center gap-2">
+                          <button onClick={(e) => { e.stopPropagation(); openEdit(l); }} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"><Pencil size={14} className="stroke-[2.5]" /></button>
+                          <button onClick={(e) => { e.stopPropagation(); openDelete(l); }} className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"><Trash2 size={14} className="stroke-[2.5]" /></button>
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </motion.div>
+      </td>
+    </tr>
+  );
+}, (prev, next) => (
+  prev.group.groupId === next.group.groupId &&
+  prev.group.lines.length === next.group.lines.length &&
+  prev.isViewer === next.isViewer &&
+  prev.kind === next.kind
+));
 
 function ModalWrapper({
   title, isOpen, onClose, children, onSubmit, maxWidth, submitLabel, loading, disableSubmit, accent,
@@ -292,7 +433,7 @@ export default function VoucherWorkspace({ kind }) {
 
 
   const voucherTxs = useMemo(
-    () => transactions.filter((t) => t.type === cfg.txType && t.documentary === true),
+    () => transactions.filter((t) => t.type === cfg.txType && t.documentary === true && t.isFunctional === true),
     [transactions, cfg.txType]
   );
 
@@ -476,6 +617,10 @@ export default function VoucherWorkspace({ kind }) {
       const basePayload = {
         type: cfg.txType,
         documentary: true,
+        isFunctional: true,
+        invoiced: false,
+        deducted: false,
+        voucherKind: kind,
         date: session.date,
         timestamp: serverTimestamp(),
         voucherGroupId,
@@ -865,7 +1010,7 @@ export default function VoucherWorkspace({ kind }) {
 
       <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden flex flex-col">
         <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-          <h3 className="text-lg font-black text-slate-800">سجل السندات الصورية</h3>
+          <h3 className="text-lg font-black text-slate-800">سجل السندات</h3>
           <span className={`text-xs font-black px-4 py-1.5 rounded-full border ${theme.badge} shadow-sm`}>
             {filteredGroups.length} من أصل {voucherGroups.length} سند
           </span>
@@ -876,7 +1021,7 @@ export default function VoucherWorkspace({ kind }) {
               <div className="w-20 h-20 bg-slate-50 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-slate-100 shadow-inner">
                 <Box size={40} className="text-slate-200" />
               </div>
-              <p className="text-slate-400 font-bold">لا توجد سندات صورية بعد. أنشئ سنداً جديداً من الزر أعلاه.</p>
+              <p className="text-slate-400 font-bold">لا توجد سندات بعد. أنشئ سنداً جديداً من الزر أعلاه.</p>
             </div>
           ) : filteredGroups.length === 0 ? (
             <div className="p-20 text-center">
@@ -898,111 +1043,31 @@ export default function VoucherWorkspace({ kind }) {
               <tbody className="divide-y divide-slate-50">
                 {filteredGroups.map((group) => (
                   <React.Fragment key={group.groupId}>
-                    <tr className="group hover:bg-slate-50/50 transition-colors">
-                      <td className="px-6 py-5 font-black text-primary">{group.voucherCode || '—'}</td>
-                      <td className="px-6 py-5 font-bold text-slate-500">{group.date || '—'}</td>
-                      <td className="px-6 py-5">
-                        <div className="font-black text-slate-800 max-w-[300px] truncate">
-                          {kind === 'in' ? group.supplier || '—' : group.rep || '—'}
-                        </div>
-                      </td>
-                      <td className="px-6 py-5 text-center">
-                        <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-slate-100 text-slate-600 font-black text-sm border border-slate-200">
-                          {group.lineCount}
-                        </span>
-                      </td>
-                      <td className="px-6 py-5">
-                        <div className="flex items-center justify-center gap-2">
-                          <button 
-                            type="button" 
-                            disabled={isExporting}
-                            onClick={() => triggerExport(group, 'png')}
-                            className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-100 transition-all shadow-sm"
-                            title="حفظ كصورة"
-                          >
-                            <ImageIcon size={16} className="stroke-[2.5]" />
-                          </button>
-                          {!isViewer && (
-                            <>
-                              <button 
-                                type="button" 
-                                onClick={() => openEditGroup(group)}
-                                className="p-2.5 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-100 transition-all shadow-sm"
-                                title="تعديل السند"
-                              >
-                                <Pencil size={16} className="stroke-[2.5]" />
-                              </button>
-                              <button 
-                                type="button" 
-                                onClick={() => openDeleteGroup(group)}
-                                className="p-2.5 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-100 transition-all shadow-sm"
-                                title="حذف السند"
-                              >
-                                <Trash2 size={16} className="stroke-[2.5]" />
-                              </button>
-                            </>
-                          )}
-                          <button 
-                            type="button"
-                            onClick={() => setExpandedGroupId((id) => (id === group.groupId ? null : group.groupId))}
-                            className={`p-2.5 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 border border-slate-200 transition-all shadow-sm ${expandedGroupId === group.groupId ? 'rotate-180' : ''}`}
-                            title="تفاصيل السند"
-                          >
-                            <ChevronDown size={16} className="stroke-[2.5]" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
+                    <VoucherGroupRow
+                      group={group}
+                      kind={kind}
+                      expandedGroupId={expandedGroupId}
+                      isExporting={isExporting}
+                      isViewer={isViewer}
+                      theme={theme}
+                      headerPartyLabel={headerPartyLabel}
+                      triggerExport={triggerExport}
+                      openEditGroup={openEditGroup}
+                      openDeleteGroup={openDeleteGroup}
+                      setExpandedGroupId={setExpandedGroupId}
+                      openEdit={openEdit}
+                      openDelete={openDelete}
+                    />
                     <AnimatePresence>
                       {expandedGroupId === group.groupId && (
-                        <tr>
-                          <td colSpan="5" className="px-6 py-0">
-                            <motion.div 
-                              initial={{ height: 0, opacity: 0 }} 
-                              animate={{ height: 'auto', opacity: 1 }} 
-                              exit={{ height: 0, opacity: 0 }}
-                              className="overflow-hidden bg-slate-50/50 rounded-[1.5rem] mb-6 border border-slate-100 shadow-inner"
-                            >
-                              <div className="p-5">
-                                <table className="w-full text-right text-xs border-separate border-spacing-y-1">
-                                  <thead>
-                                    <tr className="text-slate-400 font-black uppercase tracking-widest text-[10px]">
-                                      <th className="px-4 py-2">الصنف والمواصفات</th>
-                                      <th className="px-4 py-2 text-center">الكمية</th>
-                                      <th className="px-4 py-2 text-center">تاريخ الصلاحية</th>
-                                      <th className="px-4 py-2">ملاحظات السطر</th>
-                                      {!isViewer && <th className="px-4 py-2 text-center">إجراء</th>}
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {group.lines.map((l) => (
-                                      <tr key={l.id} className="bg-white hover:bg-slate-50 transition-all rounded-xl shadow-sm">
-                                        <td className="px-4 py-3 font-black text-slate-800 rounded-r-xl border-y border-r border-slate-50">
-                                          {l.item} <span className="text-[10px] font-bold text-slate-400 mr-1">({l.company})</span>
-                                        </td>
-                                        <td className="px-4 py-3 text-center border-y border-slate-50">
-                                          <span className={`px-3 py-1 rounded-lg font-black ${theme.qtyBadge}`}>
-                                            {l.qty} {l.unit}
-                                          </span>
-                                        </td>
-                                        <td className="px-4 py-3 text-center font-bold text-slate-500 border-y border-slate-50">{l.expiryDate || '—'}</td>
-                                        <td className="px-4 py-3 text-slate-400 font-bold max-w-[200px] truncate border-y border-slate-50">{l.lineNote || '—'}</td>
-                                        {!isViewer && (
-                                          <td className="px-4 py-3 text-center rounded-l-xl border-y border-l border-slate-50">
-                                            <div className="flex items-center justify-center gap-2">
-                                              <button onClick={() => openEdit(l)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"><Pencil size={14} className="stroke-[2.5]" /></button>
-                                              <button onClick={() => openDelete(l)} className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"><Trash2 size={14} className="stroke-[2.5]" /></button>
-                                            </div>
-                                          </td>
-                                        )}
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
-                            </motion.div>
-                          </td>
-                        </tr>
+                        <VoucherGroupDetails
+                          group={group}
+                          kind={kind}
+                          isViewer={isViewer}
+                          theme={theme}
+                          openEdit={openEdit}
+                          openDelete={openDelete}
+                        />
                       )}
                     </AnimatePresence>
                   </React.Fragment>
@@ -1017,7 +1082,9 @@ export default function VoucherWorkspace({ kind }) {
                   <motion.div
                     key={group.groupId}
                     layout
-                    className="p-4 bg-white/40 dark:bg-slate-900/20 space-y-3"
+                    transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+                    className="p-4 bg-white/40 dark:bg-slate-900/20 space-y-3 hover-stable no-select-click"
+                    style={{ willChange: 'transform, opacity', backfaceVisibility: 'hidden', transform: 'translate3d(0, 0, 0)' }}
                   >
                     <div className="flex justify-between items-start gap-2">
                       <div>

@@ -162,4 +162,56 @@
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: rgba(148, 163, 184, 0.5);
   }
+
+  /* ── UI Stabilization: Hardware acceleration & hover jitter fixes ── */
+  .gpu-accelerated {
+    will-change: transform, opacity;
+    backface-visibility: hidden;
+    transform: translateZ(0);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Smooth cubic-bezier transition for all interactive elements */
+  .smooth-transition {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Prevent text selection on clickable cards/rows */
+  .no-select-click {
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Prevent layout shift on hover for card containers */
+  .hover-stable {
+    will-change: transform;
+    backface-visibility: hidden;
+    transform: translate3d(0, 0, 0);
+  }
+
+  /* Smooth list reordering - prevents jump animations */
+  .list-move {
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Smooth enter/exit for voucher cards */
+  .voucher-enter {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  .voucher-enter-active {
+    opacity: 1;
+    transform: translateX(0);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .voucher-exit {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  .voucher-exit-active {
+    opacity: 0;
+    transform: translateX(20px);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
 }

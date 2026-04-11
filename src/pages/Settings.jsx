@@ -824,10 +824,10 @@ function S10Dictionary({ settings, update }) {
   return (
     <Card title="قاموس العناوين" subtitle="تعديل المسميات في التطبيق والطباعة" icon={Type} accent="pink" number="10">
       <div className="space-y-3">
-        <Field label="اسم (سند إدخال صوري)">
+        <Field label="اسم (سند إدخال)">
           <input type="text" value={labels.voucherIn || ''} onChange={e => updateLabel('voucherIn', e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 text-sm font-bold rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500" />
         </Field>
-        <Field label="اسم (سند إخراج صوري)">
+        <Field label="اسم (سند إخراج)">
           <input type="text" value={labels.voucherOut || ''} onChange={e => updateLabel('voucherOut', e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 text-sm font-bold rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500" />
         </Field>
         <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-100 dark:border-slate-700">

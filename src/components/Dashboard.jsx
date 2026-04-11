@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Package, TrendingUp, Truck, AlertTriangle, ArrowUpRight, ArrowDownRight,
   Plus, X, FileText, RotateCcw, Search, Trash2, Bell, Clock, CheckCircle2, AlertOctagon,
-  Timer, History, ChevronDown, Layers, FileCheck
+  Timer, History, ChevronDown, Layers, FileCheck, FileInput
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
@@ -12,7 +12,7 @@ import { useAudio } from '../contexts/AudioContext';
 
 // Firebase Imports
 import { db } from '../lib/firebase';
-import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp, getDocs, where } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp, getDocs, where, writeBatch } from 'firebase/firestore';
 
 const salesData = [
   { name: 'يناير', sales: 0 }, { name: 'فبراير', sales: 0 },
@@ -32,12 +32,21 @@ const normalizeText = (text) => {
     .trim();
 };
 
+const FUNCTIONAL_INBOUND_TYPE = 'سند إدخال';
+const FUNCTIONAL_OUTBOUND_TYPE = 'سند إخراج';
+const FUNCTIONAL_VOUCHER_TYPES = [FUNCTIONAL_INBOUND_TYPE, FUNCTIONAL_OUTBOUND_TYPE];
+
 // --- Premium Stat Card with Action Button ---
-const StatCard = ({ icon: Icon, label, value, subtext, actionLabel, onClick, accentColor = '#10B981' }) => (
+const StatCard = React.memo(({ icon: Icon, label, value, subtext, actionLabel, onClick, accentColor = '#10B981' }) => (
   <motion.div
     whileHover={{ y: -4, transition: { duration: 0.25 } }}
-    className="relative rounded-[20px] overflow-hidden cursor-pointer group bg-white shadow-sm hover:shadow-xl transition-all duration-300 border border-slate-100/80"
+    className="relative rounded-[20px] overflow-hidden cursor-pointer group bg-white shadow-sm hover:shadow-xl transition-all duration-300 border border-slate-100/80 hover-stable no-select-click"
     onClick={onClick}
+    style={{
+      willChange: 'transform',
+      backfaceVisibility: 'hidden',
+      transform: 'translate3d(0, 0, 0)',
+    }}
   >
     <div className="p-6 pb-3 flex items-center gap-5">
       <div
@@ -69,7 +78,84 @@ const StatCard = ({ icon: Icon, label, value, subtext, actionLabel, onClick, acc
       style={{ backgroundColor: accentColor }}
     />
   </motion.div>
-);
+));
+
+const voucherCardTransition = { duration: 0.2, ease: [0.4, 0, 0.2, 1], layout: { duration: 0.2 } };
+
+const VoucherStatusCard = React.memo(function VoucherStatusCard({
+  voucher,
+  isCompleted = false,
+  isActive = false,
+  onOpen,
+}) {
+  const vDate = voucher.timestamp;
+  const dayName = vDate.toLocaleDateString('ar-SA', { weekday: 'long' });
+  const dateStr = vDate.toLocaleDateString('ar-SA', { month: 'long', day: 'numeric' });
+  const title = `${voucher.kind === 'in' ? 'سند إدخال' : 'سند إخراج'} - ${voucher.clientName}`;
+
+  const handleOpen = useCallback((event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!isCompleted) onOpen(voucher);
+  }, [isCompleted, onOpen, voucher]);
+
+  return (
+    <motion.div
+      key={voucher.id}
+      layout
+      initial={{ opacity: 0, height: 0, scale: 0.985 }}
+      animate={{ opacity: isCompleted ? 0.82 : 1, height: 'auto', scale: 1 }}
+      exit={{ opacity: 0, height: 0, scale: 0.985 }}
+      transition={voucherCardTransition}
+      whileHover={isCompleted ? undefined : { scale: 1.01, y: -1 }}
+      whileTap={isCompleted ? undefined : { scale: 0.995 }}
+      onClick={handleOpen}
+      className={`overflow-hidden rounded-lg border p-2.5 group hover-stable no-select-click ${isCompleted ? 'border-emerald-200 bg-emerald-50/30' : 'border-slate-100 bg-white cursor-pointer hover:shadow-sm'} ${isActive ? 'ring-2 ring-emerald-200 shadow-sm' : ''}`}
+      style={{
+        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+        willChange: 'transform, opacity',
+        backfaceVisibility: 'hidden',
+        transform: 'translate3d(0, 0, 0)',
+        WebkitFontSmoothing: 'antialiased',
+        pointerEvents: 'auto',
+        WebkitTapHighlightColor: 'transparent',
+      }}
+    >
+      <div className="flex items-start gap-2">
+        <div
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+          }}
+          className="shrink-0 mt-0.5"
+        >
+          <input
+            type="checkbox"
+            checked={isCompleted}
+            readOnly
+            onClick={handleOpen}
+            className={`w-4 h-4 rounded border-2 ${isCompleted ? 'border-emerald-500 accent-emerald-500 cursor-default' : 'border-slate-300 hover:border-emerald-500 cursor-pointer accent-emerald-500'}`}
+          />
+        </div>
+        <div className="min-w-0 flex-1">
+          <h4 className="text-[11px] font-bold text-[#0F2747] font-tajawal leading-tight truncate">
+            {title}
+          </h4>
+          <p className="text-[10px] text-slate-400 font-readex mt-0.5 truncate">
+            {dayName} - {dateStr}
+          </p>
+        </div>
+      </div>
+    </motion.div>
+  );
+}, (prevProps, nextProps) => (
+  prevProps.isCompleted === nextProps.isCompleted &&
+  prevProps.isActive === nextProps.isActive &&
+  prevProps.voucher.id === nextProps.voucher.id &&
+  prevProps.voucher.invoiced === nextProps.voucher.invoiced &&
+  prevProps.voucher.clientName === nextProps.voucher.clientName &&
+  prevProps.voucher.timestamp?.getTime?.() === nextProps.voucher.timestamp?.getTime?.()
+));
 
 /* ─── Quick Access Card ─── */
 function QuickAccessCard({ items }) {
@@ -170,6 +256,7 @@ export default function Dashboard() {
   const [isStockInModalOpen, setIsStockInModalOpen] = useState(false);
   const [isSalesModalOpen, setIsSalesModalOpen] = useState(false);
   const [isReturnsModalOpen, setIsReturnsModalOpen] = useState(false);
+  const [sourceVoucher, setSourceVoucher] = useState(null); // Track voucher being invoiced
 
   // ---  RENAMED STATE VARIABLES TO FORCIBLY BYPASS VITE HMR --- //
   const [items, setItems] = useState([]);
@@ -183,7 +270,7 @@ export default function Dashboard() {
   const [itemErrors, setItemErrors] = useState({});
 
   const [stockForm, setStockForm] = useState({
-    loc: 'مستودع الرياض', date: new Date().toISOString().split('T')[0], items: []
+    loc: 'مستودع الرياض', supplier: '', date: new Date().toISOString().split('T')[0], items: []
   });
   const [currentStockItem, setCurrentStockItem] = useState({ name: '', selectedItem: null, cat: '', unit: '', qty: '' });
   const [stockErrors, setStockErrors] = useState({});
@@ -229,6 +316,8 @@ export default function Dashboard() {
   const [voucherTransactions, setVoucherTransactions] = useState([]);
   const [isVoucherModalOpen, setIsVoucherModalOpen] = useState(false);
   const [selectedVoucher, setSelectedVoucher] = useState(null);
+  const [activeVoucherId, setActiveVoucherId] = useState(null);
+  const voucherOpenLockRef = useRef({ id: null, at: 0 });
 
   const containerVariants = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.1 } } };
   const itemVariants = { hidden: { opacity: 0, scale: 0.95 }, show: { opacity: 1, scale: 1, transition: { type: 'spring', stiffness: 300, damping: 24 } } };
@@ -265,36 +354,140 @@ export default function Dashboard() {
     };
   }, []);
 
-  // Fetch voucher status (outbound non-invoiced transactions) - syncs in real-time
+  // Build functional voucher groups from transaction lines in real time.
   useEffect(() => {
     if (!db || dbTransactionsList.length === 0) return;
 
     const outboundTx = dbTransactionsList.filter(tx =>
-      tx.type === 'Issue'
+      tx.type === 'Issue' || tx.type === 'سند إخراج' || tx.type === 'سند إخراج صوري'
     ).map(tx => {
-      // Find matching item to get client/rep info
       const matchedItem = items.find(i => tx.item.includes(i.name));
       return {
         ...tx,
-        clientName: tx.loc || 'غير محدد',
+        clientName: tx.rep || tx.loc || tx.supplier || 'غير محدد',
         itemName: tx.item,
         quantity: Number(tx.qty || 0),
         timestamp: tx.timestamp?.toDate ? tx.timestamp.toDate() : new Date(),
         batchId: tx.batchId,
-        invoiced: tx.invoiced || false
+        invoiced: tx.invoiced === true, // Strict boolean check from Firebase
+        voucherCode: tx.voucherCode || '',
       };
     });
 
-    setVoucherTransactions(outboundTx);
+    const normalizedVouchers = outboundTx
+      .filter(v => v.documentary === true && v.type === 'Ø³Ù†Ø¯ Ø¥Ø®Ø±Ø§Ø¬ ØµÙˆØ±ÙŠ')
+      .reduce((acc, voucher) => {
+        if (!voucher?.id || acc.some(v => v.id === voucher.id)) return acc;
+        acc.push({
+          ...voucher,
+          invoiced: voucher.invoiced === true,
+          deducted: voucher.deducted === true,
+        });
+        return acc;
+      }, [])
+      .sort((a, b) => b.timestamp - a.timestamp);
+
+    setVoucherTransactions(normalizedVouchers);
   }, [dbTransactionsList, items]);
+
+  const canonicalVoucherTransactions = useMemo(() => {
+    const groupedVouchers = new Map();
+    const uniqueVouchers = groupedVouchers;
+
+    dbTransactionsList
+      .filter(v => v.documentary === true && v.type === 'Ø³Ù†Ø¯ Ø¥Ø®Ø±Ø§Ø¬ ØµÙˆØ±ÙŠ')
+      .forEach(v => {
+        if (!v?.id || uniqueVouchers.has(v.id)) return;
+        uniqueVouchers.set(v.id, {
+          ...v,
+          invoiced: v.invoiced === true,
+          deducted: v.deducted === true,
+        });
+      });
+
+    return Array.from(uniqueVouchers.values());
+  }, [voucherTransactions]);
+
+  const functionalVoucherGroups = useMemo(() => {
+    const groupedVouchers = new Map();
+
+    dbTransactionsList.forEach((tx) => {
+      if (tx.isFunctional !== true || !FUNCTIONAL_VOUCHER_TYPES.includes(tx.type)) return;
+
+      const groupId = tx.voucherGroupId || tx.id;
+      const txDate = tx.timestamp?.toDate ? tx.timestamp.toDate() : new Date();
+
+      if (!groupedVouchers.has(groupId)) {
+        groupedVouchers.set(groupId, {
+          id: groupId,
+          voucherGroupId: groupId,
+          voucherCode: tx.voucherCode || '',
+          type: tx.type,
+          kind: tx.type === FUNCTIONAL_INBOUND_TYPE ? 'in' : 'outward',
+          clientName: tx.rep || tx.supplier || tx.loc || 'غير محدد',
+          timestamp: txDate,
+          invoiced: tx.invoiced === true,
+          deducted: tx.deducted === true,
+          isFunctional: true,
+          lines: [],
+        });
+      }
+
+      const group = groupedVouchers.get(groupId);
+      group.lines.push({
+        ...tx,
+        quantity: Number(tx.qty || 0),
+        timestamp: txDate,
+      });
+      group.invoiced = group.invoiced && tx.invoiced === true;
+      group.deducted = group.deducted && tx.deducted === true;
+      if (txDate > group.timestamp) group.timestamp = txDate;
+    });
+
+    return Array.from(groupedVouchers.values())
+      .map((voucher) => ({
+        ...voucher,
+        itemName: voucher.lines.map(line => line.item).join('، '),
+        quantity: voucher.lines.reduce((sum, line) => sum + Number(line.qty || 0), 0),
+      }))
+      .sort((a, b) => b.timestamp - a.timestamp);
+  }, [dbTransactionsList]);
+
+  const pendingVouchers = useMemo(
+    () => functionalVoucherGroups
+      .filter(v => !v.invoiced)
+      .sort((a, b) => b.timestamp - a.timestamp),
+    [functionalVoucherGroups]
+  );
+
+  const completedVouchers = useMemo(
+    () => functionalVoucherGroups
+      .filter(v => v.invoiced)
+      .sort((a, b) => b.timestamp - a.timestamp),
+    [functionalVoucherGroups]
+  );
+
+  const openVoucherModal = useCallback((voucher) => {
+    const now = Date.now();
+    if (voucherOpenLockRef.current.id === voucher.id && now - voucherOpenLockRef.current.at < 250) return;
+
+    voucherOpenLockRef.current = { id: voucher.id, at: now };
+    setActiveVoucherId(voucher.id);
+    setSelectedVoucher(voucher);
+    setIsVoucherModalOpen(true);
+  }, []);
 
   if (!db) {
     return <div className="min-h-screen w-full flex items-center justify-center bg-slate-50 text-xl font-bold text-slate-500">Loading Firebase...</div>;
   }
 
   // --- Aggregations --- //
-  const stockInCount = dbTransactionsList.filter(t => t.type === 'Restock').reduce((sum, t) => sum + Number(t.qty || 0), 0);
-  const salesCount = dbTransactionsList.filter(t => t.type === 'Issue').reduce((sum, t) => sum + Number(t.qty || 0), 0);
+  const stockInCount = dbTransactionsList
+    .filter(t => t.type === 'Restock' || (t.type === FUNCTIONAL_INBOUND_TYPE && t.isFunctional === true))
+    .reduce((sum, t) => sum + Number(t.qty || 0), 0);
+  const salesCount = dbTransactionsList
+    .filter(t => (t.type === 'Issue' && t.isInvoice === true) || (t.type === FUNCTIONAL_OUTBOUND_TYPE && t.isFunctional === true))
+    .reduce((sum, t) => sum + Number(t.qty || 0), 0);
   const returnsCount = dbTransactionsList.filter(t => t.type === 'Return').reduce((sum, t) => sum + Number(t.qty || 0), 0);
   const damageCount = dbTransactionsList.filter(t => t.status === 'مرتجع تالف').reduce((sum, t) => sum + Number(t.qty || 0), 0);
 
@@ -427,9 +620,10 @@ export default function Dashboard() {
 
         const batchId = Date.now().toString();
         const userId = currentUser?.email?.split('@')[0] || 'مدير النظام';
+        const supplierName = stockForm.supplier?.trim() || stockForm.loc;
         for (let it of stockForm.items) {
            processPromises.push(addDoc(collection(db, 'transactions'), {
-               item: `${it.selectedItem.name} - ${it.selectedItem.company}`, type: 'Restock', qty: Number(it.qty), date: new Date().toLocaleTimeString('ar-SA'), status: 'مكتمل', loc: stockForm.loc, user: userId, timestamp: serverTimestamp(), batchId
+               item: `${it.selectedItem.name} - ${it.selectedItem.company}`, type: 'Restock', qty: Number(it.qty), date: new Date().toLocaleTimeString('ar-SA'), status: 'مكتمل', loc: stockForm.loc, supplier: supplierName, user: userId, timestamp: serverTimestamp(), batchId
            }));
         }
         await Promise.all(processPromises);
@@ -473,19 +667,25 @@ export default function Dashboard() {
     setInvoiceErrors({});
 
     try {
-        const deductions = {};
-        invoiceForm.items.forEach(it => {
-            if (!deductions[it.selectedItem.id]) deductions[it.selectedItem.id] = { id: it.selectedItem.id, qty: 0, currentStock: 0 };
-            deductions[it.selectedItem.id].qty += Number(it.qty);
-        });
-
         const processPromises = [];
-        for (const [id, payload] of Object.entries(deductions)) {
-            const currentItem = items.find(i => i.id === id);
-            if (currentItem) {
-                const newStock = currentItem.stockQty - payload.qty;
-                if (newStock < 50) playWarning();
-                processPromises.push(updateDoc(doc(db, 'items', id), { stockQty: newStock }));
+
+        // CRITICAL FIX: Only deduct stock if this is NOT a voucher invoice
+        // Vouchers (سند إخراج) already deduct stock when created
+        const shouldDeductInventory = !sourceVoucher || sourceVoucher.kind !== 'outward' || sourceVoucher.deducted !== true;
+        if (shouldDeductInventory) {
+            const deductions = {};
+            invoiceForm.items.forEach(it => {
+                if (!deductions[it.selectedItem.id]) deductions[it.selectedItem.id] = { id: it.selectedItem.id, qty: 0, currentStock: 0 };
+                deductions[it.selectedItem.id].qty += Number(it.qty);
+            });
+
+            for (const [id, payload] of Object.entries(deductions)) {
+                const currentItem = items.find(i => i.id === id);
+                if (currentItem) {
+                    const newStock = currentItem.stockQty - payload.qty;
+                    if (newStock < 50) playWarning();
+                    processPromises.push(updateDoc(doc(db, 'items', id), { stockQty: newStock }));
+                }
             }
         }
 
@@ -493,10 +693,27 @@ export default function Dashboard() {
         const userId = currentUser?.email?.split('@')[0] || 'مدير النظام';
         for (let it of invoiceForm.items) {
            processPromises.push(addDoc(collection(db, 'transactions'), {
-               item: `${it.selectedItem.name} - ${it.selectedItem.company}`, type: 'Issue', qty: Number(it.qty), date: new Date().toLocaleTimeString('ar-SA'), status: 'مكتمل', loc: invoiceForm.rep, user: userId, timestamp: serverTimestamp(), batchId
+               item: `${it.selectedItem.name} - ${it.selectedItem.company}`, type: 'Issue', qty: Number(it.qty), date: new Date().toLocaleTimeString('ar-SA'), status: 'مكتمل', loc: invoiceForm.rep, rep: invoiceForm.rep, isInvoice: true, user: userId, timestamp: serverTimestamp(), batchId, sourceVoucherId: sourceVoucher?.voucherGroupId || sourceVoucher?.id || null
            }));
         }
         await Promise.all(processPromises);
+
+        // If this invoice was created from a voucher, mark the voucher as invoiced
+        if (sourceVoucher) {
+          const voucherBatch = writeBatch(db);
+          sourceVoucher.lines.forEach((line) => {
+            voucherBatch.update(doc(db, 'transactions', line.id), {
+              invoiced: true,
+              deducted: line.deducted === true || shouldDeductInventory,
+            });
+          });
+          await voucherBatch.commit();
+          // Update local state in-place so the voucher moves instead of duplicating.
+          setVoucherTransactions(prev =>
+            prev.map(v => v.id === sourceVoucher.id ? { ...v, invoiced: true, deducted: v.deducted === true || shouldDeductInventory } : v)
+          );
+          setSourceVoucher(null);
+        }
 
         toast.success(`تم إصدار فاتورة بنجاح وتحجيم الأرصدة ✅`);
         playSuccess();
@@ -542,32 +759,158 @@ export default function Dashboard() {
     }
   };
 
-  // --- 5. MARK VOUCHER AS INVOICED --- //
-  const handleMarkAsInvoiced = async () => {
-    if (!selectedVoucher) return;
-    
-    try {
-      // Find the original transaction in dbTransactionsList
-      const originalTx = dbTransactionsList.find(tx => tx.id === selectedVoucher.id);
-
-      if (originalTx) {
-        // Update the transaction in Firestore
-        const txRef = doc(db, 'transactions', originalTx.id);
-        await updateDoc(txRef, { invoiced: true });
-
-        // Update local state - mark as invoiced and move to bottom
-        setVoucherTransactions(prev => 
-          prev.map(v => v.id === selectedVoucher.id ? { ...v, invoiced: true } : v)
-        );
-
-        toast.success(`تم تحديد السند #${selectedVoucher.id.slice(-6)} كفوترة بنجاح ✅`);
-        playSuccess();
-        setIsVoucherModalOpen(false);
-        setSelectedVoucher(null);
-      }
-    } catch (err) {
-      toast.error("حدث خطأ أثناء تحديث حالة السند");
+  const findItemFromVoucherLine = (line) => {
+    if (line.itemId) {
+      const byId = items.find(item => item.id === line.itemId);
+      if (byId) return byId;
     }
+
+    const itemName = line.item || '';
+    return (
+      items.find(item => `${item.name} - ${item.company}` === itemName) ||
+      items.find(item => itemName.includes(item.name) && (item.company === 'بدون شركة' || itemName.includes(item.company))) ||
+      items.find(item => itemName.includes(item.name)) ||
+      null
+    );
+  };
+
+  const finalizeInboundVoucher = async (voucher) => {
+    const updates = {};
+
+    for (const line of voucher.lines || []) {
+      const matchedItem = findItemFromVoucherLine(line);
+      if (!matchedItem) {
+        playWarning();
+        toast.error(`تعذر ربط الصنف "${line.item}" بالمخزون الحالي.`);
+        return;
+      }
+
+      if (!updates[matchedItem.id]) {
+        updates[matchedItem.id] = { item: matchedItem, qty: 0 };
+      }
+      updates[matchedItem.id].qty += Number(line.qty || 0);
+    }
+
+    try {
+      const batch = writeBatch(db);
+      Object.values(updates).forEach(({ item, qty }) => {
+        batch.update(doc(db, 'items', item.id), { stockQty: Number(item.stockQty || 0) + qty });
+      });
+      voucher.lines.forEach((line) => {
+        batch.update(doc(db, 'transactions', line.id), { invoiced: true, deducted: true });
+      });
+      await batch.commit();
+      setIsVoucherModalOpen(false);
+      setSelectedVoucher(null);
+      toast.success('تم اعتماد سند الإدخال وتحديث المخزون بنجاح ✅');
+      playSuccess();
+    } catch {
+      toast.error('تعذر اعتماد سند الإدخال.');
+      playWarning();
+    }
+  };
+
+  // --- 5. MARK VOUCHER AS INVOICED (opens invoice modal) --- //
+  const handleMarkAsInvoiced = () => {
+    if (!selectedVoucher) return;
+    if (selectedVoucher.kind === 'in') {
+      finalizeInboundVoucher(selectedVoucher);
+      return;
+    }
+
+    // Close voucher modal
+    setIsVoucherModalOpen(false);
+
+    // Set source voucher for tracking
+    setSourceVoucher(selectedVoucher);
+
+    const lineItems = (selectedVoucher.lines || [])
+      .map((line) => {
+        const matchedItem = findItemFromVoucherLine(line);
+        if (!matchedItem) return null;
+
+        return {
+          selectedItem: matchedItem,
+          name: `${matchedItem.name} - ${matchedItem.company}`,
+          cat: matchedItem.cat,
+          unit: matchedItem.unit,
+          qty: Number(line.qty || 0)
+        };
+      })
+      .filter(Boolean);
+
+    if (lineItems.length > 0) {
+      setInvoiceForm({
+        rep: selectedVoucher.clientName || 'عميل نقدي',
+        date: new Date().toISOString().split('T')[0],
+        items: lineItems
+      });
+      setCurrentInvoiceItem({
+        name: lineItems[0].name,
+        selectedItem: lineItems[0].selectedItem,
+        cat: lineItems[0].cat,
+        unit: lineItems[0].unit,
+        qty: String(lineItems[0].qty)
+      });
+      setIsSalesModalOpen(true);
+      setSelectedVoucher(null);
+      return;
+    }
+
+    // Pre-fill invoice form with voucher data
+    const itemName = selectedVoucher.itemName || '';
+    
+    // Try to find matching item - multiple strategies
+    let matchedItem = null;
+    
+    // Strategy 1: Direct name match (itemName might be "فراولة - شركة نادك")
+    matchedItem = items.find(i => 
+      itemName.includes(i.name) && (i.company === 'بدون شركة' || itemName.includes(i.company))
+    );
+    
+    // Strategy 2: Just match by item name if company doesn't match
+    if (!matchedItem) {
+      matchedItem = items.find(i => itemName.includes(i.name));
+    }
+    
+    // Strategy 3: Match by exact item string
+    if (!matchedItem) {
+      matchedItem = items.find(i => `${i.name} - ${i.company}` === itemName);
+    }
+
+    if (matchedItem) {
+      setCurrentInvoiceItem({
+        name: `${matchedItem.name} - ${matchedItem.company}`,
+        selectedItem: matchedItem,
+        cat: matchedItem.cat,
+        unit: matchedItem.unit,
+        qty: String(selectedVoucher.quantity)
+      });
+      // Auto-add to invoice items
+      const lineItem = {
+        selectedItem: matchedItem,
+        name: `${matchedItem.name} - ${matchedItem.company}`,
+        cat: matchedItem.cat,
+        unit: matchedItem.unit,
+        qty: Number(selectedVoucher.quantity)
+      };
+      setInvoiceForm({
+        rep: selectedVoucher.clientName || 'عميل نقدي',
+        date: new Date().toISOString().split('T')[0],
+        items: [lineItem]
+      });
+    } else {
+      setInvoiceForm({
+        rep: selectedVoucher.clientName || 'عميل نقدي',
+        date: new Date().toISOString().split('T')[0],
+        items: []
+      });
+      setCurrentInvoiceItem({ name: '', selectedItem: null, cat: '', unit: '', qty: '' });
+    }
+
+    // Open invoice modal
+    setIsSalesModalOpen(true);
+    setSelectedVoucher(null);
   };
 
   // --- Derived Autocomplete State for Add Item --- //
@@ -685,6 +1028,11 @@ export default function Dashboard() {
   // --- Transactions Processing --- //
   const finalTransactions = dbTransactionsList.filter(tx => {
      if (txFilter === 'الكل') return true;
+     if (txFilter === 'Restock') return tx.type === 'Restock' || tx.type === 'وارد' || (tx.type === FUNCTIONAL_INBOUND_TYPE && tx.isFunctional === true);
+     if (txFilter === 'Issue') return (tx.type === 'Issue' && !tx.isInvoice) || (tx.type === FUNCTIONAL_OUTBOUND_TYPE && tx.isFunctional === true);
+     if (txFilter === 'Return') return tx.type === 'Return' || tx.status === 'مرتجع تالف';
+     if (txFilter === 'Invoice') return tx.type === 'Issue' && tx.isInvoice;
+     if (txFilter === 'Voucher') return FUNCTIONAL_VOUCHER_TYPES.includes(tx.type) && tx.isFunctional === true;
      return tx.type === txFilter;
   });
 
@@ -732,19 +1080,25 @@ export default function Dashboard() {
             {/* Segmented Picker - Compact on same line */}
             <div className="flex items-center bg-slate-100 rounded-lg p-0.5 gap-0.5">
               {[
-                { key: 'الكل', icon: <FileText size={12} strokeWidth={2} /> },
-                { key: 'Restock', icon: <ArrowDownRight size={12} strokeWidth={2} /> },
-                { key: 'Issue', icon: <ArrowUpRight size={12} strokeWidth={2} /> },
-                { key: 'Return', icon: <RotateCcw size={12} strokeWidth={2} /> }
+                { key: 'الكل', icon: <FileText size={12} strokeWidth={2} />, tooltip: 'الكل', color: '#64748B' },
+                { key: 'Restock', icon: <ArrowUpRight size={12} strokeWidth={2} />, tooltip: 'وارد', color: '#10B981' },
+                { key: 'Issue', icon: <ArrowDownRight size={12} strokeWidth={2} />, tooltip: 'صادر', color: '#F59E0B' },
+                { key: 'Invoice', icon: <FileCheck size={12} strokeWidth={2} />, tooltip: 'فاتورة', color: '#8B5CF6' },
+                { key: 'Voucher', icon: <FileInput size={12} strokeWidth={2} />, tooltip: 'سند', color: '#3B82F6' },
+                { key: 'Return', icon: <RotateCcw size={12} strokeWidth={2} />, tooltip: 'مرتجع', color: '#EF4444' }
               ].map(f => (
                 <button
                   key={f.key}
                   onClick={() => setTxFilter(f.key)}
+                  title={f.tooltip}
                   className={`p-1.5 rounded-md transition-all duration-200 ${
                     txFilter === f.key
-                      ? 'bg-white shadow-sm text-[#0F2747]'
+                      ? 'bg-white shadow-sm'
                       : 'text-slate-400 hover:text-slate-500'
                   }`}
+                  style={{
+                    color: txFilter === f.key ? f.color : undefined
+                  }}
                 >
                   {f.icon}
                 </button>
@@ -758,27 +1112,67 @@ export default function Dashboard() {
             ) : (
               <div className="space-y-1">
                 {finalTransactions.slice(0, 50).map((tx) => {
-                  // Proper type labeling based on transaction source
+                  // Strict color coding based on transaction type
                   let txType = tx.status === 'مرتجع تالف' ? 'مرتجع تالف' :
                                tx.type === 'Return' ? 'مرتجع' :
-                               tx.type === 'Issue' ? 'سند إخراج' :
-                               tx.type === 'Restock' ? 'وارد' : tx.type;
-                  let txTypeColor = tx.type === 'Issue' ? 'text-red-500 bg-red-50' :
-                                    tx.type === 'Return' ? 'text-amber-500 bg-amber-50' :
-                                    'text-emerald-500 bg-emerald-50';
-                  let IconComponent = tx.type === 'Issue' ? ArrowUpRight :
+                               tx.type === 'Issue' && tx.isInvoice ? 'فاتورة' :
+                               tx.type === 'Issue' ? 'صادر' :
+                               tx.type === 'Restock' || tx.type === 'وارد' ? 'وارد' :
+                               tx.type === 'سند إخراج' || tx.type === 'سند إخراج صوري' ? 'سند إخراج' :
+                               tx.type === 'سند إدخال' ? 'سند إدخال' : tx.type;
+                  
+                  // Icon and color logic with strict mapping
+                  let IconComponent = tx.type === 'Restock' || tx.type === 'وارد' ? ArrowUpRight :
+                                      tx.type === 'Issue' ? ArrowDownRight :
                                       tx.type === 'Return' ? RotateCcw :
-                                      ArrowDownRight;
-                  let iconBgColor = tx.type === 'Issue' ? 'bg-red-50 text-red-500' :
-                                    tx.type === 'Return' ? 'bg-amber-50 text-amber-500' :
-                                    'bg-emerald-50 text-emerald-500';
-                  let valueColor = tx.type === 'Issue' ? 'text-red-500' :
-                                   tx.type === 'Return' ? 'text-amber-500' :
-                                   'text-emerald-500';
+                                      tx.type === 'سند إخراج' || tx.type === 'سند إخراج صوري' || tx.type === 'سند إدخال' ? FileInput :
+                                      tx.isInvoice ? FileCheck : ArrowUpRight;
+                  
+                  let iconBgColor = tx.type === 'Restock' || tx.type === 'وارد' ? 'bg-emerald-50 text-emerald-500' :
+                                    tx.type === 'Issue' ? 'bg-amber-50 text-amber-500' :
+                                    tx.type === 'Return' ? 'bg-red-50 text-red-500' :
+                                    tx.type === 'سند إخراج' || tx.type === 'سند إخراج صوري' || tx.type === 'سند إدخال' ? 'bg-blue-50 text-blue-500' :
+                                    tx.isInvoice ? 'bg-purple-50 text-purple-500' :
+                                    'bg-slate-50 text-slate-500';
+                  
+                  let txTypeColor = tx.type === 'Restock' || tx.type === 'وارد' ? 'text-emerald-500 bg-emerald-50' :
+                                    tx.type === 'Issue' ? 'text-amber-500 bg-amber-50' :
+                                    tx.type === 'Return' ? 'text-red-500 bg-red-50' :
+                                    tx.type === 'سند إخراج' || tx.type === 'سند إخراج صوري' || tx.type === 'سند إدخال' ? 'text-blue-500 bg-blue-50' :
+                                    tx.isInvoice ? 'text-purple-500 bg-purple-50' :
+                                    'text-slate-500 bg-slate-50';
+                  
+                  let valueColor = tx.type === 'Restock' || tx.type === 'وارد' ? 'text-emerald-500' :
+                                   tx.type === 'Issue' ? 'text-amber-500' :
+                                   tx.type === 'Return' ? 'text-red-500' :
+                                   tx.type === 'سند إخراج' || tx.type === 'سند إخراج صوري' || tx.type === 'سند إدخال' ? 'text-blue-500' :
+                                   tx.isInvoice ? 'text-purple-500' :
+                                   'text-slate-500';
+
+                  if (tx.type === FUNCTIONAL_INBOUND_TYPE && tx.isFunctional === true) {
+                    txType = 'سند إدخال';
+                    IconComponent = ArrowUpRight;
+                    iconBgColor = 'bg-emerald-50 text-emerald-500';
+                    txTypeColor = 'text-emerald-500 bg-emerald-50';
+                    valueColor = 'text-emerald-500';
+                  }
+
+                  if (tx.type === FUNCTIONAL_OUTBOUND_TYPE && tx.isFunctional === true) {
+                    txType = 'سند إخراج';
+                    IconComponent = ArrowDownRight;
+                    iconBgColor = 'bg-amber-50 text-amber-500';
+                    txTypeColor = 'text-amber-500 bg-amber-50';
+                    valueColor = 'text-amber-500';
+                  }
 
                   const txDate = tx.timestamp?.toDate ? tx.timestamp.toDate() : new Date();
                   const formattedDate = txDate.toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' });
-                  const formattedTime = txDate.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
+
+                  // Parse item name: "فراولة - شركة نادك" format
+                  const itemParts = tx.item ? tx.item.split(' - ') : [''];
+                  const itemName = itemParts[0] || '';
+                  const itemCompany = itemParts[1] || '';
+                  const beneficiary = tx.supplier || tx.rep || tx.loc || '';
 
                   return (
                     <motion.div
@@ -787,24 +1181,27 @@ export default function Dashboard() {
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
-                      transition={{ duration: 0.2 }}
-                      onClick={() => { setSelectedBatchTransactions(tx.batchId ? dbTransactionsList.filter(t => t.batchId === tx.batchId) : [tx]); setIsTransactionDetailOpen(true); }}
+                      transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+                      onClick={() => { setSelectedBatchTransactions(tx.voucherGroupId ? dbTransactionsList.filter(t => t.voucherGroupId === tx.voucherGroupId) : tx.batchId ? dbTransactionsList.filter(t => t.batchId === tx.batchId) : [tx]); setIsTransactionDetailOpen(true); }}
                       whileHover={{ backgroundColor: 'rgba(248, 250, 252, 0.8)' }}
-                      className="flex items-center justify-between p-2.5 rounded-lg border border-transparent cursor-pointer group"
+                      className="flex items-center justify-between p-2 rounded-lg border border-transparent cursor-pointer group hover-stable no-select-click"
+                      style={{ willChange: 'transform, opacity', backfaceVisibility: 'hidden', transform: 'translate3d(0, 0, 0)' }}
                     >
-                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${iconBgColor}`}>
-                          <IconComponent size={13} />
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <div className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 ${iconBgColor}`}>
+                          <IconComponent size={12} />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="text-[11px] font-bold text-[#0F2747] font-tajawal truncate group-hover:text-emerald-600 transition-colors">{tx.item}</p>
-                          <p className="text-[10px] text-slate-400 font-readex mt-0.5">
-                            <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold ml-1 ${txTypeColor}`}>{txType}</span>
+                          <p className="text-[10px] font-bold text-[#0F2747] font-tajawal truncate group-hover:text-emerald-600 transition-colors">
+                            {itemName}{itemCompany ? ` (${itemCompany})` : ''}{beneficiary ? ` - ${beneficiary}` : ''}
+                          </p>
+                          <p className="text-[9px] text-slate-400 font-readex mt-0.5">
+                            <span className={`inline-block px-1 py-0.5 rounded text-[8px] font-bold ml-1 ${txTypeColor}`}>{txType}</span>
                             - {formattedDate}
                           </p>
                         </div>
                       </div>
-                      <span className={`text-xs font-bold tabular-nums shrink-0 ${valueColor}`}>
+                      <span className={`text-[11px] font-bold tabular-nums shrink-0 mr-1 ${valueColor}`}>
                         {tx.type === 'Issue' ? '-' : '+'}{tx.qty}
                       </span>
                     </motion.div>
@@ -828,113 +1225,130 @@ export default function Dashboard() {
               </div>
               <div className="text-right">
                 <h3 className="text-sm font-bold text-[#0F2747] font-tajawal leading-tight">حالة السندات</h3>
-                <p className="text-[10px] text-slate-400 font-readex font-medium">{voucherTransactions.filter(v => !v.invoiced).length} قيد الانتظار</p>
+                <p className="text-[10px] text-slate-400 font-readex font-medium">{pendingVouchers.length} قيد الانتظار</p>
               </div>
             </div>
           </div>
-          {/* Voucher List with checkboxes and sorting */}
-          <div className="flex-1 overflow-y-auto custom-scrollbar px-5 py-3">
-            {voucherTransactions.filter(v => !v.invoiced).length === 0 && voucherTransactions.filter(v => v.invoiced).length === 0 ? (
+          {/* Voucher List with checkboxes and sorting - vertically compressed */}
+          <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-2">
+            {pendingVouchers.length === 0 && completedVouchers.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-slate-300">
                 <FileCheck size={36} strokeWidth={1.2} className="mb-3" />
                 <p className="text-xs font-semibold">لا توجد سندات</p>
               </div>
             ) : (
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 {/* Un-invoiced vouchers at top (newest first) */}
                 <AnimatePresence>
-                  {voucherTransactions
-                    .filter(v => !v.invoiced)
-                    .sort((a, b) => b.timestamp - a.timestamp)
+                  {pendingVouchers
                     .slice(0, 15)
-                    .map((voucher) => (
+                    .map((voucher) => {
+                      // Format date with day name
+                      const vDate = voucher.timestamp;
+                      const dayName = vDate.toLocaleDateString('ar-SA', { weekday: 'long' });
+                      const dateStr = vDate.toLocaleDateString('ar-SA', { month: 'long', day: 'numeric' });
+
+                      return (
                       <motion.div
-                        key={voucher.id}
+                        key={`${voucher.id}-${voucher.batchId}`}
                         layout
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0, x: 20, transition: { duration: 0.3 } }}
-                        transition={{ duration: 0.3, layout: { duration: 0.3 } }}
-                        className="p-2.5 rounded-lg border border-slate-100 bg-white group cursor-pointer hover:bg-slate-50"
+                        transition={voucherCardTransition}
+                        whileHover={{ scale: 1.01, y: -1 }}
+                        whileTap={{ scale: 0.995 }}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          openVoucherModal(voucher);
+                        }}
+                        className={`p-2.5 rounded-lg border border-slate-100 bg-white group cursor-pointer hover:shadow-sm hover-stable no-select-click ${activeVoucherId === voucher.id ? 'ring-2 ring-emerald-200 shadow-sm' : ''}`}
+                        style={{ transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)', willChange: 'transform, opacity', backfaceVisibility: 'hidden', transform: 'translate3d(0, 0, 0)', pointerEvents: 'auto', WebkitTapHighlightColor: 'transparent' }}
                       >
                         <div className="flex items-start gap-2">
-                          {/* Checkbox */}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedVoucher(voucher);
-                              setIsVoucherModalOpen(true);
-                            }}
-                            className="shrink-0 mt-1 w-5 h-5 rounded border-2 border-slate-300 hover:border-emerald-500 flex items-center justify-center transition-all hover:bg-emerald-50"
+                          {/* Checkbox - status indicator only */}
+                          <div
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                            className="shrink-0 mt-0.5"
                           >
-                            <CheckCircle2 size={14} className="text-emerald-500 opacity-0" />
-                          </button>
+                            <input
+                              type="checkbox"
+                              checked={false}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                openVoucherModal(voucher);
+                              }}
+                              className="w-4 h-4 rounded border-2 border-slate-300 hover:border-emerald-500 cursor-pointer accent-emerald-500"
+                            />
+                          </div>
                           <div className="min-w-0 flex-1">
-                            {/* Title: Type - Item Name */}
-                            <h4 className="text-[11px] font-bold text-[#0F2747] font-tajawal truncate">
-                              صادر - {voucher.itemName}
+                            {/* Primary: Type - Beneficiary Name */}
+                            <h4 className="text-[11px] font-bold text-[#0F2747] font-tajawal leading-tight truncate">
+                              {voucher.kind === 'in' ? 'سند إدخال' : 'سند إخراج'} - {voucher.clientName}
                             </h4>
-                            {/* Description: Customer/Source - Date - Time */}
-                            <p className="text-[10px] text-slate-400 font-readex mt-0.5">
-                              {voucher.clientName} - {voucher.timestamp.toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' })} - {voucher.timestamp.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })}
+                            {/* Secondary: Date with day name */}
+                            <p className="text-[10px] text-slate-400 font-readex mt-0.5 truncate">
+                              {dayName} - {dateStr}
                             </p>
-                            <div className="flex items-center gap-2 mt-1">
-                              <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">
-                                {voucher.quantity} وحدة
-                              </span>
-                              <span className="text-[9px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
-                                #{voucher.id.slice(-6)}
-                              </span>
-                            </div>
                           </div>
                         </div>
                       </motion.div>
-                    ))
+                    );
+                    })
                   }
                 </AnimatePresence>
-                
+
                 {/* Invoiced vouchers at bottom (green status) */}
-                {voucherTransactions.filter(v => v.invoiced).length > 0 && (
+                {completedVouchers.length > 0 && (
                   <>
-                    <div className="flex items-center gap-2 mt-3 mb-2">
+                    <div className="flex items-center gap-2 mt-2 mb-1">
                       <div className="h-px flex-1 bg-slate-200"></div>
-                      <span className="text-[10px] font-medium text-slate-400 font-readex">السندات المفوترة</span>
+                      <span className="text-[10px] font-medium text-slate-400 font-readex">سندات تمت فوترتها</span>
                       <div className="h-px flex-1 bg-slate-200"></div>
                     </div>
                     <AnimatePresence>
-                      {voucherTransactions
-                        .filter(v => v.invoiced)
+                      {completedVouchers
                         .slice(0, 10)
-                        .map((voucher) => (
+                        .map((voucher) => {
+                          // Format date with day name
+                          const vDate = voucher.timestamp;
+                          const dayName = vDate.toLocaleDateString('ar-SA', { weekday: 'long' });
+                          const dateStr = vDate.toLocaleDateString('ar-SA', { month: 'long', day: 'numeric' });
+
+                          return (
                           <motion.div
-                            key={voucher.id}
+                            key={`${voucher.id}-${voucher.batchId}`}
                             layout
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
-                            transition={{ duration: 0.3 }}
-                            className="p-2.5 rounded-lg border border-emerald-200 bg-emerald-50/30 group opacity-75"
+                            transition={voucherCardTransition}
+                            className={`p-2.5 rounded-lg border border-emerald-200 bg-emerald-50/30 hover-stable no-select-click ${activeVoucherId === voucher.id ? 'ring-2 ring-emerald-200' : ''}`}
+                            style={{ transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)', willChange: 'transform, opacity', backfaceVisibility: 'hidden', transform: 'translate3d(0, 0, 0)', pointerEvents: 'auto', WebkitTapHighlightColor: 'transparent' }}
                           >
                             <div className="flex items-start gap-2">
                               {/* Green checkbox */}
-                              <div className="shrink-0 mt-1 w-5 h-5 rounded bg-emerald-500 flex items-center justify-center">
-                                <CheckCircle2 size={14} className="text-white" />
+                              <div className="shrink-0 mt-0.5">
+                                <input
+                                  type="checkbox"
+                                  checked={true}
+                                  readOnly
+                                  className="w-4 h-4 rounded border-2 border-emerald-500 accent-emerald-500 cursor-default"
+                                />
                               </div>
                               <div className="min-w-0 flex-1">
-                                <h4 className="text-[11px] font-bold text-[#0F2747] font-tajawal truncate">
-                                  صادر - {voucher.itemName}
+                                <h4 className="text-[11px] font-bold text-[#0F2747] font-tajawal leading-tight truncate">
+                                  {voucher.kind === 'in' ? 'سند إدخال' : 'سند إخراج'} - {voucher.clientName}
                                 </h4>
-                                <p className="text-[10px] text-slate-400 font-readex mt-0.5">
-                                  {voucher.clientName} - {voucher.timestamp.toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' })} - {voucher.timestamp.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })}
+                                <p className="text-[10px] text-slate-400 font-readex mt-0.5 truncate">
+                                  {dayName} - {dateStr}
                                 </p>
-                                <div className="flex items-center gap-2 mt-1">
-                                  <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded">
-                                    {voucher.quantity} وحدة
-                                  </span>
-                                </div>
                               </div>
                             </div>
                           </motion.div>
-                        ))
+                        );
+                        })
                       }
                     </AnimatePresence>
                   </>
@@ -1013,10 +1427,11 @@ export default function Dashboard() {
                         layout
                         initial={{ opacity: 0, x: -15 }}
                         animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: 15, transition: { duration: 0.25 } }}
-                        transition={{ duration: 0.25, layout: { duration: 0.3 } }}
+                        exit={{ opacity: 0, x: 15, transition: { duration: 0.25, ease: [0.4, 0, 0.2, 1] } }}
+                        transition={{ duration: 0.25, layout: { duration: 0.3 }, ease: [0.4, 0, 0.2, 1] }}
                         whileHover={{ backgroundColor: 'rgba(248, 250, 252, 0.6)' }}
-                        className="p-2.5 rounded-lg border border-slate-100 bg-white group/alert cursor-pointer"
+                        className="p-2.5 rounded-lg border border-slate-100 bg-white group/alert cursor-pointer hover-stable no-select-click"
+                        style={{ willChange: 'transform, opacity', backfaceVisibility: 'hidden', transform: 'translate3d(0, 0, 0)' }}
                       >
                         <div className="flex items-start gap-2">
                           <div className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 ${iconColor} bg-white border border-slate-100`}>
@@ -1024,7 +1439,7 @@ export default function Dashboard() {
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center justify-between mb-1">
-                              <h4 className="text-[11px] font-bold text-[#0F2747] font-tajawal truncate">{item.name}</h4>
+                              <h4 className="text-[11px] font-bold text-[#0F2747] font-tajawal truncate">{item.name} - {item.company || 'بدون شركة'}</h4>
                               <div className="flex items-center gap-1.5 shrink-0">
                                 <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${urgencyBg}`}>{urgencyLabel}</span>
                                 <span className="text-xs font-bold tabular-nums" style={{ color: statusColor }}>{item.stockQty}</span>
@@ -1110,55 +1525,51 @@ export default function Dashboard() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: 24 }}
               transition={{ type: 'spring', damping: 28, stiffness: 320 }}
-              className="w-full max-w-md bg-white rounded-[24px] shadow-2xl border border-slate-100/60 flex flex-col overflow-hidden"
+              className="w-full max-w-sm bg-white rounded-[24px] shadow-2xl border border-slate-100/60 flex flex-col overflow-hidden"
             >
               {/* Header */}
-              <div className="flex items-center justify-between px-8 py-6 border-b border-slate-100 shrink-0">
-                <h3 className="text-xl font-bold text-[#0F2747] font-tajawal tracking-tight">تأكيد الفوترة</h3>
+              <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 shrink-0">
+                <h3 className="text-lg font-bold text-[#0F2747] font-tajawal tracking-tight">{selectedVoucher.kind === 'in' ? 'اعتماد سند إدخال' : 'إصدار فاتورة جديدة'}</h3>
                 <button
                   type="button"
                   onClick={() => { setIsVoucherModalOpen(false); setSelectedVoucher(null); }}
-                  className="p-2.5 text-slate-400 hover:bg-slate-50 hover:text-slate-600 rounded-xl transition-all active:scale-90"
+                  className="p-2 text-slate-400 hover:bg-slate-50 hover:text-slate-600 rounded-xl transition-all active:scale-90"
                 >
-                  <X size={22} />
+                  <X size={18} />
                 </button>
               </div>
-              
-              {/* Body */}
-              <div className="px-8 py-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center text-amber-500">
-                    <FileText size={22} />
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="text-sm font-bold text-[#0F2747] font-tajawal">صادر - {selectedVoucher.itemName}</h4>
-                    <p className="text-xs text-slate-400 font-readex mt-0.5">
-                      {selectedVoucher.clientName} - {selectedVoucher.timestamp.toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' })}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between bg-slate-50 rounded-lg p-3">
-                  <span className="text-xs text-slate-500 font-readex">الكمية:</span>
-                  <span className="text-sm font-bold text-amber-600">{selectedVoucher.quantity} وحدة</span>
-                </div>
-                <p className="text-sm text-slate-600 font-tajawal mt-4 text-center">هل تمت الفوترة؟</p>
+
+              {/* Body - Minimalist centered layout */}
+              <div className="px-6 py-8 flex flex-col items-center justify-center text-center">
+                {/* Primary: Voucher Type - Beneficiary */}
+                <h4 className="text-base font-bold text-[#0F2747] font-tajawal leading-tight">
+                  {selectedVoucher.kind === 'in' ? 'سند إدخال' : 'سند إخراج'} - {selectedVoucher.clientName}
+                </h4>
+                {/* Secondary: Date with day name */}
+                <p className="text-xs text-slate-400 font-readex mt-2">
+                  {selectedVoucher.timestamp.toLocaleDateString('ar-SA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                </p>
+                {/* Footer note */}
+                <p className="text-sm text-slate-500 font-tajawal mt-6">
+                  {selectedVoucher.kind === 'in' ? 'سيتم اعتماد السند وإضافة الكميات إلى المخزون مباشرة.' : 'سيتم فتح نموذج الفاتورة الآن مع تعبئة كافة البيانات تلقائياً.'}
+                </p>
               </div>
-              
+
               {/* Footer Buttons */}
-              <div className="px-8 py-5 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-3 shrink-0">
+              <div className="px-6 py-5 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-3 shrink-0">
                 <button
                   type="button"
                   onClick={() => { setIsVoucherModalOpen(false); setSelectedVoucher(null); }}
-                  className="px-6 py-2.5 rounded-xl text-sm font-semibold text-slate-500 border border-slate-200 hover:bg-white transition-all font-readex"
+                  className="px-5 py-2.5 rounded-xl text-sm font-semibold text-slate-500 border border-slate-200 hover:bg-white transition-all font-readex"
                 >
                   إلغاء
                 </button>
                 <button
                   type="button"
                   onClick={handleMarkAsInvoiced}
-                  className="px-8 py-2.5 rounded-xl text-sm font-bold text-white bg-emerald-500 hover:bg-emerald-600 shadow-lg shadow-emerald-500/20 transition-all font-tajawal"
+                  className="px-6 py-2.5 rounded-xl text-sm font-bold text-white bg-emerald-500 hover:bg-emerald-600 shadow-lg shadow-emerald-500/20 transition-all font-tajawal"
                 >
-                  نعم، تمت الفوترة
+                  {selectedVoucher.kind === 'in' ? 'اعتماد السند الآن' : 'إصدار الفاتورة الآن'}
                 </button>
               </div>
             </motion.div>
@@ -1288,7 +1699,7 @@ export default function Dashboard() {
 
       {/* 2. Add Stock (Max W 6XL & Add-to-Table) */}
       <ModalWrapper title="إضافة وارد مخزني (تلقيم احترافي)" maxWidth="max-w-6xl" isOpen={isStockInModalOpen} onClose={() => setIsStockInModalOpen(false)} onSubmit={handleAddStock}>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
              <div>
                 <label className={LabelClass}>جهة الورود</label>
                 <div className="flex gap-2">
@@ -1297,6 +1708,10 @@ export default function Dashboard() {
                    </select>
                    <button type="button" onClick={() => { const nl = window.prompt("اسم الجهة/المستودع الجديد:"); if (nl && nl.trim()) { setLocations([...locations, nl.trim()]); setStockForm({...stockForm, loc: nl.trim()}); } }} className="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-text-primary-light dark:text-text-primary-dark px-4 rounded-xl font-bold transition-colors">+</button>
                 </div>
+             </div>
+             <div>
+                <label className={LabelClass}>المستفيد / المورد</label>
+                <input type="text" className={InputClass} placeholder="اسم المورد أو الجهة الموردة" value={stockForm.supplier} onChange={(e) => setStockForm({...stockForm, supplier: e.target.value})} />
              </div>
              <div><label className={LabelClass}>تاريخ التوريد</label><input type="date" className={InputClass} value={stockForm.date} onChange={(e) => setStockForm({...stockForm, date: e.target.value})} /></div>
           </div>
@@ -1700,91 +2115,6 @@ export default function Dashboard() {
               <div className="px-7 py-4 border-t border-slate-100 flex items-center justify-between shrink-0 bg-slate-50/60">
                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider font-readex">مراجعة المخزون ضرورية</p>
                 <button onClick={() => setIsMorningBriefOpen(false)} className="px-5 py-2 rounded-xl text-sm font-bold text-white bg-[#10B981] hover:bg-emerald-600 shadow-lg shadow-emerald-500/20 transition-all font-tajawal">تم — متابعة</button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Voucher Confirmation Modal */}
-      <AnimatePresence>
-        {isVoucherModalOpen && selectedVoucher && (
-          <motion.div
-            initial={{ opacity: 0 }} 
-            animate={{ opacity: 1 }} 
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-[#0F2747]/50 backdrop-blur-md"
-            dir="rtl" 
-            onClick={() => { setIsVoucherModalOpen(false); setSelectedVoucher(null); }}
-          >
-            <motion.div
-              onClick={e => e.stopPropagation()}
-              initial={{ opacity: 0, scale: 0.92, y: 24 }} 
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.92, y: 24 }} 
-              transition={{ type: 'spring', damping: 26, stiffness: 300 }}
-              className="w-full max-w-md bg-white rounded-[24px] shadow-2xl border border-slate-100/60 overflow-hidden"
-            >
-              {/* Header */}
-              <div className="px-7 py-5 border-b border-slate-100 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
-                    <FileCheck size={20} />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-bold text-[#0F2747] font-tajawal">تأكيد الفوترة</h3>
-                    <p className="text-[11px] text-slate-400 font-readex">تحويل السند إلى فاتورة</p>
-                  </div>
-                </div>
-                <button 
-                  onClick={() => { setIsVoucherModalOpen(false); setSelectedVoucher(null); }} 
-                  className="p-2 text-slate-400 hover:bg-slate-50 rounded-lg transition-colors"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-              
-              {/* Content */}
-              <div className="px-7 py-6">
-                <p className="text-sm text-slate-600 font-readex mb-4">
-                  هل أنت متأكد من تحويل السند التالي إلى حالة "تمت الفوترة"؟
-                </p>
-                
-                {/* Voucher Details Card */}
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-slate-500 font-readex">العميل:</span>
-                    <span className="text-sm font-bold text-[#0F2747] font-tajawal">{selectedVoucher.clientName}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-slate-500 font-readex">رقم السند:</span>
-                    <span className="text-xs font-mono bg-white px-2 py-1 rounded border border-slate-200">#{selectedVoucher.id.slice(-6)}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-slate-500 font-readex">الكمية:</span>
-                    <span className="text-sm font-bold text-amber-600">{selectedVoucher.quantity} وحدة</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-slate-500 font-readex">التاريخ:</span>
-                    <span className="text-xs text-slate-700">{selectedVoucher.timestamp.toLocaleDateString('ar-SA')}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Footer Actions */}
-              <div className="px-7 py-4 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-3">
-                <button 
-                  onClick={() => { setIsVoucherModalOpen(false); setSelectedVoucher(null); }}
-                  className="px-6 py-2.5 rounded-xl text-sm font-semibold text-slate-500 border border-slate-200 hover:bg-white transition-all font-readex"
-                >
-                  إلغاء
-                </button>
-                <button 
-                  onClick={() => handleMarkAsInvoiced(selectedVoucher)}
-                  className="px-6 py-2.5 rounded-xl text-sm font-bold text-white bg-emerald-500 hover:bg-emerald-600 shadow-lg shadow-emerald-500/20 transition-all font-tajawal"
-                >
-                  تأكيد الفوترة ✓
-                </button>
               </div>
             </motion.div>
           </motion.div>

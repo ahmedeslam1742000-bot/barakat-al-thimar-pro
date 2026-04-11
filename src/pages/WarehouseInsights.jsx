@@ -37,8 +37,8 @@ const TX_META = {
   'وارد':              { label: 'وارد',       icon: TrendingUp,   cls: 'bg-emerald-50 text-emerald-600 border-emerald-200' },
   'صادر':              { label: 'صادر',       icon: TrendingDown, cls: 'bg-orange-50 text-orange-600 border-orange-200' },
   'مرتجع':             { label: 'مرتجع',      icon: RotateCcw,    cls: 'bg-amber-50 text-amber-600 border-amber-200' },
-  'سند إدخال صوري':    { label: 'إدخال سند',  icon: FileText,     cls: 'bg-teal-50 text-teal-600 border-teal-200' },
-  'سند إخراج صوري':    { label: 'إخراج سند',  icon: FileText,     cls: 'bg-purple-50 text-purple-600 border-purple-200' },
+  'سند إدخال':    { label: 'إدخال سند',  icon: FileText,     cls: 'bg-teal-50 text-teal-600 border-teal-200' },
+  'سند إخراج':    { label: 'إخراج سند',  icon: FileText,     cls: 'bg-purple-50 text-purple-600 border-purple-200' },
 };
 const getTxMeta = (type) =>
   TX_META[type] || { label: type || '—', icon: Package, cls: 'bg-slate-50 text-slate-500 border-slate-200' };
@@ -213,8 +213,8 @@ function DailyLog({ transactions }) {
             <option value="وارد">عمليات الوارد</option>
             <option value="صادر">عمليات الصادر</option>
             <option value="مرتجع">عمليات المرتجع</option>
-            <option value="سند إدخال صوري">سندات الإدخال</option>
-            <option value="سند إخراج صوري">سندات الإخراج</option>
+            <option value="سند إدخال">سندات الإدخال</option>
+            <option value="سند إخراج">سندات الإخراج</option>
           </select>
         </div>
 
