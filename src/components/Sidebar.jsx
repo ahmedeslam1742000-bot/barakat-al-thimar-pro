@@ -1,18 +1,20 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  LayoutDashboard, 
-  Warehouse, 
-  FileText, 
+import {
+  LayoutDashboard,
+  Warehouse,
+  FileText,
+  FileStack,
   Archive,
-  Settings, 
+  Settings,
   LogOut,
   X,
   ChevronDown,
   Circle,
   ClipboardList,
-  Activity,
-  Eye,
+  Users,
+  BarChart3,
+  Tags,
   ChevronLeft,
   Box,
   TrendingUp,
@@ -48,24 +50,32 @@ const menuGroups = [
       { id: 'voucher-outward', label: 'إخراج', view: 'voucher-outward' },
     ]
   },
+  // Standalone: الفواتير (Invoices)
   {
-    id: 'warehouse-insights-group',
-    label: 'المراقبة والتقارير',
-    icon: Eye,
-    subItems: [
-      { id: 'warehouse-insights', label: 'نظرة المستودع', view: 'warehouse-insights' },
-      { id: 'warehouse-logs', label: 'سجلات المستودع', view: 'warehouse-logs' },
-      { id: 'reps', label: 'المناديب', view: 'reps' },
-    ]
+    id: 'invoices',
+    label: 'الفواتير',
+    icon: FileStack,
+    isStatic: true,
+    view: 'invoices'
   },
+  // Standalone: الأسعار (Price List)
   {
-    id: 'archive',
-    label: 'الجرد والأرشيف',
+    id: 'price-list',
+    label: 'الأسعار',
+    icon: Tags,
+    isStatic: true,
+    view: 'price-list'
+  },
+  // Unified Admin Dropdown: إدارة المستودع
+  {
+    id: 'warehouse-management',
+    label: 'إدارة المستودع',
     icon: Archive,
     subItems: [
-      { id: 'inventory', label: 'جرد المراقبة', view: 'inventory' },
-      { id: 'invoices', label: 'الفواتير', view: 'invoices' },
+      { id: 'archive', label: 'أرشيف التعاملات', view: 'archive' },
+      { id: 'inventory', label: 'الجرد', view: 'inventory' },
       { id: 'reports', label: 'التقارير', view: 'reports' },
+      { id: 'reps', label: 'المناديب', view: 'reps' },
     ]
   }
 ];

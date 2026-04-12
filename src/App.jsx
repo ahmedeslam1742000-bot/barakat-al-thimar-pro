@@ -12,13 +12,14 @@ import WarehouseInsights from './pages/WarehouseInsights';
 import WarehouseLogs from './pages/WarehouseLogs';
 import Settings from './pages/Settings';
 import Inventory from './pages/Inventory';
+import Archive from './pages/Archive';
 import Placeholder from './components/Placeholder';
 import Login from './components/Login';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { SettingsProvider } from './contexts/SettingsContext';
 import { Toaster } from 'sonner';
-import { Package, Truck, ArrowUpRight, RotateCcw, Download, Upload, User, FileStack, BookOpen, ClipboardList, Activity, Settings as SettingsIcon } from 'lucide-react';
+import { Package, Truck, ArrowUpRight, RotateCcw, Download, Upload, User, FileStack, BookOpen, ClipboardList, Activity, Settings as SettingsIcon, Archive as ArchiveIcon, BarChart3, Tags } from 'lucide-react';
 
 const viewConfig = {
   'dashboard': { component: Dashboard },
@@ -32,8 +33,10 @@ const viewConfig = {
   'warehouse-logs': { component: WarehouseLogs, title: 'سجلات المستودع', icon: Activity },
   'reps': { component: Reps, title: 'المناديب', icon: User },
   'invoices': { title: 'الفواتير', icon: FileStack },
-  'reports': { title: 'التقارير', icon: BookOpen },
-  'inventory': { component: Inventory, title: 'جرد المراقبة', icon: ClipboardList },
+  'reports': { title: 'التقارير', icon: BarChart3 },
+  'inventory': { component: Inventory, title: 'الجرد', icon: ClipboardList },
+  'archive': { component: Archive, title: 'أرشيف التعاملات', icon: ArchiveIcon },
+  'price-list': { title: 'الأسعار', icon: Tags },
   'settings': { component: Settings },
 };
 
