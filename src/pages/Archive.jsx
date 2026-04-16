@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Calendar, FileText, ArrowUpRight, ArrowDownLeft, RotateCcw, Package, ChevronRight } from 'lucide-react';
-import { collection, query, orderBy, getDocs, where, addDoc, serverTimestamp, deleteDoc, doc, writeBatch } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { supabase } from '../lib/supabaseClient';
 import { toast } from 'sonner';
 import { useAudio } from '../contexts/AudioContext';
 
@@ -25,10 +24,9 @@ export default function Archive() {
   const loadArchives = async () => {
     setLoading(true);
     try {
-      const q = query(collection(db, 'dailyArchives'), orderBy('dateKey', 'desc'));
-      const snapshot = await getDocs(q);
-      const archives = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setDailyArchives(archives);
+      const { data, error } = await supabase.from('daily_archives').select('*').order('date_key', { ascending: false });
+      if (error) throw error;
+      setDailyArchives(data.map(d => ({ ...d, dateKey: d.date_key, date: d.date_text, dayName: d.day_name })));
     } catch (err) {
       console.error('Error loading archives:', err);
     }
@@ -50,41 +48,36 @@ export default function Archive() {
   // Archive today's transactions and purge from main collection
   const archiveTodayAndPurge = async (dateKey) => {
     try {
-      const today = new Date();
-      const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-      const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+      const startOfDay = `${dateKey}T00:00:00Z`;
+      const endOfDay = `${dateKey}T23:59:59Z`;
 
       // Get today's transactions
-      const q = query(collection(db, 'transactions'), orderBy('timestamp', 'desc'));
-      const snapshot = await getDocs(q);
-      const todayTx = [];
-      snapshot.forEach(docSnap => {
-        const data = docSnap.data();
-        const txDate = data.timestamp?.toDate?.() || new Date();
-        if (txDate >= startOfDay && txDate < endOfDay) {
-          todayTx.push({ id: docSnap.id, ...data });
-        }
-      });
+      const { data: todayTx, error: txError } = await supabase
+        .from('transactions')
+        .select('*')
+        .gte('timestamp', startOfDay)
+        .lte('timestamp', endOfDay);
 
-      if (todayTx.length === 0) return;
+      if (txError) throw txError;
+      if (!todayTx || todayTx.length === 0) return;
 
       // Categorize transactions
-      const inbound = todayTx.filter(tx => tx.type === 'وارد' || tx.type === 'Restock' || (tx.type === 'سند إدخال'));
+      const inbound = todayTx.filter(tx => tx.type === 'وارد' || tx.type === 'Restock' || tx.type === 'سند إدخال');
       const outbound = todayTx.filter(tx => tx.type === 'صادر' || tx.type === 'Issue');
       const returns = todayTx.filter(tx => tx.type === 'Return' || tx.type === 'مرتجع');
-      const newItems = todayTx.filter(tx => tx.isNewItem === true);
+      const newItems = todayTx.filter(tx => tx.is_new_item === true);
 
+      const today = new Date();
       // Create archive document
       const archiveData = {
-        dateKey,
-        date: today.toLocaleDateString('ar-SA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
-        dayName: today.toLocaleDateString('ar-SA', { weekday: 'long' }),
-        createdAt: serverTimestamp(),
+        date_key: dateKey,
+        date_text: today.toLocaleDateString('ar-SA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+        day_name: today.toLocaleDateString('ar-SA', { weekday: 'long' }),
         transactions: todayTx,
         inbound,
         outbound,
         returns,
-        newItems,
+        new_items: newItems,
         stats: {
           total: todayTx.length,
           inbound: inbound.length,
@@ -94,15 +87,14 @@ export default function Archive() {
         }
       };
 
-      // Save to dailyArchives collection
-      await addDoc(collection(db, 'dailyArchives'), archiveData);
+      // Save to daily_archives collection
+      const { error: insError } = await supabase.from('daily_archives').upsert([archiveData]);
+      if (insError) throw insError;
       
       // Delete archived transactions from main collection
-      const batch = writeBatch(db);
-      todayTx.forEach(tx => {
-        batch.delete(doc(db, 'transactions', tx.id));
-      });
-      await batch.commit();
+      const ids = todayTx.map(tx => tx.id);
+      const { error: delError } = await supabase.from('transactions').delete().in('id', ids);
+      if (delError) throw delError;
 
       toast.success(`تم أرشفة ${todayTx.length} عملية من اليوم بنجاح ✅`);
       playSuccess();

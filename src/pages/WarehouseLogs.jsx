@@ -6,11 +6,7 @@ import {
   ArrowUpRight, FileText, ClipboardList, ChevronDown, Search,
   Calendar, Clock, Edit3, Save, Filter,
 } from 'lucide-react';
-import { db } from '../lib/firebase';
-import {
-  collection, onSnapshot, query, orderBy, addDoc, deleteDoc,
-  doc, updateDoc, serverTimestamp, Timestamp, where,
-} from 'firebase/firestore';
+import { supabase } from '../lib/supabaseClient';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -22,13 +18,13 @@ const todayStr = () => {
 
 const fmtTime = (ts) => {
   if (!ts) return '—';
-  const d = ts instanceof Timestamp ? ts.toDate() : new Date(ts);
+  const d = new Date(ts);
   return d.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
 };
 
 const fmtDate = (ts) => {
   if (!ts) return '—';
-  const d = ts instanceof Timestamp ? ts.toDate() : new Date(ts);
+  const d = new Date(ts);
   return d.toLocaleDateString('ar-SA', { year: 'numeric', month: 'short', day: 'numeric' });
 };
 
@@ -54,18 +50,33 @@ export default function WarehouseLogs() {
   const [discrepancies, setDiscrepancies] = useState([]);
 
   useEffect(() => {
-    const u1 = onSnapshot(
-      query(collection(db, 'transactions'), orderBy('timestamp', 'desc')),
-      (s) => setTransactions(s.docs.map((d) => ({ id: d.id, ...d.data() })))
-    );
-    const u2 = onSnapshot(collection(db, 'items'), (s) =>
-      setItems(s.docs.map((d) => ({ id: d.id, ...d.data() })))
-    );
-    const u3 = onSnapshot(
-      query(collection(db, 'discrepancies'), orderBy('createdAt', 'desc')),
-      (s) => setDiscrepancies(s.docs.map((d) => ({ id: d.id, ...d.data() })))
-    );
-    return () => { u1(); u2(); u3(); };
+    const fetchInitialData = async () => {
+      const { data: transData } = await supabase.from('transactions').select('*').order('timestamp', { ascending: false });
+      if (transData) setTransactions(transData);
+
+      const { data: itemsData } = await supabase.from('products').select('*');
+      if (itemsData) setItems(itemsData.map(d => ({ ...d, stockQty: d.stock_qty })));
+
+      const { data: discData } = await supabase.from('discrepancies').select('*').order('created_at', { ascending: false });
+      if (discData) setDiscrepancies(discData.map(d => ({ 
+          ...d, 
+          itemName: d.item_name, 
+          itemId: d.item_id,
+          expectedQty: d.expected_qty,
+          actualQty: d.actual_qty,
+          createdAt: d.created_at
+      })));
+    };
+
+    fetchInitialData();
+
+    const channels = [
+      supabase.channel('public:transactions:logs').on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, fetchInitialData).subscribe(),
+      supabase.channel('public:products:logs').on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, fetchInitialData).subscribe(),
+      supabase.channel('public:discrepancies:logs').on('postgres_changes', { event: '*', schema: 'public', table: 'discrepancies' }, fetchInitialData).subscribe()
+    ];
+
+    return () => { channels.forEach(c => supabase.removeChannel(c)); };
   }, []);
 
   return (
@@ -137,7 +148,7 @@ function DailyActivity({ transactions }) {
 
   const filtered = useMemo(() => {
     return transactions.filter((tx) => {
-      const txDate = tx.date || (tx.timestamp instanceof Timestamp ? tx.timestamp.toDate().toISOString().split('T')[0] : '');
+      const txDate = tx.date || (tx.timestamp ? new Date(tx.timestamp).toISOString().split('T')[0] : '');
       if (dateFilter && txDate !== dateFilter) return false;
       if (typeFilter !== 'all' && tx.type !== typeFilter) return false;
       if (search.trim()) {
@@ -152,7 +163,7 @@ function DailyActivity({ transactions }) {
 
   // Stats for today
   const todayTxs = useMemo(() => transactions.filter((tx) => {
-    const txDate = tx.date || (tx.timestamp instanceof Timestamp ? tx.timestamp.toDate().toISOString().split('T')[0] : '');
+    const txDate = tx.date || (tx.timestamp ? new Date(tx.timestamp).toISOString().split('T')[0] : '');
     return txDate === todayStr();
   }), [transactions]);
 
@@ -369,11 +380,11 @@ function DiscrepancyLog({ discrepancies, items }) {
     if (!form.expectedQty || !form.actualQty) { toast.error('يرجى إدخال الكميتين'); return; }
     setLoading(true);
     const payload = {
-      itemId: form.selectedItem.id || '',
-      itemName: form.selectedItem.name || form.itemSearch,
+      item_id: form.selectedItem.id || null,
+      item_name: form.selectedItem.name || form.itemSearch,
       reason: form.reason,
-      expectedQty: Number(form.expectedQty),
-      actualQty: Number(form.actualQty),
+      expected_qty: Number(form.expectedQty),
+      actual_qty: Number(form.actualQty),
       diff: Number(form.actualQty) - Number(form.expectedQty),
       notes: form.notes.trim(),
       date: form.date,
@@ -381,10 +392,12 @@ function DiscrepancyLog({ discrepancies, items }) {
     };
     try {
       if (editingId) {
-        await updateDoc(doc(db, 'discrepancies', editingId), payload);
+        const { error } = await supabase.from('discrepancies').update(payload).eq('id', editingId);
+        if (error) throw error;
         toast.success('تم تعديل الفارق');
       } else {
-        await addDoc(collection(db, 'discrepancies'), { ...payload, createdAt: serverTimestamp() });
+        const { error } = await supabase.from('discrepancies').insert(payload);
+        if (error) throw error;
         toast.success('تم تسجيل الفارق بنجاح');
       }
       resetForm();
@@ -400,12 +413,14 @@ function DiscrepancyLog({ discrepancies, items }) {
 
   const handleDelete = async (id) => {
     if (!window.confirm('هل أنت متأكد من حذف هذا الفارق؟')) return;
-    await deleteDoc(doc(db, 'discrepancies', id));
+    const { error } = await supabase.from('discrepancies').delete().eq('id', id);
+    if (error) throw error;
     toast.success('تم الحذف');
   };
 
   const handleResolve = async (disc) => {
-    await updateDoc(doc(db, 'discrepancies', disc.id), { status: 'resolved' });
+    const { error } = await supabase.from('discrepancies').update({ status: 'resolved' }).eq('id', disc.id);
+    if (error) throw error;
     toast.success('تم وضع علامة محلول ✅');
   };
 

@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { Apple, Globe, Loader2, Mail, Phone, Users } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { doc, setDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { supabase } from '../lib/supabaseClient';
 
 const socialProviders = [
   {
@@ -49,14 +48,20 @@ export default function Register({ onBack }) {
     try {
       setError('');
       setLoading(true);
-      const cred = await signup(email, password);
+      const { user } = await signup(email, password);
       const username = email.split('@')[0];
-      await setDoc(doc(db, 'users', cred.user.uid), {
-        email,
-        username,
-        role: 'Admin',
-        createdAt: new Date().toISOString(),
-      });
+
+      // Insert user into Supabase
+      const { error: insertError } = await supabase
+        .from('users')
+        .insert({
+          id: user.id,
+          email,
+          username,
+          role: 'Admin',
+        });
+
+      if (insertError) throw insertError;
     } catch (err) {
       console.error(err);
       setError('حدث خطأ أثناء إنشاء الحساب. يرجى المحاولة مرة أخرى.');

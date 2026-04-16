@@ -6,11 +6,7 @@ import {
   ChevronDown, Phone, MapPin, Package, ArrowUpRight,
   Calendar, Activity, Star,
 } from 'lucide-react';
-import { db } from '../lib/firebase';
-import {
-  collection, onSnapshot, query, orderBy, addDoc,
-  updateDoc, deleteDoc, doc, serverTimestamp, Timestamp,
-} from 'firebase/firestore';
+import { supabase } from '../lib/supabaseClient';
 import { toast } from 'sonner';
 import { useAudio } from '../contexts/AudioContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -18,7 +14,7 @@ import { useAuth } from '../contexts/AuthContext';
 /* ─── helpers ─── */
 const fmt = (date) => {
   if (!date) return '—';
-  const d = date instanceof Timestamp ? date.toDate() : new Date(date);
+  const d = new Date(date);
   return d.toLocaleDateString('ar-SA', { year: 'numeric', month: 'short', day: 'numeric' });
 };
 
@@ -102,15 +98,24 @@ export default function Reps() {
   const emptyForm = { name: '', phone: '', zone: '', notes: '' };
   const [form, setForm] = useState(emptyForm);
 
-  /* live Firebase sync */
+  /* live Supabase sync */
   useEffect(() => {
-    const u1 = onSnapshot(query(collection(db, 'reps'), orderBy('createdAt', 'desc')), (s) =>
-      setReps(s.docs.map((d) => ({ id: d.id, ...d.data() })))
-    );
-    const u2 = onSnapshot(query(collection(db, 'transactions'), orderBy('timestamp', 'desc')), (s) =>
-      setTransactions(s.docs.map((d) => ({ id: d.id, ...d.data() })))
-    );
-    return () => { u1(); u2(); };
+    const fetchInitialData = async () => {
+      const { data: repsData } = await supabase.from('reps').select('*').order('created_at', { ascending: false });
+      if (repsData) setReps(repsData.map(d => ({ ...d, createdAt: d.created_at })));
+
+      const { data: transData } = await supabase.from('transactions').select('*').order('timestamp', { ascending: false });
+      if (transData) setTransactions(transData);
+    };
+
+    fetchInitialData();
+
+    const channels = [
+      supabase.channel('public:reps').on('postgres_changes', { event: '*', schema: 'public', table: 'reps' }, fetchInitialData).subscribe(),
+      supabase.channel('public:transactions:reps').on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, fetchInitialData).subscribe()
+    ];
+
+    return () => { channels.forEach(c => supabase.removeChannel(c)); };
   }, []);
 
   /* stats per rep — count stock-out and returns referencing rep by name */
@@ -122,7 +127,7 @@ export default function Reps() {
       if (!map[repName]) map[repName] = { out: 0, returns: 0, lastActivity: null };
       if (tx.type === 'صادر') map[repName].out += Number(tx.qty || 0);
       if (tx.type === 'مرتجع') map[repName].returns += Number(tx.qty || 0);
-      const ts = tx.timestamp?.toDate?.() || (tx.date ? new Date(tx.date) : null);
+      const ts = tx.timestamp ? new Date(tx.timestamp) : (tx.date ? new Date(tx.date) : null);
       if (ts && (!map[repName].lastActivity || ts > map[repName].lastActivity))
         map[repName].lastActivity = ts;
     });
@@ -155,12 +160,17 @@ export default function Reps() {
     }
     setLoading(true);
     try {
-      await addDoc(collection(db, 'reps'), { ...form, name: form.name.trim(), createdAt: serverTimestamp() });
+      const { error } = await supabase.from('reps').insert([{ ...form, name: form.name.trim() }]);
+      if (error) throw error;
       toast.success('✅ تم إضافة المندوب بنجاح');
       playSuccess();
       setIsAddOpen(false);
       setForm(emptyForm);
-    } catch { toast.error('خطأ أثناء الحفظ'); playWarning(); }
+    } catch (err) {
+      console.error(err);
+      toast.error('خطأ أثناء الحفظ');
+      playWarning();
+    }
     finally { setLoading(false); }
   };
 
@@ -175,11 +185,16 @@ export default function Reps() {
     if (!form.name.trim()) { toast.error('يرجى إدخال اسم المندوب'); playWarning(); return; }
     setLoading(true);
     try {
-      await updateDoc(doc(db, 'reps', selectedRep.id), { ...form, name: form.name.trim() });
+      const { error } = await supabase.from('reps').update({ ...form, name: form.name.trim() }).eq('id', selectedRep.id);
+      if (error) throw error;
       toast.success('✅ تم تعديل بيانات المندوب');
       playSuccess();
       setIsEditOpen(false);
-    } catch { toast.error('خطأ أثناء التعديل'); playWarning(); }
+    } catch (err) {
+      console.error(err);
+      toast.error('خطأ أثناء التعديل');
+      playWarning();
+    }
     finally { setLoading(false); }
   };
 
@@ -189,11 +204,16 @@ export default function Reps() {
     e.preventDefault();
     setLoading(true);
     try {
-      await deleteDoc(doc(db, 'reps', selectedRep.id));
+      const { error } = await supabase.from('reps').delete().eq('id', selectedRep.id);
+      if (error) throw error;
       toast.success('تم حذف المندوب 🗑️');
       playSuccess();
       setIsDeleteOpen(false);
-    } catch { toast.error('خطأ أثناء الحذف'); playWarning(); }
+    } catch (err) {
+      console.error(err);
+      toast.error('خطأ أثناء الحذف');
+      playWarning();
+    }
     finally { setLoading(false); }
   };
 

@@ -5,11 +5,7 @@ import {
   AlertTriangle, CheckCircle, User, Truck, ChevronDown, Printer,
   Image as ImageIcon, FilterX, CalendarRange,
 } from 'lucide-react';
-import { db } from '../../lib/firebase';
-import {
-  collection, onSnapshot, query, orderBy, doc, serverTimestamp, Timestamp, writeBatch,
-  updateDoc, deleteDoc, runTransaction,
-} from 'firebase/firestore';
+import { supabase } from '../../lib/supabaseClient';
 import { getItemName, getCompany, getCategory, getUnit } from '../../lib/itemFields';
 import { toast } from 'sonner';
 import { useAudio } from '../../contexts/AudioContext';
@@ -19,7 +15,7 @@ import html2canvas from 'html2canvas';
 
 const formatDate = (date) => {
   if (!date) return '';
-  const d = date instanceof Timestamp ? date.toDate() : new Date(date);
+  const d = new Date(date);
   return d.toISOString().split('T')[0];
 };
 
@@ -313,17 +309,20 @@ function emptySession(kind) {
 
 async function allocateVoucherCode(kind) {
   const cfg = KIND_CONFIG[kind];
-  const counterRef = doc(db, 'settings', 'voucherCounters');
   const year = new Date().getFullYear();
   const key = `${cfg.counterKey}${year}`;
-  let seq = 1;
-  await runTransaction(db, async (t) => {
-    const snap = await t.get(counterRef);
-    const data = snap.exists() ? snap.data() : {};
-    seq = Number(data[key] || 0) + 1;
-    t.set(counterRef, { [key]: seq }, { merge: true });
+  
+  const { data, error } = await supabase.rpc('allocate_voucher_code', {
+    p_prefix: cfg.codePrefix,
+    p_key: key
   });
-  return `${cfg.codePrefix}-${year}-${String(seq).padStart(3, '0')}`;
+  
+  if (error) {
+    console.error('Voucher code allocation error:', error);
+    // Fallback to a random code if RPC fails
+    return `${cfg.codePrefix}-${year}-${Math.floor(Math.random() * 900) + 100}`;
+  }
+  return data;
 }
 
 // Export pipeline: renders hidden HTML → html2canvas → jsPDF or PNG download
@@ -379,17 +378,32 @@ export default function VoucherWorkspace({ kind }) {
   const triggerExport = (group, mode) => setExportJob({ group, mode });
 
   useEffect(() => {
-    const u1 = onSnapshot(query(collection(db, 'items')), (s) =>
-      setItems(s.docs.map((d) => ({ id: d.id, ...d.data() })))
-    );
-    const u2 = onSnapshot(query(collection(db, 'transactions'), orderBy('timestamp', 'desc')), (s) =>
-      setTransactions(s.docs.map((d) => ({ id: d.id, ...d.data() })))
-    );
-    return () => {
-      u1();
-      u2();
+    const fetchInitialData = async () => {
+      const { data: itemsData } = await supabase.from('products').select('*');
+      if (itemsData) setItems(itemsData.map(d => ({ ...d, stockQty: d.stock_qty })));
+
+      const { data: transData } = await supabase.from('transactions').select('*').order('timestamp', { ascending: false });
+      if (transData) setTransactions(transData.map(d => ({ 
+        ...d, 
+        itemId: d.item_id,
+        voucherGroupId: d.voucher_group_id,
+        voucherCode: d.voucher_code,
+        isFunctional: d.is_functional,
+        voucherKind: d.voucher_kind,
+        voucherSupplyNotes: d.voucher_supply_notes,
+        lineNote: d.line_note
+      })));
     };
-  }, []);
+
+    fetchInitialData();
+
+    const channels = [
+      supabase.channel(`public:products:vouchers:${kind}`).on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, fetchInitialData).subscribe(),
+      supabase.channel(`public:transactions:vouchers:${kind}`).on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, fetchInitialData).subscribe()
+    ];
+
+    return () => { channels.forEach(c => supabase.removeChannel(c)); };
+  }, [kind]);
 
   // ─── EMERGENCY AUTO-SAVE ───
   const DRAFT_KEY = `barakat_voucher_draft_${kind}`;
@@ -448,7 +462,7 @@ export default function VoucherWorkspace({ kind }) {
       g.lines.sort((a, b) => (a.timestamp?.seconds || 0) - (b.timestamp?.seconds || 0));
       const first = g.lines[0];
       const lastTs = g.lines.reduce(
-        (max, line) => Math.max(max, line.timestamp?.toMillis?.() || 0),
+        (max, line) => Math.max(max, line.timestamp ? new Date(line.timestamp).getTime() : 0),
         0
       );
       return {
@@ -611,45 +625,44 @@ export default function VoucherWorkspace({ kind }) {
         voucherCode = await allocateVoucherCode(kind);
       }
 
-      const batch = writeBatch(db);
-      editingLineIds.forEach((id) => batch.delete(doc(db, 'transactions', id)));
-
-      const basePayload = {
-        type: cfg.txType,
-        documentary: true,
-        isFunctional: true,
-        invoiced: false,
-        deducted: false,
-        voucherKind: kind,
-        date: session.date,
-        timestamp: serverTimestamp(),
-        voucherGroupId,
-        voucherCode,
-      };
-      if (kind === 'in') {
-        basePayload.supplier = String(session.supplier).trim();
-        basePayload.voucherSupplyNotes = voucherSupplyNotes;
-      } else {
-        basePayload.rep = String(session.rep).trim();
+      // 1. Delete old lines if editing
+      if (editingLineIds.length > 0) {
+        const { error: delError } = await supabase.from('transactions').delete().in('id', editingLineIds);
+        if (delError) throw delError;
       }
 
-      modalDrafts.forEach((entry) => {
-        const txRef = doc(collection(db, 'transactions'));
-        const line = {
-          ...basePayload,
-          item: entry.item,
-          itemId: entry.itemId,
-          company: entry.company,
-          qty: entry.qty,
-          unit: entry.unit,
-          cat: entry.cat,
-          expiryDate: entry.expiryDate || '',
-          lineNote: entry.lineNote || '',
-        };
-        batch.set(txRef, line);
-      });
+      const common = {
+        type: cfg.txType,
+        documentary: true,
+        is_functional: true,
+        invoiced: false,
+        deducted: false,
+        voucher_kind: kind,
+        date: session.date,
+        voucher_group_id: voucherGroupId,
+        voucher_code: voucherCode,
+      };
+      if (kind === 'in') {
+        common.supplier = String(session.supplier).trim();
+        common.voucher_supply_notes = voucherSupplyNotes;
+      } else {
+        common.rep = String(session.rep).trim();
+      }
 
-      await batch.commit();
+      const rows = modalDrafts.map((entry) => ({
+        ...common,
+        item: entry.item,
+        item_id: entry.itemId,
+        company: entry.company,
+        qty: entry.qty,
+        unit: entry.unit,
+        cat: entry.cat,
+        expiry_date: entry.expiryDate || '',
+        line_note: entry.lineNote || '',
+      }));
+
+      const { error: insError } = await supabase.from('transactions').insert(rows);
+      if (insError) throw insError;
 
       toast.success(
         editingGroupId
@@ -658,7 +671,8 @@ export default function VoucherWorkspace({ kind }) {
       );
       playSuccess();
       closeAddModal();
-    } catch {
+    } catch (err) {
+      console.error(err);
       toast.error('حدث خطأ أثناء الحفظ. حاول مرة أخرى.');
       playWarning();
     } finally {
@@ -737,13 +751,17 @@ export default function VoucherWorkspace({ kind }) {
     if (!selectedTx || Number(editForm.qty) <= 0) return;
     setLoading(true);
     try {
-      const txRef = doc(db, 'transactions', selectedTx.id);
-      const patch = { qty: Number(editForm.qty), date: editForm.date, lineNote: String(editForm.lineNote || '').trim() };
-      await updateDoc(txRef, patch);
+      const { error } = await supabase.from('transactions').update({ 
+        qty: Number(editForm.qty), 
+        date: editForm.date, 
+        line_note: String(editForm.lineNote || '').trim() 
+      }).eq('id', selectedTx.id);
+      if (error) throw error;
       toast.success('تم تعديل السطر بنجاح');
       playSuccess();
       setIsEditOpen(false);
-    } catch {
+    } catch (err) {
+      console.error(err);
       toast.error('خطأ في التعديل');
       playWarning();
     } finally {
@@ -761,11 +779,13 @@ export default function VoucherWorkspace({ kind }) {
     if (!selectedTx) return;
     setLoading(true);
     try {
-      await deleteDoc(doc(db, 'transactions', selectedTx.id));
+      const { error } = await supabase.from('transactions').delete().eq('id', selectedTx.id);
+      if (error) throw error;
       toast.success('تم حذف السطر');
       playSuccess();
       setIsDeleteOpen(false);
-    } catch {
+    } catch (err) {
+      console.error(err);
       toast.error('خطأ أثناء الحذف');
       playWarning();
     } finally {
@@ -783,15 +803,16 @@ export default function VoucherWorkspace({ kind }) {
     if (!groupToDelete?.lines?.length) return;
     setLoading(true);
     try {
-      const batch = writeBatch(db);
-      groupToDelete.lines.forEach((l) => batch.delete(doc(db, 'transactions', l.id)));
-      await batch.commit();
+      const ids = groupToDelete.lines.map((l) => l.id);
+      const { error } = await supabase.from('transactions').delete().in('id', ids);
+      if (error) throw error;
       toast.success('تم حذف السند بالكامل');
       playSuccess();
       setIsDeleteGroupOpen(false);
       setGroupToDelete(null);
       setExpandedGroupId(null);
-    } catch {
+    } catch (err) {
+      console.error(err);
       toast.error('تعذر حذف السند');
       playWarning();
     } finally {

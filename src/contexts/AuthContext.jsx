@@ -1,7 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, setPersistence, browserSessionPersistence } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
-import { auth, db } from '../lib/firebase';
+import { supabase } from '../lib/supabaseClient';
 import { useSettings } from './SettingsContext';
 
 const AuthContext = createContext();
@@ -16,46 +14,79 @@ export function AuthProvider({ children }) {
   const { settings } = useSettings();
 
   async function login(email, password) {
-    await setPersistence(auth, browserSessionPersistence);
-    return signInWithEmailAndPassword(auth, email, password);
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    if (error) throw error;
+    return data;
   }
 
   async function signup(email, password) {
-    await setPersistence(auth, browserSessionPersistence);
-    return createUserWithEmailAndPassword(auth, email, password);
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+    if (error) throw error;
+    return data;
   }
 
   async function logout() {
     localStorage.clear();
     sessionStorage.clear();
-    await signOut(auth);
+    await supabase.auth.signOut();
     window.location.href = '/';
   }
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async user => {
-      if (user) {
-        try {
-          const docRef = doc(db, 'users', user.uid);
-          const docSnap = await getDoc(docRef);
-          if (docSnap.exists()) {
-            const userData = docSnap.data();
-            setCurrentUser({ ...user, role: userData.role, username: userData.username });
-          } else {
-            // Fallback for an existing test user without a doc
-            setCurrentUser({ ...user, role: 'Admin' });
-          }
-        } catch (error) {
-          console.error("Error fetching user data:", error);
-          setCurrentUser(user);
-        }
+    // Check active session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        fetchUserRole(session.user.id).then(userData => {
+          setCurrentUser({ ...session.user, ...userData });
+          setLoading(false);
+        });
       } else {
         setCurrentUser(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
-    return unsubscribe;
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
+        if (session?.user) {
+          const userData = await fetchUserRole(session.user.id);
+          setCurrentUser({ ...session.user, ...userData });
+        } else {
+          setCurrentUser(null);
+        }
+        setLoading(false);
+      }
+    );
+
+    return () => subscription.unsubscribe();
   }, []);
+
+  async function fetchUserRole(userId) {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('role, username, full_name, phone')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (error || !data) return { role: 'User', username: '' };
+      return {
+        role: data.role || 'User',
+        username: data.username || '',
+        fullName: data.full_name || '',
+        phone: data.phone || '',
+      };
+    } catch {
+      return { role: 'User', username: '' };
+    }
+  }
 
   const value = {
     currentUser,
@@ -64,7 +95,8 @@ export function AuthProvider({ children }) {
     isStorekeeper: currentUser?.role === 'Storekeeper',
     login,
     signup,
-    logout
+    logout,
+    supabase,
   };
 
   return (

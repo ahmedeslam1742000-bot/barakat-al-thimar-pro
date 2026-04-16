@@ -4,10 +4,7 @@ import {
   Search, Plus, X, Pencil, Trash2, FileText, Snowflake, Package, Archive, Box, AlertTriangle,
   Download, ChevronDown, CheckCircle, RotateCcw, Flame, User, ShieldCheck, ShieldX, Thermometer,
 } from 'lucide-react';
-import { db } from '../lib/firebase';
-import {
-  collection, onSnapshot, query, orderBy, runTransaction, doc, serverTimestamp, Timestamp,
-} from 'firebase/firestore';
+import { supabase } from '../lib/supabaseClient';
 import { toast } from 'sonner';
 import { useAudio } from '../contexts/AudioContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -17,7 +14,7 @@ import { getItemName, getCompany, getCategory, getUnit } from '../lib/itemFields
 
 const formatDate = (date) => {
   if (!date) return '';
-  const d = date instanceof Timestamp ? date.toDate() : new Date(date);
+  const d = new Date(date);
   return d.toISOString().split('T')[0];
 };
 
@@ -140,17 +137,43 @@ export default function Returns() {
   const [draftStatus, setDraftStatus] = useState('سليم');
   const [searchIdx, setSearchIdx] = useState(-1);
 
+  // Auto-focus on item search when modal opens
   useEffect(() => {
-    const u1 = onSnapshot(query(collection(db, 'items')), (s) =>
-      setItems(s.docs.map((d) => ({ id: d.id, ...d.data() })))
-    );
-    const u2 = onSnapshot(query(collection(db, 'transactions'), orderBy('timestamp', 'desc')), (s) =>
-      setTransactions(s.docs.map((d) => ({ id: d.id, ...d.data() })))
-    );
-    return () => {
-      u1();
-      u2();
+    if (isAddModalOpen) {
+      setTimeout(() => itemNameRef.current?.focus(), 150);
+    }
+  }, [isAddModalOpen]);
+
+  // Global Keyboard Shortcuts for Modals
+  useEffect(() => {
+    const handleGlobalKeys = (e) => {
+      if (e.key === 'Escape') {
+        if (isAddModalOpen) setIsAddModalOpen(false);
+        if (isEditModalOpen) setIsEditModalOpen(false);
+        if (isDeleteModalOpen) setIsDeleteModalOpen(false);
+      }
     };
+    window.addEventListener('keydown', handleGlobalKeys);
+    return () => window.removeEventListener('keydown', handleGlobalKeys);
+  }, [isAddModalOpen, isEditModalOpen, isDeleteModalOpen]);
+
+  useEffect(() => {
+    const fetchInitialData = async () => {
+      const { data: itemsData } = await supabase.from('products').select('*');
+      if (itemsData) setItems(itemsData.map(d => ({ ...d, stockQty: d.stock_qty, damagedQty: d.damaged_qty })));
+
+      const { data: transData } = await supabase.from('transactions').select('*').order('timestamp', { ascending: false });
+      if (transData) setTransactions(transData.map(d => ({ ...d, itemId: d.item_id })));
+    };
+
+    fetchInitialData();
+
+    const channels = [
+      supabase.channel('public:products:returns').on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, fetchInitialData).subscribe(),
+      supabase.channel('public:transactions:returns').on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, fetchInitialData).subscribe()
+    ];
+
+    return () => { channels.forEach(c => supabase.removeChannel(c)); };
   }, []);
 
   const returnTxs = useMemo(() => transactions.filter((t) => t.type === 'مرتجع'), [transactions]);
@@ -171,7 +194,7 @@ export default function Returns() {
     const map = {};
     const now = new Date();
     transactions.forEach((tx) => {
-      const d = tx.date ? new Date(tx.date) : tx.timestamp?.toDate?.() || new Date();
+      const d = tx.date ? new Date(tx.date) : (tx.timestamp ? new Date(tx.timestamp) : new Date());
       if (Math.ceil(Math.abs(now - d) / 86400000) <= 7) {
         map[tx.itemId] = (map[tx.itemId] || 0) + Number(tx.qty);
       }
@@ -211,7 +234,7 @@ export default function Returns() {
   const todayTotal = useMemo(() => {
     const t = formatDate(new Date());
     return returnTxs.reduce(
-      (a, tx) => ((tx.date || formatDate(tx.timestamp?.toDate?.())) === t ? a + Number(tx.qty || 0) : a),
+      (a, tx) => ((tx.date || (tx.timestamp ? formatDate(tx.timestamp) : '')) === t ? a + Number(tx.qty || 0) : a),
       0
     );
   }, [returnTxs]);
@@ -264,54 +287,34 @@ export default function Returns() {
     }
     setLoading(true);
     try {
-      await runTransaction(db, async (transaction) => {
-        const agg = {};
-        modalDrafts.filter((d) => d.status === 'سليم').forEach((d) => {
-          agg[d.itemId] = (agg[d.itemId] || 0) + d.qty;
-        });
-
-        const docs = [];
-        for (const [id, qty] of Object.entries(agg)) {
-          const ref = doc(db, 'items', id);
-          const snap = await transaction.get(ref);
-          if (snap.exists()) docs.push({ ref, data: snap.data(), qty });
-        }
-
-        for (const { ref, data, qty } of docs) {
-          transaction.update(ref, { stockQty: Number(data.stockQty || 0) + qty });
-        }
-
-        const damaged = {};
-        modalDrafts.filter((d) => d.status === 'تالف').forEach((d) => {
-          damaged[d.itemId] = (damaged[d.itemId] || 0) + d.qty;
-        });
-        for (const [id, qty] of Object.entries(damaged)) {
-          const ref = doc(db, 'items', id);
-          const snap = await transaction.get(ref);
-          if (snap.exists()) {
-            transaction.update(ref, { damagedQty: Number(snap.data().damagedQty || 0) + qty });
+      // 1. Process Stock Adjustments
+      for (const draft of modalDrafts) {
+        const { data: item } = await supabase.from('products').select('stock_qty, damaged_qty').eq('id', draft.itemId).single();
+        if (item) {
+          if (draft.status === 'سليم') {
+            await supabase.from('products').update({ stock_qty: (item.stock_qty || 0) + draft.qty }).eq('id', draft.itemId);
+          } else {
+            await supabase.from('products').update({ damaged_qty: (item.damaged_qty || 0) + draft.qty }).eq('id', draft.itemId);
           }
         }
+      }
 
-        modalDrafts
-          .slice()
-          .reverse()
-          .forEach((d) => {
-            transaction.set(doc(collection(db, 'transactions')), {
-              type: 'مرتجع',
-              item: d.item,
-              itemId: d.itemId,
-              company: d.company,
-              qty: d.qty,
-              unit: d.unit,
-              cat: d.cat,
-              status: d.status,
-              rep: bulkRep.trim(),
-              date: bulkDate,
-              timestamp: serverTimestamp(),
-            });
-          });
-      });
+      // 2. Create Transactions
+      const txRows = modalDrafts.map((d) => ({
+        type: 'مرتجع',
+        item: d.item,
+        item_id: d.itemId,
+        company: d.company,
+        qty: d.qty,
+        unit: d.unit,
+        cat: d.cat,
+        status: d.status,
+        rep: bulkRep.trim(),
+        date: bulkDate,
+      }));
+      const { error: insError } = await supabase.from('transactions').insert(txRows);
+      if (insError) throw insError;
+
       toast.success(`✅ تم تأكيد استلام المرتجع وتسجيل ${modalDrafts.length} أصناف وتحديث المخزن`);
       playSuccess();
       setModalDrafts([]);
@@ -319,7 +322,8 @@ export default function Returns() {
       setBulkDate(formatDate(new Date()));
       setIsAddModalOpen(false);
       clearRow();
-    } catch {
+    } catch (err) {
+      console.error(err);
       toast.error('خطأ أثناء المزامنة. يرجى المحاولة مرة أخرى.');
       playWarning();
     } finally {
@@ -342,40 +346,45 @@ export default function Returns() {
     e.preventDefault();
     setLoading(true);
     try {
-      const txRef = doc(db, 'transactions', selectedTx.id);
-      const mi = items.find((i) => i.id === selectedTx.itemId);
-      await runTransaction(db, async (t) => {
-        if (mi) {
-          const ir = doc(db, 'items', mi.id);
-          const id = await t.get(ir);
-          if (id.exists()) {
-            const oldQ = Number(selectedTx.qty);
-            const newQ = Number(editForm.qty);
-            const oldS = selectedTx.status;
-            const newS = editForm.status;
-            let stockDelta = 0;
-            let damagedDelta = 0;
-            if (oldS === 'سليم') stockDelta -= oldQ;
-            else damagedDelta -= oldQ;
-            if (newS === 'سليم') stockDelta += newQ;
-            else damagedDelta += newQ;
-            const updates = {};
-            if (stockDelta !== 0) updates.stockQty = Number(id.data().stockQty || 0) + stockDelta;
-            if (damagedDelta !== 0) updates.damagedQty = Number(id.data().damagedQty || 0) + damagedDelta;
-            if (Object.keys(updates).length) t.update(ir, updates);
-          }
+      const { data: item } = await supabase.from('products').select('stock_qty, damaged_qty').eq('id', selectedTx.itemId).single();
+      if (item) {
+        const oldQ = Number(selectedTx.qty);
+        const newQ = Number(editForm.qty);
+        const oldS = selectedTx.status;
+        const newS = editForm.status;
+        
+        let stockDelta = 0;
+        let damagedDelta = 0;
+        
+        if (oldS === 'سليم') stockDelta -= oldQ;
+        else damagedDelta -= oldQ;
+        
+        if (newS === 'سليم') stockDelta += newQ;
+        else damagedDelta += newQ;
+        
+        const updates = {};
+        if (stockDelta !== 0) updates.stock_qty = (item.stock_qty || 0) + stockDelta;
+        if (damagedDelta !== 0) updates.damaged_qty = (item.damaged_qty || 0) + damagedDelta;
+        
+        if (Object.keys(updates).length > 0) {
+          await supabase.from('products').update(updates).eq('id', selectedTx.itemId);
         }
-        t.update(txRef, {
-          qty: Number(editForm.qty),
-          date: editForm.date,
-          rep: editForm.rep,
-          status: editForm.status,
-        });
-      });
+      }
+      
+      const { error } = await supabase.from('transactions').update({
+        qty: Number(editForm.qty),
+        date: editForm.date,
+        rep: editForm.rep,
+        status: editForm.status,
+      }).eq('id', selectedTx.id);
+      
+      if (error) throw error;
+      
       toast.success('تم تعديل سند المرتجع ✅');
       playSuccess();
       setIsEditModalOpen(false);
-    } catch {
+    } catch (err) {
+      console.error(err);
       toast.error('خطأ في التعديل');
       playWarning();
     } finally {
@@ -392,27 +401,22 @@ export default function Returns() {
     e.preventDefault();
     setLoading(true);
     try {
-      const txRef = doc(db, 'transactions', selectedTx.id);
-      const mi = items.find((i) => i.id === selectedTx.itemId);
-      await runTransaction(db, async (t) => {
-        if (mi) {
-          const ir = doc(db, 'items', mi.id);
-          const id = await t.get(ir);
-          if (id.exists()) {
-            if (selectedTx.status === 'سليم')
-              t.update(ir, { stockQty: Math.max(0, Number(id.data().stockQty || 0) - Number(selectedTx.qty)) });
-            else
-              t.update(ir, {
-                damagedQty: Math.max(0, Number(id.data().damagedQty || 0) - Number(selectedTx.qty)),
-              });
-          }
+      const { data: item } = await supabase.from('products').select('stock_qty, damaged_qty').eq('id', selectedTx.itemId).single();
+      if (item) {
+        if (selectedTx.status === 'سليم') {
+          await supabase.from('products').update({ stock_qty: Math.max(0, (item.stock_qty || 0) - Number(selectedTx.qty)) }).eq('id', selectedTx.itemId);
+        } else {
+          await supabase.from('products').update({ damaged_qty: Math.max(0, (item.damaged_qty || 0) - Number(selectedTx.qty)) }).eq('id', selectedTx.itemId);
         }
-        t.delete(txRef);
-      });
+      }
+      const { error } = await supabase.from('transactions').delete().eq('id', selectedTx.id);
+      if (error) throw error;
+      
       toast.success('تم حذف سند المرتجع وعكس الأثر على المخزن 🗑️');
       playSuccess();
       setIsDeleteModalOpen(false);
-    } catch {
+    } catch (err) {
+      console.error(err);
       toast.error('خطأ أثناء الحذف');
       playWarning();
     } finally {
@@ -753,9 +757,14 @@ export default function Returns() {
                       } else if (e.key === 'ArrowUp') {
                         e.preventDefault();
                         setSearchIdx((p) => (p > 0 ? p - 1 : 0));
-                      } else if (e.key === 'Enter' && searchIdx >= 0 && itemSuggestions[searchIdx]) {
-                        e.preventDefault();
-                        handleSelect(itemSuggestions[searchIdx]);
+                      } else if (e.key === 'Enter') {
+                        if (searchIdx >= 0 && itemSuggestions[searchIdx]) {
+                          e.preventDefault();
+                          handleSelect(itemSuggestions[searchIdx]);
+                        } else if (selectedItem) {
+                          e.preventDefault();
+                          document.getElementById('returns-qty-input')?.focus();
+                        }
                       }
                     }}
                   />

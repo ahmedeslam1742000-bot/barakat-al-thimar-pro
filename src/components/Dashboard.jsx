@@ -3,16 +3,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Package, TrendingUp, Truck, AlertTriangle, ArrowUpRight, ArrowDownRight,
   Plus, X, FileText, RotateCcw, Search, Trash2, Bell, Clock, CheckCircle2, AlertOctagon,
-  Timer, History, ChevronDown, Layers, FileCheck, FileInput
+  Timer, History, ChevronDown, Layers, FileCheck, FileInput, Download, Upload, FileOutput
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAudio } from '../contexts/AudioContext';
 
-// Firebase Imports
-import { db } from '../lib/firebase';
-import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp, getDocs, where, writeBatch } from 'firebase/firestore';
+import { supabase } from '../lib/supabaseClient';
 
 // Utility Imports
 import { normalizeArabic, checkNearDuplicates } from '../lib/arabicTextUtils';
@@ -243,7 +241,7 @@ const ModalWrapper = ({ title, isOpen, onClose, children, onSubmit, maxWidth = "
               <X size={compact ? 18 : 22} />
             </button>
           </div>
-          <form onSubmit={onSubmit} className="flex-1 flex flex-col overflow-hidden">
+          <form onSubmit={onSubmit} noValidate className="flex-1 flex flex-col overflow-hidden">
               <div className={`${compact ? 'px-6 py-3' : 'px-8 py-6'} overflow-y-auto custom-scrollbar flex-1 relative`}>{children}</div>
               <div className={`${compact ? 'px-6 py-3' : 'px-8 py-5'} border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-3 shrink-0`}>
                   <button type="button" onClick={onClose} className="px-5 py-2 rounded-lg text-sm font-semibold text-slate-500 border border-slate-200 hover:bg-white transition-all font-readex">إلغاء</button>
@@ -405,7 +403,7 @@ export default function Dashboard() {
     setCurrentStockItem({ name: '', selectedItem: null, cat: '', unit: '', qty: '', expiryDate: '' });
     setStockErrors({});
     setShowStockInExitConfirm(false);
-    setSearchActiveIndex(-1);
+    setStockSearchActiveIndex(-1);
     setShowNewItemRegistration(false);
     setNewItemData({ name: '', cat: '', unit: '', company: '' });
     setShowNewItemPrompt(false);
@@ -515,15 +513,15 @@ export default function Dashboard() {
       const rawName = newItemData.name.trim();
       const rawCompany = newItemData.company.trim();
       
-      await addDoc(collection(db, 'items'), {
+      const { data: insertedItem, error: insertError } = await supabase.from('products').insert({
         name: rawName,
         company: rawCompany,
         cat: newItemData.cat,
         unit: newItemData.unit || 'كرتونة',
-        stockQty: 0,
-        searchKey: `${rawName} ${rawCompany}`.toLowerCase(),
-        createdAt: serverTimestamp()
-      });
+        stock_qty: 0,
+        search_key: `${rawName} ${rawCompany}`.toLowerCase()
+      }).select().single();
+      if (insertError) throw insertError;
       
       toast.success(`تم تسجيل الصنف "${rawName}" بنجاح ✅`);
       playSuccess();
@@ -603,11 +601,16 @@ export default function Dashboard() {
   const [returnItems, setReturnItems] = useState([]);
   const [showReturnExitConfirm, setShowReturnExitConfirm] = useState(false);
   const returnSearchInputRef = useRef(null);
-  const [searchActiveIndex, setSearchActiveIndex] = useState(-1);
-  const [itemFormSearchActiveIndex, setItemFormSearchActiveIndex] = useState(-1);
+  const [productFormSearchActiveIndex, setProductFormSearchActiveIndex] = useState(-1);
   const [companyFormSearchActiveIndex, setCompanyFormSearchActiveIndex] = useState(-1);
+  const [stockSearchActiveIndex, setStockSearchActiveIndex] = useState(-1);
+  const [invoiceSearchActiveIndex, setInvoiceSearchActiveIndex] = useState(-1);
+  const [returnSearchActiveIndex, setReturnSearchActiveIndex] = useState(-1);
   const [isTransactionDetailOpen, setIsTransactionDetailOpen] = useState(false);
   const [selectedBatchTransactions, setSelectedBatchTransactions] = useState([]);
+  const [stockInItemSuggestions, setStockInItemSuggestions] = useState([]);
+  const [invoiceItemSuggestions, setInvoiceItemSuggestions] = useState([]);
+  const [returnItemSuggestions, setReturnItemSuggestions] = useState([]);
 
   // --- NEW Advanced States --- //
   const { currentUser } = useAuth();
@@ -642,6 +645,23 @@ export default function Dashboard() {
   const [detailVoucher, setDetailVoucher] = useState(null);
   const [invoiceTimestamps, setInvoiceTimestamps] = useState({}); // { voucherId: timestamp }
   
+  // Global Keyboard Shortcuts for Modals
+  useEffect(() => {
+    const handleGlobalKeys = (e) => {
+      if (e.key === 'Escape') {
+        if (isItemModalOpen) setIsItemModalOpen(false);
+        if (isStockInModalOpen) setIsStockInModalOpen(false);
+        if (isSalesModalOpen) setIsSalesModalOpen(false);
+        if (isReturnsModalOpen) setIsReturnsModalOpen(false);
+        if (isTransactionDetailOpen) setIsTransactionDetailOpen(false);
+        if (isVoucherDetailOpen) setIsVoucherDetailOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeys);
+    return () => window.removeEventListener('keydown', handleGlobalKeys);
+  }, [isItemModalOpen, isStockInModalOpen, isSalesModalOpen, isReturnsModalOpen, isTransactionDetailOpen, isVoucherDetailOpen]);
+
+  
   // Keyboard shortcuts for Voucher Detail modal
   useEffect(() => {
     const handleVoucherDetailKeys = (event) => {
@@ -668,44 +688,55 @@ export default function Dashboard() {
     }
   };
 
-  // ---  LIVE FIREBASE CONNECTIVITY --- //
+  // ---  LIVE SUPABASE CONNECTIVITY --- //
+  const fetchInitialData = useCallback(async () => {
+    const { data: itemsData } = await supabase.from('products').select('*');
+    if (itemsData) {
+      setItems(itemsData.map(d => ({ ...d, stockQty: d.stock_qty, searchKey: d.search_key, createdAt: d.created_at })));
+    }
+    
+    // Sort by timestamp desc to ensure latest transactions appear at the top
+    const { data: transData } = await supabase.from('transactions').select('*').order('timestamp', { ascending: false }).limit(10);
+    if (transData) {
+      setDbTransactionsList(transData.map(d => ({ ...d, itemId: d.item_id, balanceAfter: d.balance_after, isInvoice: d.is_invoice, batchId: d.batch_id, voucherGroupId: d.id, voucherCode: d.source_voucher_id || '', expiryDate: d.expiry_date })));
+    }
+  }, []);
+
   useEffect(() => {
-    if (!db) return;
+    fetchInitialData();
+    
+    const itemsChannel = supabase.channel('public:products:dashboard')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, fetchInitialData)
+      .subscribe();
 
-    // 1. Fetch Items safely
-    const qItems = query(collection(db, 'items'));
-    const unsubscribeItems = onSnapshot(qItems, (snapshot) => {
-      setItems(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
-
-    // 2. Fetch Transactions safely
-    const qTrans = query(collection(db, 'transactions'), orderBy('timestamp', 'desc'));
-    const unsubscribeTrans = onSnapshot(qTrans, (snapshot) => {
-      setDbTransactionsList(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
+    const transChannel = supabase.channel('public:transactions:dashboard')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, fetchInitialData)
+      .subscribe();
 
     return () => {
-      unsubscribeItems();
-      unsubscribeTrans();
+      supabase.removeChannel(itemsChannel);
+      supabase.removeChannel(transChannel);
     };
-  }, []);
+  }, [fetchInitialData]);
 
   // Build functional voucher groups from transaction lines in real time.
   useEffect(() => {
-    if (!db || dbTransactionsList.length === 0) return;
+    if (dbTransactionsList.length === 0) return;
 
     const outboundTx = dbTransactionsList.filter(tx =>
       tx.type === 'Issue' || tx.type === 'سند إخراج' || tx.type === 'سند إخراج صوري'
     ).map(tx => {
-      const matchedItem = items.find(i => tx.item.includes(i.name));
+      const txItemStr = tx.item || 'غير محدد';
+      const matchedItem = items.find(i => i.id === tx.itemId || txItemStr.includes(i.name));
+      const txDate = tx.timestamp ? new Date(tx.timestamp) : new Date();
       return {
         ...tx,
         clientName: tx.rep || tx.loc || tx.supplier || 'غير محدد',
-        itemName: tx.item,
+        itemName: tx.item || 'صنف غير محدد',
         quantity: Number(tx.qty || 0),
-        timestamp: tx.timestamp?.toDate ? tx.timestamp.toDate() : new Date(),
+        timestamp: txDate,
         batchId: tx.batchId,
-        invoiced: tx.invoiced === true, // Strict boolean check from Firebase
+        invoiced: tx.invoiced === true,
         voucherCode: tx.voucherCode || '',
       };
     });
@@ -751,7 +782,7 @@ export default function Dashboard() {
       if (tx.isFunctional !== true || !FUNCTIONAL_VOUCHER_TYPES.includes(tx.type)) return;
 
       const groupId = tx.voucherGroupId || tx.id;
-      const txDate = tx.timestamp?.toDate ? tx.timestamp.toDate() : new Date();
+      const txDate = tx.timestamp ? new Date(tx.timestamp) : new Date();
 
       if (!groupedVouchers.has(groupId)) {
         groupedVouchers.set(groupId, {
@@ -812,10 +843,6 @@ export default function Dashboard() {
     setSelectedVoucher(voucher);
     setIsVoucherModalOpen(true);
   }, []);
-
-  if (!db) {
-    return <div className="min-h-screen w-full flex items-center justify-center bg-slate-50 text-xl font-bold text-slate-500">Loading Firebase...</div>;
-  }
 
   // --- Aggregations --- //
   const stockInCount = dbTransactionsList
@@ -915,16 +942,29 @@ export default function Dashboard() {
             return;
         }
         
-        // Add to Firestore
-        await addDoc(collection(db, 'items'), {
+        const { data: insertedDoc, error: insertError } = await supabase.from('products').insert({
             name: rawName,
             company: rawCompany,
             cat: itemForm.cat,
             unit: itemForm.unit,
-            stockQty: 0,
-            searchKey: `${rawName} ${rawCompany}`.toLowerCase(),
-            createdAt: serverTimestamp()
+            stock_qty: 0,
+            search_key: `${rawName} ${rawCompany}`.toLowerCase()
+        }).select().single();
+        if (insertError) throw insertError;
+
+        // Insert initial transaction
+        const { error: txError } = await supabase.from('transactions').insert({
+            type: 'in',
+            item_id: insertedDoc.id,
+            qty: 0,
+            unit: itemForm.unit,
+            cat: itemForm.cat,
+            date: new Date().toISOString().split('T')[0],
+            location: 'إداري',
+            notes: 'تعريف صنف جديد',
+            invoiced: false
         });
+        if (txError) console.error("Initial transaction error:", txError);
         
         // Add to session list for batch preview
         setSessionItems(prev => [...prev, { 
@@ -937,6 +977,7 @@ export default function Dashboard() {
         
         toast.success(`تم إضافة "${rawName}" إلى القائمة ✅`);
         playSuccess();
+        fetchInitialData();
         
         // Reset form for next entry (keep modal open for batch)
         setItemForm({ name: '', company: '', cat: 'مجمدات', unit: 'كرتونة' });
@@ -988,80 +1029,63 @@ export default function Dashboard() {
 
     try {
         const processPromises = [];
-        const additions = {};
         
         // First, register any new items to the database
+        // Build additions map
         const newItemsMap = {};
         for (const it of stockForm.items) {
           if (it.isNewItem) {
-            // Add new item to master Items table
-            const docRef = await addDoc(collection(db, 'items'), {
+            const { data: insertedDoc, error } = await supabase.from('products').insert({
               name: it.name,
               company: it.company,
               cat: it.cat,
               unit: it.unit,
-              stockQty: 0,
-              searchKey: `${it.name} ${it.company}`.toLowerCase(),
-              hasExpiry: it.hasExpiry,
-              createdAt: serverTimestamp()
-            });
-            newItemsMap[it.id] = docRef.id;
-            it.selectedItemId = docRef.id; // Store the new ID
+              stock_qty: 0,
+              search_key: `${it.name} ${it.company}`.toLowerCase()
+            }).select().single();
+            if (error) throw error;
+            newItemsMap[it.id] = insertedDoc.id;
+            it.selectedItemId = insertedDoc.id;
           }
         }
 
-        // Build additions map
-        stockForm.items.forEach(it => {
-            const itemId = it.selectedItemId || it.selectedItem?.id;
-            if (!additions[itemId]) additions[itemId] = { id: itemId, qty: 0, name: it.name, company: it.company };
-            additions[itemId].qty += Number(it.qty);
+        const txsToInsert = stockForm.items.map(it => {
+           const itemId = it.selectedItemId || it.selectedItem?.id;
+           const itemName = it.name || it.selectedItem?.name || 'صنف غير معروف';
+           const itemCompany = it.company || it.selectedItem?.company || 'بدون شركة';
+           return {
+               type: 'in', // لازم تكون 'in' أو 'out'
+               item_id: itemId, // التأكد إنه UUID سليم
+               qty: parseInt(it.qty, 10), // تحويل الكمية لرقم (ضروري جداً)
+               unit: it.unit || it.selectedItem?.unit || 'كرتونة',
+               cat: it.cat || it.selectedItem?.cat || it.selectedItem?.category || 'عام',
+               date: stockForm.date || new Date().toISOString().split('T')[0], // تنسيق التاريخ YYYY-MM-DD
+               location: stockForm.loc || 'مستودع الرياض',
+               invoiced: false
+           };
         });
 
-        // Update stock levels
-        for (const [id, payload] of Object.entries(additions)) {
-            const currentItem = items.find(i => i.id === id);
-            if (currentItem) {
-                processPromises.push(updateDoc(doc(db, 'items', id), { stockQty: currentItem.stockQty + payload.qty }));
-            } else if (newItemsMap[id]) {
-                // For newly created items, set initial stock
-                processPromises.push(updateDoc(doc(db, 'items', id), { stockQty: payload.qty }));
-            }
-        }
+        // 2. إرسال البيانات لجدول الترانزكشن
+        const { error: txError } = await supabase.from('transactions').insert(txsToInsert);
+        if (txError) throw txError;
 
-        const batchId = Date.now().toString();
-        const userId = currentUser?.email?.split('@')[0] || 'مدير النظام';
-        const supplierName = stockForm.loc;
-
-        // Add transaction records with expiry dates
-        for (let it of stockForm.items) {
+        // 3. تحديث كميات المخزن (Stock_qty) للأصناف باستخدام RPC
+        for (const it of stockForm.items) {
            const itemId = it.selectedItemId || it.selectedItem?.id;
-           const itemName = it.selectedItem?.name || it.name;
-           const itemCompany = it.selectedItem?.company || it.company;
-           
-           processPromises.push(addDoc(collection(db, 'transactions'), {
-               item: `${itemName} - ${itemCompany}`,
-               type: 'وارد',
-               qty: Number(it.qty),
-               date: new Date().toLocaleDateString('ar-SA'),
-               time: new Date().toLocaleTimeString('ar-SA'),
-               status: 'مكتمل',
-               loc: stockForm.loc,
-               supplier: supplierName,
-               user: userId,
-               timestamp: serverTimestamp(),
-               batchId,
-               expiryDate: it.expiryDate,
-               itemId: itemId
-           }));
+           const { error: updateError } = await supabase.rpc('increment_stock', {
+               product_id: itemId,
+               amount: parseInt(it.qty, 10)
+           });
+           if (updateError) console.error("Update stock error:", updateError);
         }
-
-        await Promise.all(processPromises);
 
         toast.success(`تم توريد ${stockForm.items.length} صنف للمستودع بنجاح ✅`);
         playSuccess();
         performStockInReset();
+        fetchInitialData(); 
     } catch (err) {
-        toast.error("حدث خطأ أثناء حفظ التوريد، يرجى المحاولة مرة أخرى.");
+        console.error("Detailed Error:", err.message, err);
+        toast.error(`خطأ في الحفظ: ${err.message || 'يرجى المحاولة مرة أخرى.'}`);
     }
   };
   
@@ -1095,7 +1119,7 @@ export default function Dashboard() {
     setInvoiceErrors({});
     setShowInvoiceExitConfirm(false);
     setIsVoucherInvoice(false); // Reset read-only mode
-    setSearchActiveIndex(-1);
+    setStockSearchActiveIndex(-1);
   };
   
   // Add invoice item to table
@@ -1157,8 +1181,9 @@ export default function Dashboard() {
         if (shouldDeductInventory) {
             const deductions = {};
             invoiceForm.items.forEach(it => {
-                if (!deductions[it.selectedItem.id]) deductions[it.selectedItem.id] = { id: it.selectedItem.id, qty: 0, currentStock: 0 };
-                deductions[it.selectedItem.id].qty += Number(it.qty);
+                const id = it.selectedItem.id || it.selectedItemId;
+                if (!deductions[id]) deductions[id] = { id: id, qty: 0, currentStock: 0 };
+                deductions[id].qty += Number(it.qty);
             });
 
             for (const [id, payload] of Object.entries(deductions)) {
@@ -1166,19 +1191,52 @@ export default function Dashboard() {
                 if (currentItem) {
                     const newStock = currentItem.stockQty - payload.qty;
                     if (newStock < 50) playWarning();
-                    processPromises.push(updateDoc(doc(db, 'items', id), { stockQty: newStock }));
+                    await supabase.from('products').update({ stock_qty: newStock }).eq('id', id);
                 }
             }
         }
 
         const batchId = Date.now().toString();
         const userId = currentUser?.email?.split('@')[0] || 'مدير النظام';
-        for (let it of invoiceForm.items) {
-           processPromises.push(addDoc(collection(db, 'transactions'), {
-               item: `${it.selectedItem.name} - ${it.selectedItem.company}`, type: 'Issue', qty: Number(it.qty), date: new Date().toLocaleTimeString('ar-SA'), status: 'مكتمل', loc: invoiceForm.rep, rep: invoiceForm.rep, isInvoice: true, user: userId, timestamp: serverTimestamp(), batchId, sourceVoucherId: sourceVoucher?.voucherGroupId || sourceVoucher?.id || null
-           }));
+        
+        // Log transactions
+        const txsToInsert = invoiceForm.items.map(it => ({
+            item: `${it.selectedItem.name} - ${it.selectedItem.company}`,
+            type: 'out',
+            qty: Number(it.qty),
+            date: new Date().toLocaleTimeString('ar-SA'),
+            timestamp: new Date().toISOString(),
+            status: 'مكتمل',
+            loc: invoiceForm.rep,
+            rep: invoiceForm.rep,
+            is_invoice: true,
+            user_id: null,
+            batch_id: batchId,
+            source_voucher_id: sourceVoucher?.voucherGroupId || sourceVoucher?.id || null,
+            item_id: it.selectedItem.id || it.selectedItemId
+        }));
+        await supabase.from('transactions').insert(txsToInsert);
+
+        // CREATE INVOICE RECORD
+        const { data: insertedInvoice, error: invError } = await supabase.from('invoices').insert({
+          status: 'issued',
+          recipient: invoiceForm.rep,
+          created_by: userId,
+          issued_at: new Date().toISOString()
+        }).select().single();
+        
+        if (insertedInvoice && !invError) {
+          const invItemsToInsert = invoiceForm.items.map(it => ({
+            invoice_id: insertedInvoice.id,
+            product_id: it.selectedItem.id || it.selectedItemId,
+            item_name: it.selectedItem.name,
+            company: it.selectedItem.company,
+            cat: it.cat || it.selectedItem.cat,
+            unit: it.unit || it.selectedItem.unit,
+            quantity: Number(it.qty)
+          }));
+          await supabase.from('invoice_items').insert(invItemsToInsert);
         }
-        await Promise.all(processPromises);
 
         // If this invoice came from a voucher, mark the voucher as invoiced
         if (sourceVoucher) {
@@ -1190,15 +1248,14 @@ export default function Dashboard() {
           const min = String(now.getMinutes()).padStart(2, '0');
           const invoiceTimestamp = `${y}/${m}/${d} - ${h}:${min}`;
 
-          const voucherBatch = writeBatch(db);
-          sourceVoucher.lines.forEach((line) => {
-            voucherBatch.update(doc(db, 'transactions', line.id), {
-              invoiced: true,
-              deducted: true,
-              invoiceDate: invoiceTimestamp
-            });
-          });
-          await voucherBatch.commit();
+          // Update all voucher line transactions sequentially
+          for (const line of sourceVoucher.lines) {
+              await supabase.from('transactions').update({
+                  invoiced: true,
+                  deducted: true,
+                  invoice_date: invoiceTimestamp
+              }).eq('id', line.id);
+          }
           
           // Update local state with invoiceDate
           setInvoiceTimestamps(prev => ({...prev, [sourceVoucher.id]: invoiceTimestamp}));
@@ -1214,6 +1271,7 @@ export default function Dashboard() {
         toast.success(`تم إصدار فاتورة بنجاح ${sourceVoucher ? 'وتوثيق السند' : 'وتحجيم الأرصدة'} ✅`);
         playSuccess();
         setIsSalesModalOpen(false);
+        fetchInitialData();
         setInvoiceForm({ rep: invoiceForm.rep, date: new Date().toISOString().split('T')[0], items: [] });
         setCurrentInvoiceItem({ name: '', selectedItem: null, cat: '', unit: '', qty: '' });
     } catch (err) {
@@ -1263,7 +1321,7 @@ export default function Dashboard() {
     setReturnItems([]);
     setReturnErrors({});
     setShowReturnExitConfirm(false);
-    setSearchActiveIndex(-1);
+    setStockSearchActiveIndex(-1);
   };
   
   // Add return item to table
@@ -1318,33 +1376,31 @@ export default function Dashboard() {
             for (const [id, payload] of Object.entries(additions)) {
                 const currentItem = items.find(i => i.id === id);
                 if (currentItem) {
-                    processPromises.push(updateDoc(doc(db, 'items', id), { stockQty: currentItem.stockQty + payload.qty }));
+                    await supabase.from('products').update({ stock_qty: currentItem.stockQty + payload.qty }).eq('id', id);
                 }
             }
         }
 
         // Log transactions
-        for (let it of returnItems) {
-           processPromises.push(addDoc(collection(db, 'transactions'), {
-               item: `${it.name}`,
-               type: 'مرتجع',
-               qty: Number(it.qty),
-               date: new Date().toLocaleDateString('ar-SA'),
-               time: new Date().toLocaleTimeString('ar-SA'),
-               status: txStatus,
-               loc: returnForm.returnee,
-               rep: returnForm.rep,
-               user: userId,
-               timestamp: serverTimestamp(),
-               batchId
-           }));
-        }
-
-        await Promise.all(processPromises);
+        const txsToInsert = returnItems.map(it => ({
+             item: `${it.name}`,
+             type: 'return',
+             qty: Number(it.qty),
+             date: stockForm.date || new Date().toISOString().split('T')[0],
+             timestamp: new Date().toISOString(),
+             status: txStatus,
+             loc: returnForm.returnee,
+             rep: returnForm.rep,
+             user_id: null,
+             batch_id: batchId,
+             item_id: it.selectedItem?.id
+        }));
+        await supabase.from('transactions').insert(txsToInsert);
 
         toast.success(`تم تسجيل المرتجع بنجاح ${isGood ? 'وإعادة الأصناف للمخزون' : '(تالف)'} ✅`);
         playSuccess();
         performReturnReset();
+        fetchInitialData();
     } catch (err) {
         toast.error("حدث خطأ أثناء حفظ المرتجع.");
     }
@@ -1371,11 +1427,9 @@ export default function Dashboard() {
     // Stock was already increased when the voucher was created.
     // This function only marks the voucher as invoiced (financial record).
     try {
-      const batch = writeBatch(db);
-      voucher.lines.forEach((line) => {
-        batch.update(doc(db, 'transactions', line.id), { invoiced: true, deducted: true });
-      });
-      await batch.commit();
+      for (const line of voucher.lines) {
+        await supabase.from('transactions').update({ invoiced: true, deducted: true }).eq('id', line.id);
+      }
       setIsVoucherModalOpen(false);
       setSelectedVoucher(null);
       toast.success('تم اعتماد سند الإدخال بنجاح ✅');
@@ -1641,7 +1695,7 @@ export default function Dashboard() {
   const filteredTxForChart = dbTransactionsList.filter(tx => {
      if (chartDateRange === 'الكل') return true;
      if (!tx.timestamp) return true;
-     const txDate = tx.timestamp.toDate ? tx.timestamp.toDate() : new Date();
+     const txDate = tx.timestamp ? new Date(tx.timestamp) : new Date();
      if (chartDateRange === 'آخر 7 أيام') {
          const diffTime = Math.abs(now - txDate);
          return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) <= 7;
@@ -1663,7 +1717,8 @@ export default function Dashboard() {
   });
 
   const enrichedTxs = filteredTxForChart.map(tx => {
-     const matchedItem = items.find(i => tx.item.includes(i.name) && (i.company === 'بدون شركة' || tx.item.includes(i.company)));
+     const txItemStr = tx.item || 'غير معروف';
+     const matchedItem = items.find(i => i.id === tx.itemId || (txItemStr.includes(i.name) && (i.company === 'بدون شركة' || txItemStr.includes(i.company))));
      return {
        ...tx,
        category: matchedItem ? matchedItem.cat : 'أخرى',
@@ -1679,8 +1734,8 @@ export default function Dashboard() {
   });
 
   const chartTransactions = finalizedTxs.filter(t => t.type === 'Issue').sort((a,b) => {
-      const dateA = a.timestamp?.toDate ? a.timestamp.toDate() : new Date();
-      const dateB = b.timestamp?.toDate ? b.timestamp.toDate() : new Date();
+      const dateA = a.timestamp ? new Date(a.timestamp) : new Date();
+      const dateB = b.timestamp ? new Date(b.timestamp) : new Date();
       return dateA - dateB;
   });
 
@@ -1736,12 +1791,12 @@ export default function Dashboard() {
   // --- Transactions Processing --- //
   const finalTransactions = dbTransactionsList.filter(tx => {
      if (movementTypeFilter === 'الكل') return true;
-     if (movementTypeFilter === 'وارد') return tx.type === 'Restock' || tx.type === 'وارد';
-     if (movementTypeFilter === 'صادر') return tx.type === 'Issue' && !tx.isInvoice && !tx.isFunctional;
-     if (movementTypeFilter === 'فاتورة') return tx.type === 'Issue' && tx.isInvoice;
-     if (movementTypeFilter === 'مرتجع') return tx.type === 'Return' || tx.status === 'مرتجع تالف';
-     if (movementTypeFilter === 'سند إدخال') return tx.type === FUNCTIONAL_INBOUND_TYPE && tx.isFunctional === true;
-     if (movementTypeFilter === 'سند إخراج') return tx.type === FUNCTIONAL_OUTBOUND_TYPE && tx.isFunctional === true;
+     if (movementTypeFilter === 'وارد') return tx.type === 'Restock' || tx.type === 'وارد' || tx.type === 'in';
+     if (movementTypeFilter === 'صادر') return (tx.type === 'Issue' || tx.type === 'out') && !tx.isInvoice && !tx.isFunctional;
+     if (movementTypeFilter === 'فاتورة') return (tx.type === 'Issue' || tx.type === 'out') && tx.isInvoice;
+     if (movementTypeFilter === 'مرتجع') return tx.type === 'Return' || tx.type === 'مرتجع' || tx.type === 'return' || tx.status === 'مرتجع تالف';
+     if (movementTypeFilter === 'سند إدخال') return tx.type === FUNCTIONAL_INBOUND_TYPE || tx.type === 'adjust_in' || (tx.type === FUNCTIONAL_INBOUND_TYPE && tx.isFunctional);
+     if (movementTypeFilter === 'سند إخراج') return tx.type === FUNCTIONAL_OUTBOUND_TYPE || tx.type === 'adjust_out' || (tx.type === FUNCTIONAL_OUTBOUND_TYPE && tx.isFunctional);
      return true;
   });
 
@@ -1801,93 +1856,131 @@ export default function Dashboard() {
               <option value="سند إخراج">سند إخراج</option>
             </select>
           </div>
-          {/* List with compact rows - strict color coding, no icons */}
+          {/* List with compact rows - fixed issues! */}
           <div className="flex-1 overflow-y-auto custom-scrollbar px-5 py-3">
             {finalTransactions.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-slate-300"><FileText size={36} strokeWidth={1.2} className="mb-3" /><p className="text-xs font-semibold">لم يتم تسجيل حركات</p></div>
             ) : (
-              <div className="space-y-1">
+              <div className="space-y-2">
                 {finalTransactions.slice(0, 50).map((tx) => {
-                  // Strict type determination
-                  const isDamagedReturn = tx.status === 'مرتجع تالف';
-                  const isReturn = tx.type === 'Return' || isDamagedReturn;
-                  const isInvoice = tx.type === 'Issue' && tx.isInvoice;
-                  const isRestock = tx.type === 'Restock' || tx.type === 'وارد';
-                  const isFunctionalIn = tx.type === FUNCTIONAL_INBOUND_TYPE && tx.isFunctional === true;
-                  const isFunctionalOut = tx.type === FUNCTIONAL_OUTBOUND_TYPE && tx.isFunctional === true;
-                  
-                  let txType = isDamagedReturn ? 'مرتجع تالف' :
-                               isReturn ? 'مرتجع' :
-                               isInvoice ? 'فاتورة' :
-                               isRestock ? 'وارد' :
-                               isFunctionalIn ? 'سند إدخال' :
-                               isFunctionalOut ? 'سند إخراج' :
-                               tx.type === 'Issue' ? 'صادر' : tx.type;
+                  // --- 1. Fix Transaction Type Detection ---
+                  // First match exact type, then check flags for invoices
+                  let transactionLabel = '';
+                  let transactionColor = '';
+                  let transactionBg = '';
+                  let transactionIcon = null;
 
-                  // Strict color coding: Each movement type gets a unique professional color
-                  // Green (وارد), Orange (صادر), Blue (فاتورة), Purple (مرتجع), Teal (سند إدخال), Red (سند إخراج)
-                  const isInbound = isRestock;
-                  const isOutbound = tx.type === 'Issue' && !isInvoice && !isFunctionalIn && !isFunctionalOut;
-                  const isInvoiceTx = isInvoice;
-                  const isReturnTx = isReturn && !isDamagedReturn;
-                  const isFunctionalInTx = isFunctionalIn;
-                  const isFunctionalOutTx = isFunctionalOut;
-                  const isDamagedReturnTx = isDamagedReturn;
-                  
-                  // Badge + Quantity color assignments
-                  let typeBg = 'bg-slate-50 text-slate-600';
-                  let valueColor = 'text-slate-500';
-                  
-                  if (isInbound) {
-                    typeBg = 'bg-emerald-50 text-emerald-700';
-                    valueColor = 'text-emerald-600';
-                  } else if (isOutbound) {
-                    typeBg = 'bg-amber-50 text-amber-700';
-                    valueColor = 'text-amber-600';
-                  } else if (isInvoiceTx) {
-                    typeBg = 'bg-blue-50 text-blue-700';
-                    valueColor = 'text-blue-600';
-                  } else if (isReturnTx) {
-                    typeBg = 'bg-purple-50 text-purple-700';
-                    valueColor = 'text-purple-600';
-                  } else if (isFunctionalInTx) {
-                    typeBg = 'bg-teal-50 text-teal-700';
-                    valueColor = 'text-teal-600';
-                  } else if (isFunctionalOutTx) {
-                    typeBg = 'bg-red-50 text-red-700';
-                    valueColor = 'text-red-600';
-                  } else if (isDamagedReturnTx) {
-                    typeBg = 'bg-rose-50 text-rose-700';
-                    valueColor = 'text-rose-600';
+                  // Handle all transaction types with correct labels/colors/icons
+                  if (tx.type === 'Issue' && tx.is_invoice) {
+                    transactionLabel = 'فاتورة مبيعات';
+                    transactionColor = 'text-cyan-600';
+                    transactionBg = 'bg-cyan-50';
+                    transactionIcon = <FileText className="w-3.5 h-3.5" />;
+                  } else if (tx.type === 'مرتجع' || tx.type === 'Return' || tx.type === 'return' || tx.status === 'مرتجع تالف') {
+                    transactionLabel = tx.status === 'مرتجع تالف' ? 'إتلاف مخزني' : 'مرتجع';
+                    transactionColor = tx.status === 'مرتجع تالف' ? 'text-rose-600' : 'text-red-600';
+                    transactionBg = tx.status === 'مرتجع تالف' ? 'bg-rose-50' : 'bg-red-50';
+                    transactionIcon = <RotateCcw className="w-3.5 h-3.5" />;
+                  } else if (tx.type === 'وارد' || tx.type === 'Restock' || tx.type === 'in') {
+                    transactionLabel = 'وارد مخزني';
+                    transactionColor = 'text-blue-600';
+                    transactionBg = 'bg-blue-50';
+                    transactionIcon = <Download className="w-3.5 h-3.5" />;
+                  } else if (tx.type === 'Issue' || tx.type === 'صادر' || tx.type === 'out') {
+                    transactionLabel = 'صادر مبيعات';
+                    transactionColor = 'text-orange-600';
+                    transactionBg = 'bg-orange-50';
+                    transactionIcon = <Upload className="w-3.5 h-3.5" />;
+                  } else if (tx.type === FUNCTIONAL_INBOUND_TYPE) {
+                    transactionLabel = 'سند إدخال';
+                    transactionColor = 'text-purple-600';
+                    transactionBg = 'bg-purple-50';
+                    transactionIcon = <FileInput className="w-3.5 h-3.5" />;
+                  } else if (tx.type === FUNCTIONAL_OUTBOUND_TYPE) {
+                    transactionLabel = 'سند إخراج';
+                    transactionColor = 'text-green-600';
+                    transactionBg = 'bg-green-50';
+                    transactionIcon = <FileOutput className="w-3.5 h-3.5" />;
+                  } else {
+                    transactionLabel = tx.type || 'عملية';
+                    transactionColor = 'text-slate-600';
+                    transactionBg = 'bg-slate-100';
+                    transactionIcon = <FileCheck className="w-3.5 h-3.5" />;
                   }
 
-                  const txDate = tx.timestamp?.toDate ? tx.timestamp.toDate() : new Date();
-                  const formattedDate = txDate.toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' });
+                  // --- 2. Get the item with company name (find in items list by item_id) ---
+                  // First try to match using tx.item_id, then fallback to tx.item name
+                  const matchedItem = tx.item_id 
+                    ? items.find(i => i.id === tx.item_id) 
+                    : items.find(i => tx.item?.includes(i.name));
+                  
+                  // Build item display name with company if available
+                  let itemDisplayName = tx.item || 'صنف غير معرف';
+                  if (matchedItem) {
+                    if (matchedItem.company) {
+                      itemDisplayName = `${matchedItem.name} - ${matchedItem.company}`;
+                    } else {
+                      itemDisplayName = matchedItem.name;
+                    }
+                  }
 
-                  // Parse item name
-                  const itemParts = tx.item ? tx.item.split(' - ') : [''];
-                  const itemName = itemParts[0] || '';
-                  const itemCompany = itemParts[1] || '';
-                  const beneficiary = tx.supplier || tx.rep || tx.loc || '';
+                  // --- 3. Beneficiary/Client text ---
+                  const beneficiaryText = tx.rep || tx.supplier || tx.loc || '';
+
+                  // --- 4. Format date without time ---
+                  const txDate = tx.timestamp ? new Date(tx.timestamp) : new Date();
+                  const formattedDate = txDate.toLocaleDateString('ar-SA', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric'
+                  });
 
                   return (
-                    <div
-                      key={tx.id}
+                    <div 
+                      key={tx.id} 
                       onClick={() => {
                         setSelectedBatchTransactions(tx.voucherGroupId ? dbTransactionsList.filter(t => t.voucherGroupId === tx.voucherGroupId) : tx.batchId ? dbTransactionsList.filter(t => t.batchId === tx.batchId) : [tx]);
                         setIsTransactionDetailOpen(true);
                       }}
-                      className="flex items-center px-3 py-1.5 rounded-lg border border-transparent cursor-pointer hover-stable no-select-click hover:bg-slate-50"
+                      className="flex items-center justify-between p-3 hover:bg-slate-50 transition-all rounded-xl cursor-pointer"
                     >
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <span className={`px-1.5 py-0.5 rounded text-[7px] font-bold shrink-0 ${typeBg}`}>
-                          {txType}
-                        </span>
-                        <p className="text-[10px] font-bold text-[#0F2747] font-tajawal truncate">
-                          {itemName}{itemCompany ? ` - ${itemCompany}` : ''}
-                        </p>
-                        <span className="text-[8px] text-slate-400 font-readex shrink-0 mr-auto">
-                          {formattedDate}{beneficiary ? ` • ${beneficiary}` : ''}
+                      <div className="flex items-center gap-3">
+                        {/* --- Smaller Icon Container --- */}
+                        <div className={`p-1.5 rounded-lg ${transactionBg} ${transactionColor}`}>
+                          {transactionIcon}
+                        </div>
+                        
+                        <div>
+                          {/* --- Item Name (with company) --- */}
+                          <h4 className="font-bold text-slate-800 text-xs font-tajawal text-right">
+                            {itemDisplayName}
+                          </h4>
+                          
+                          {/* --- Beneficiary + Date in one line (no time) --- */}
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <p className="text-[10px] text-slate-500 font-readex">
+                              {transactionLabel}
+                            </p>
+                            {beneficiaryText && (
+                              <>
+                                <span className="text-slate-300 text-[10px]">•</span>
+                                <p className="text-[10px] text-slate-500 font-readex">
+                                  {beneficiaryText}
+                                </p>
+                              </>
+                            )}
+                            <span className="text-slate-300 text-[10px]">•</span>
+                            <p className="text-[10px] text-slate-400 font-readex">
+                              {formattedDate}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* --- Quantity Badge --- */}
+                      <div className="text-left">
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold ${transactionBg} ${transactionColor}`}>
+                          {tx.qty}
                         </span>
                       </div>
                     </div>
@@ -2218,7 +2311,7 @@ export default function Dashboard() {
                                  firstTx.type === 'وارد' || firstTx.type === 'Restock' ? 'وارد' :
                                  firstTx.type === 'Issue' ? 'صادر' :
                                  firstTx.type === 'Return' ? 'مرتجع' : firstTx.type;
-                const txDate = firstTx.timestamp?.toDate ? firstTx.timestamp.toDate() : new Date();
+                const txDate = firstTx.timestamp ? new Date(firstTx.timestamp) : new Date();
                 const formattedDate = txDate.toLocaleDateString('ar-SA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
                 const batchId = firstTx.batchId || firstTx.voucherGroupId || 'N/A';
                 
@@ -2259,8 +2352,8 @@ export default function Dashboard() {
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                           {selectedBatchTransactions.map((tx, idx) => {
-                            const itemParts = tx.item ? tx.item.split(' - ') : [''];
-                            const itemName = itemParts[0] || tx.item || '';
+                            const itemParts = tx.item ? String(tx.item).split(' - ') : ['غير معروف'];
+                            const itemName = itemParts[0] || tx.item || 'غير محدد';
                             const itemCat = tx.cat || (items.find(i => i.name === itemName)?.cat || '-');
                             return (
                               <tr key={idx} className="bg-white hover:bg-slate-50 transition-colors">
@@ -2332,7 +2425,7 @@ export default function Dashboard() {
                 const isIn = detailVoucher.kind === 'in';
                 const isCompleted = detailVoucher.invoiced === true || invoiceTimestamps[detailVoucher.id];
                 const invoiceDate = invoiceTimestamps[detailVoucher.id] || detailVoucher.invoiceDate;
-                const voucherDate = detailVoucher.timestamp?.toDate ? detailVoucher.timestamp.toDate() : new Date();
+                const voucherDate = detailVoucher.timestamp ? new Date(detailVoucher.timestamp) : new Date();
                 const formattedShortDate = voucherDate.toLocaleDateString('ar-SA', { 
                   day: '2-digit', month: '2-digit', year: 'numeric'
                 }) + ' ' + voucherDate.toLocaleTimeString('ar-SA', { 
@@ -2563,33 +2656,53 @@ export default function Dashboard() {
                           value={itemForm.name}
                           onChange={(e) => {
                             setItemForm({...itemForm, name: e.target.value});
-                            setItemFormSearchActiveIndex(-1);
+                            setProductFormSearchActiveIndex(-1);
                           }}
                           onKeyDown={(e) => {
+                            const suggestions = itemSuggestions;
                             if (e.key === 'ArrowDown') { 
                               e.preventDefault(); 
-                              setItemFormSearchActiveIndex(prev => prev < itemSuggestions.length - 1 ? prev + 1 : prev); 
+                              setProductFormSearchActiveIndex(prev => prev < suggestions.length - 1 ? prev + 1 : prev); 
                             } else if (e.key === 'ArrowUp') { 
                               e.preventDefault(); 
-                              setItemFormSearchActiveIndex(prev => prev > 0 ? prev - 1 : 0); 
+                              setProductFormSearchActiveIndex(prev => prev > 0 ? prev - 1 : 0); 
                             } else if (e.key === 'Enter') {
                               e.preventDefault();
-                              if (itemFormSearchActiveIndex >= 0 && itemSuggestions[itemFormSearchActiveIndex]) {
-                                setItemForm(prev => ({...prev, name: itemSuggestions[itemFormSearchActiveIndex]}));
-                                setItemFormSearchActiveIndex(-1);
-                              } else if (!isDuplicateMatch && itemForm.name.trim()) {
-                                // Add item and reset for batch entry
-                                handleAddItem(e);
+                              if (productFormSearchActiveIndex >= 0 && suggestions[productFormSearchActiveIndex]) {
+                                setItemForm(prev => ({...prev, name: suggestions[productFormSearchActiveIndex]}));
+                                setProductFormSearchActiveIndex(-1);
+                                setTimeout(() => companyInputRef.current?.focus(), 10);
+                              } else if (itemForm.name.trim()) {
+                                setTimeout(() => companyInputRef.current?.focus(), 10);
                               }
-                              setTimeout(() => companyInputRef.current?.focus(), 10);
                             } else if (e.key === 'Tab') {
                               setTimeout(() => companyInputRef.current?.focus(), 10);
                             }
                           }}
-                          onFocus={() => setFocusedField('name')}
+                          onFocus={() => { setFocusedField('name'); setProductFormSearchActiveIndex(-1); }}
                           onBlur={() => setFocusedField(null)}
                           autoFocus
                         />
+                        
+                        {/* Autocomplete Dropdown */}
+                        {itemForm.name && !isDuplicateMatch && itemSuggestions.length > 0 && (focusedField === 'name' || document.activeElement?.id === 'addItemNameInput') && (
+                          <div className="absolute top-[100%] right-0 w-full max-h-52 overflow-y-auto bg-white rounded-xl shadow-2xl border border-slate-200 z-30 p-1 mt-1">
+                            {itemSuggestions.map((suggestionName, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                className={`w-full text-right px-3 py-2.5 border-b border-slate-100 last:border-0 transition-colors ${productFormSearchActiveIndex === idx ? 'bg-primary/10' : 'hover:bg-slate-50'}`}
+                                onMouseDown={(e) => {
+                                  e.preventDefault();
+                                  setItemForm(prev => ({...prev, name: suggestionName}));
+                                  setProductFormSearchActiveIndex(-1);
+                                  setTimeout(() => companyInputRef.current?.focus(), 10);
+                                }}>
+                                <span className="text-sm font-bold text-slate-800">{suggestionName}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
                         
                         {/* Duplicate Error */}
                         {isDuplicateMatch && (
@@ -2614,11 +2727,11 @@ export default function Dashboard() {
                               <button
                                 key={idx}
                                 type="button"
-                                className={`w-full text-right px-3 py-2.5 border-b border-slate-100 last:border-0 transition-colors ${itemFormSearchActiveIndex === idx ? 'bg-primary/10' : 'hover:bg-slate-50'}`}
+                                className={`w-full text-right px-3 py-2.5 border-b border-slate-100 last:border-0 transition-colors ${productFormSearchActiveIndex === idx ? 'bg-primary/10' : 'hover:bg-slate-50'}`}
                                 onMouseDown={(e) => {
                                   e.preventDefault();
                                   setItemForm(prev => ({...prev, name: suggestionName}));
-                                  setItemFormSearchActiveIndex(-1);
+                                  setProductFormSearchActiveIndex(-1);
                                   setTimeout(() => companyInputRef.current?.focus(), 10);
                                 }}>
                                 <span className="text-sm font-bold text-slate-800">{suggestionName}</span>
@@ -2645,24 +2758,27 @@ export default function Dashboard() {
                             if (itemErrors.company) setItemErrors(prev => ({...prev, company: false}));
                           }}
                           onKeyDown={(e) => {
+                            const suggestions = companySuggestions;
                             if (e.key === 'ArrowDown') { 
                               e.preventDefault(); 
-                              setCompanyFormSearchActiveIndex(prev => prev < companySuggestions.length - 1 ? prev + 1 : prev); 
+                              setCompanyFormSearchActiveIndex(prev => prev < suggestions.length - 1 ? prev + 1 : prev); 
                             } else if (e.key === 'ArrowUp') { 
                               e.preventDefault(); 
                               setCompanyFormSearchActiveIndex(prev => prev > 0 ? prev - 1 : 0); 
                             } else if (e.key === 'Enter') {
                               e.preventDefault();
-                              if (companyFormSearchActiveIndex >= 0 && companySuggestions[companyFormSearchActiveIndex]) {
-                                setItemForm(prev => ({...prev, company: companySuggestions[companyFormSearchActiveIndex]}));
+                              if (companyFormSearchActiveIndex >= 0 && suggestions[companyFormSearchActiveIndex]) {
+                                setItemForm(prev => ({...prev, company: suggestions[companyFormSearchActiveIndex]}));
                                 setCompanyFormSearchActiveIndex(-1);
+                                setTimeout(() => document.getElementById('addItemCatInput')?.focus(), 10);
+                              } else {
+                                setTimeout(() => document.getElementById('addItemCatInput')?.focus(), 10);
                               }
-                              setTimeout(() => catSelectRef.current?.focus(), 10);
                             } else if (e.key === 'Tab') {
-                              setTimeout(() => catSelectRef.current?.focus(), 10);
+                              setTimeout(() => document.getElementById('addItemCatInput')?.focus(), 10);
                             }
                           }}
-                          onFocus={() => setFocusedField('company')}
+                          onFocus={() => { setFocusedField('company'); setCompanyFormSearchActiveIndex(-1); }}
                           onBlur={() => setFocusedField(null)}
                         />
                         
@@ -3006,7 +3122,7 @@ export default function Dashboard() {
                    value={currentStockItem.name}
                    onChange={(e) => {
                      setCurrentStockItem({...currentStockItem, name: e.target.value, selectedItem: null, cat: '', unit: ''});
-                     setSearchActiveIndex(-1);
+                     setStockSearchActiveIndex(-1);
                      // Reset category/unit when typing new name
                      if (currentStockItem.selectedItem) {
                        setCurrentStockItem(prev => ({...prev, selectedItem: null, cat: '', unit: ''}));
@@ -3027,14 +3143,14 @@ export default function Dashboard() {
                    }}
                    onKeyDown={(e) => {
                      const suggestions = items.filter(i => i.name.includes(currentStockItem.name) || i.company.includes(currentStockItem.name));
-                     if (e.key === 'ArrowDown') { e.preventDefault(); setSearchActiveIndex(prev => prev < suggestions.length - 1 ? prev + 1 : prev); }
-                     else if (e.key === 'ArrowUp') { e.preventDefault(); setSearchActiveIndex(prev => prev > 0 ? prev - 1 : 0); }
+                     if (e.key === 'ArrowDown') { e.preventDefault(); setStockSearchActiveIndex(prev => prev < suggestions.length - 1 ? prev + 1 : prev); }
+                     else if (e.key === 'ArrowUp') { e.preventDefault(); setStockSearchActiveIndex(prev => prev > 0 ? prev - 1 : 0); }
                      else if (e.key === 'Enter') {
                        e.preventDefault();
-                       if (searchActiveIndex >= 0 && suggestions[searchActiveIndex]) {
-                         const invItem = suggestions[searchActiveIndex];
+                       if (stockSearchActiveIndex >= 0 && suggestions[stockSearchActiveIndex]) {
+                         const invItem = suggestions[stockSearchActiveIndex];
                          setCurrentStockItem({ ...currentStockItem, name: `${invItem.name} - ${invItem.company}`, selectedItem: invItem, cat: invItem.cat || invItem.category || '', unit: invItem.unit || 'كرتونة' });
-                         setSearchActiveIndex(-1);
+                         setStockSearchActiveIndex(-1); setTimeout(() => document.getElementById('stockQtyInput')?.focus(), 10);
                        } else if (suggestions.length === 0 && currentStockItem.name.trim().length >= 2) {
                          // Show toast confirmation instead of directly opening modal
                          triggerNewItemRegistration(currentStockItem.name.trim(), 'stockIn');
@@ -3049,7 +3165,7 @@ export default function Dashboard() {
                  {currentStockItem.name && !currentStockItem.selectedItem && (
                    <div className="hidden group-focus-within/item:block absolute top-[100%] right-0 w-full max-h-48 overflow-y-auto bg-white rounded-lg shadow-xl border border-slate-200 z-30 p-0.5">
                      {items.filter(i => i.name.includes(currentStockItem.name) || i.company.includes(currentStockItem.name)).map((invItem, idx) => (
-                          <button key={invItem.id} type="button" className={`w-full text-right px-2.5 py-1.5 border-b border-slate-50 last:border-0 transition-colors ${searchActiveIndex === idx ? 'bg-emerald-50' : 'hover:bg-slate-50'}`} onMouseDown={(e) => {
+                          <button key={invItem.id} type="button" className={`w-full text-right px-2.5 py-1.5 border-b border-slate-50 last:border-0 transition-colors ${stockSearchActiveIndex === idx ? 'bg-emerald-50' : 'hover:bg-slate-50'}`} onMouseDown={(e) => {
                             e.preventDefault();
                             setCurrentStockItem({
                               ...currentStockItem,
@@ -3058,7 +3174,7 @@ export default function Dashboard() {
                               cat: invItem.cat || invItem.category || '',
                               unit: invItem.unit || 'كرتونة'
                             });
-                            setSearchActiveIndex(-1);
+                            setStockSearchActiveIndex(-1);
                             setTimeout(() => { document.getElementById('stockCatInput')?.focus(); }, 10);
                           }}>
                             <span className="text-xs font-bold text-slate-800">{invItem.name}</span> <span className="text-[10px] text-slate-500">- {invItem.company}</span>
@@ -3172,7 +3288,7 @@ export default function Dashboard() {
                      }}
                      min={new Date().toISOString().split('T')[0]}
                      disabled={isExpiryDisabled}
-                     required={!isExpiryDisabled}
+                     
                    />
                    <button
                      type="button"
@@ -3592,7 +3708,7 @@ export default function Dashboard() {
                    value={currentInvoiceItem.name}
                    onChange={(e) => {
                      setCurrentInvoiceItem({...currentInvoiceItem, name: e.target.value, selectedItem: null, cat: '', unit: ''});
-                     setSearchActiveIndex(-1);
+                     setInvoiceSearchActiveIndex(-1);
                      if (currentInvoiceItem.selectedItem) {
                        setCurrentInvoiceItem(prev => ({...prev, selectedItem: null, cat: '', unit: ''}));
                      }
@@ -3610,14 +3726,14 @@ export default function Dashboard() {
                    }}
                    onKeyDown={(e) => {
                      const suggestions = items.filter(i => i.name.includes(currentInvoiceItem.name) || i.company.includes(currentInvoiceItem.name));
-                     if (e.key === 'ArrowDown') { e.preventDefault(); setSearchActiveIndex(prev => prev < suggestions.length - 1 ? prev + 1 : prev); }
-                     else if (e.key === 'ArrowUp') { e.preventDefault(); setSearchActiveIndex(prev => prev > 0 ? prev - 1 : 0); }
+                     if (e.key === 'ArrowDown') { e.preventDefault(); setInvoiceSearchActiveIndex(prev => prev < suggestions.length - 1 ? prev + 1 : prev); }
+                     else if (e.key === 'ArrowUp') { e.preventDefault(); setInvoiceSearchActiveIndex(prev => prev > 0 ? prev - 1 : 0); }
                      else if (e.key === 'Enter') {
                        e.preventDefault();
-                       if (searchActiveIndex >= 0 && suggestions[searchActiveIndex]) {
-                         const invItem = suggestions[searchActiveIndex];
+                       if (invoiceSearchActiveIndex >= 0 && suggestions[invoiceSearchActiveIndex]) {
+                         const invItem = suggestions[invoiceSearchActiveIndex];
                          setCurrentInvoiceItem({ ...currentInvoiceItem, name: `${invItem.name} - ${invItem.company}`, selectedItem: invItem, cat: invItem.cat || invItem.category || '', unit: invItem.unit || 'كرتونة' });
-                         setSearchActiveIndex(-1);
+                         setInvoiceSearchActiveIndex(-1);
                        } else if (suggestions.length === 0 && currentInvoiceItem.name.trim().length >= 2) {
                          triggerNewItemRegistration(currentInvoiceItem.name.trim(), 'invoice');
                        } else if (currentInvoiceItem.selectedItem) {
@@ -3631,7 +3747,7 @@ export default function Dashboard() {
                  {currentInvoiceItem.name && !currentInvoiceItem.selectedItem && (
                    <div className="hidden group-focus-within/item:block absolute top-[100%] right-0 w-full max-h-48 overflow-y-auto bg-white rounded-lg shadow-xl border border-slate-200 z-30 p-0.5">
                      {items.filter(i => i.name.includes(currentInvoiceItem.name) || i.company.includes(currentInvoiceItem.name)).map((invItem, idx) => (
-                          <button key={invItem.id} type="button" className={`w-full text-right px-2.5 py-1.5 border-b border-slate-50 last:border-0 transition-colors ${searchActiveIndex === idx ? 'bg-blue-50' : 'hover:bg-slate-50'}`} onMouseDown={(e) => {
+                          <button key={invItem.id} type="button" className={`w-full text-right px-2.5 py-1.5 border-b border-slate-50 last:border-0 transition-colors ${invoiceSearchActiveIndex === idx ? 'bg-blue-50' : 'hover:bg-slate-50'}`} onMouseDown={(e) => {
                             e.preventDefault();
                             setCurrentInvoiceItem({
                               ...currentInvoiceItem,
@@ -3640,7 +3756,7 @@ export default function Dashboard() {
                               cat: invItem.cat || invItem.category || '',
                               unit: invItem.unit || 'كرتونة'
                             });
-                            setSearchActiveIndex(-1);
+                            setInvoiceSearchActiveIndex(-1);
                             setTimeout(() => { document.getElementById('invoiceQtyInput')?.focus(); }, 10);
                           }}>
                             <div className="flex justify-between items-center w-full">
@@ -3846,7 +3962,7 @@ export default function Dashboard() {
                    value={returnForm.query}
                    onChange={(e) => {
                      setReturnForm({...returnForm, query: e.target.value, selectedItem: null, cat: '', unit: ''});
-                     setSearchActiveIndex(-1);
+                     setReturnSearchActiveIndex(-1);
                      if (returnForm.selectedItem) {
                        setReturnForm(prev => ({...prev, selectedItem: null, cat: '', unit: ''}));
                      }
@@ -3862,15 +3978,15 @@ export default function Dashboard() {
                    }}
                    onKeyDown={(e) => {
                      const suggestions = items.filter(i => i.name.includes(returnForm.query) || i.company.includes(returnForm.query));
-                     if (e.key === 'ArrowDown') { e.preventDefault(); setSearchActiveIndex(prev => prev < suggestions.length - 1 ? prev + 1 : prev); }
-                     else if (e.key === 'ArrowUp') { e.preventDefault(); setSearchActiveIndex(prev => prev > 0 ? prev - 1 : 0); }
+                     if (e.key === 'ArrowDown') { e.preventDefault(); setReturnSearchActiveIndex(prev => prev < suggestions.length - 1 ? prev + 1 : prev); }
+                     else if (e.key === 'ArrowUp') { e.preventDefault(); setReturnSearchActiveIndex(prev => prev > 0 ? prev - 1 : 0); }
                      else if (e.key === 'Enter') {
                        e.preventDefault();
-                       if (searchActiveIndex >= 0 && suggestions[searchActiveIndex]) {
-                         const invItem = suggestions[searchActiveIndex];
+                       if (returnSearchActiveIndex >= 0 && suggestions[returnSearchActiveIndex]) {
+                         const invItem = suggestions[returnSearchActiveIndex];
                          const isReturnExpiryDisabled = invItem.cat === 'بلاستيك';
                          setReturnForm({...returnForm, query: `${invItem.name} - ${invItem.company}`, selectedItem: invItem, cat: invItem.cat || invItem.category || '', unit: invItem.unit || 'كرتونة', expiryDate: isReturnExpiryDisabled ? '' : '' });
-                         setSearchActiveIndex(-1);
+                         setReturnSearchActiveIndex(-1);
                        } else if (suggestions.length === 0 && returnForm.query.trim().length >= 2) {
                          // Show toast confirmation instead of directly opening modal
                          triggerNewItemRegistration(returnForm.query.trim(), 'return');
@@ -3885,11 +4001,11 @@ export default function Dashboard() {
                  {returnForm.query && !returnForm.selectedItem && (
                    <div className="hidden group-focus-within/ret:block absolute top-[100%] right-0 w-full max-h-48 overflow-y-auto bg-white rounded-lg shadow-xl border border-slate-200 z-30 p-0.5">
                      {items.filter(i => i.name.includes(returnForm.query) || i.company.includes(returnForm.query)).map((invItem, idx) => (
-                          <button key={invItem.id} type="button" className={`w-full text-right px-2.5 py-1.5 border-b border-slate-50 last:border-0 transition-colors ${searchActiveIndex === idx ? 'bg-amber-50' : 'hover:bg-slate-50'}`} onMouseDown={(e) => {
+                          <button key={invItem.id} type="button" className={`w-full text-right px-2.5 py-1.5 border-b border-slate-50 last:border-0 transition-colors ${returnSearchActiveIndex === idx ? 'bg-amber-50' : 'hover:bg-slate-50'}`} onMouseDown={(e) => {
                             e.preventDefault();
                             const isReturnExpiryDisabled = invItem.cat === 'بلاستيك';
                             setReturnForm({...returnForm, query: `${invItem.name} - ${invItem.company}`, selectedItem: invItem, cat: invItem.cat || invItem.category || '', unit: invItem.unit || 'كرتونة', expiryDate: isReturnExpiryDisabled ? '' : '' });
-                            setSearchActiveIndex(-1);
+                            setReturnSearchActiveIndex(-1);
                             setTimeout(() => { document.getElementById('returnQtyInput')?.focus(); }, 10);
                           }}>
                             <div className="flex justify-between items-center w-full">
@@ -4118,3 +4234,6 @@ export default function Dashboard() {
     </div>
   );
 }
+
+
+

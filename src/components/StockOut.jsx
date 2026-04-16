@@ -5,8 +5,7 @@ import {
   Snowflake, Package, Archive, Box, AlertTriangle, 
   Download, ChevronDown, CheckCircle, ArrowUpRight, Flame, User, Printer
 } from 'lucide-react';
-import { db } from '../lib/firebase';
-import { collection, onSnapshot, query, orderBy, runTransaction, doc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { supabase } from '../lib/supabaseClient';
 import { toast } from 'sonner';
 import { useAudio } from '../contexts/AudioContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -17,7 +16,7 @@ import html2canvas from 'html2canvas';
 // --- HELPERS ---
 const formatDate = (date) => {
   if (!date) return '';
-  const d = date instanceof Timestamp ? date.toDate() : new Date(date);
+  const d = new Date(date);
   return d.toISOString().split('T')[0];
 };
 
@@ -49,7 +48,7 @@ const ModalWrapper = ({ title, isOpen, onClose, children, onSubmit, maxWidth = "
               <X size={20} className="stroke-[3]" />
             </button>
           </div>
-          <form onSubmit={onSubmit} className="flex flex-col flex-1 overflow-hidden">
+          <form onSubmit={onSubmit} noValidate className="flex flex-col flex-1 overflow-hidden">
             <div className="p-5 overflow-y-auto custom-scrollbar flex-1">{children}</div>
             <div className="p-5 border-t border-slate-100 bg-slate-50 flex space-x-3 space-x-reverse justify-end shrink-0">
               <button type="button" onClick={onClose} className="px-5 py-2 rounded-xl font-bold text-slate-600 hover:bg-slate-200 transition-colors">إلغاء</button>
@@ -102,15 +101,54 @@ export default function StockOut() {
   const [draftQty, setDraftQty] = useState('');
   const [itemSearchActiveIndex, setItemSearchActiveIndex] = useState(-1);
 
-  // --- FIREBASE SYNC ---
+  // --- SUPABASE SYNC ---
+  // Auto-focus on item search when modal opens
   useEffect(() => {
-    const unsubItems = onSnapshot(query(collection(db, 'items')), (snap) => {
-      setItems(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
-    const unsubTrans = onSnapshot(query(collection(db, 'transactions'), orderBy('timestamp', 'desc')), (snap) => {
-      setTransactions(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
-    return () => { unsubItems(); unsubTrans(); };
+    if (isAddModalOpen) {
+      setTimeout(() => itemNameRef.current?.focus(), 150);
+    }
+  }, [isAddModalOpen]);
+
+  // Global Keyboard Shortcuts for Modals
+  useEffect(() => {
+    const handleGlobalKeys = (e) => {
+      if (e.key === 'Escape') {
+        if (isAddModalOpen) setIsAddModalOpen(false);
+        if (isEditModalOpen) setIsEditModalOpen(false);
+        if (isDeleteModalOpen) setIsDeleteModalOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeys);
+    return () => window.removeEventListener('keydown', handleGlobalKeys);
+  }, [isAddModalOpen, isEditModalOpen, isDeleteModalOpen]);
+
+  useEffect(() => {
+    const fetchInitialData = async () => {
+      const { data: itemsData } = await supabase.from('products').select('*');
+      if (itemsData) {
+        setItems(itemsData.map(d => ({ ...d, stockQty: d.stock_qty, searchKey: d.search_key, createdAt: d.created_at })));
+      }
+      
+      const { data: transData } = await supabase.from('transactions').select('*').order('timestamp', { ascending: false });
+      if (transData) {
+        setTransactions(transData.map(d => ({ ...d, itemId: d.item_id, balanceAfter: d.balance_after, expiryDate: d.expiry_date })));
+      }
+    };
+    
+    fetchInitialData();
+
+    const itemsChannel = supabase.channel('public:products:stockout')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, fetchInitialData)
+      .subscribe();
+
+    const transChannel = supabase.channel('public:transactions:stockout')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, fetchInitialData)
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(itemsChannel);
+      supabase.removeChannel(transChannel);
+    };
   }, []);
 
   const stockOutTransactions = useMemo(() => transactions.filter(t => t.type === 'صادر'), [transactions]);
@@ -221,7 +259,10 @@ export default function StockOut() {
 
   const handleBulkSubmit = async (e) => {
     e.preventDefault();
-    if (modalDrafts.length === 0) return;
+    if (modalDrafts.length === 0) {
+      toast.error('أضف صنفاً واحداً على الأقل قبل الحفظ.');
+      return;
+    }
     if (!bulkRecipient.trim()) {
       toast.error('يرجى إدخال اسم المستلم قبل تأكيد الصرف.');
       playWarning();
@@ -229,61 +270,54 @@ export default function StockOut() {
     }
     setLoading(true);
     try {
-      await runTransaction(db, async (transaction) => {
-        // Aggregate duplicates
-        const itemAggregates = {};
-        modalDrafts.forEach(entry => {
-          if (!itemAggregates[entry.itemId]) itemAggregates[entry.itemId] = 0;
-          itemAggregates[entry.itemId] += entry.qty;
-        });
+      // Build aggregates map: itemId -> total qty requested
+      const itemAggregates = {};
+      for (const entry of modalDrafts) {
+        if (!itemAggregates[entry.itemId]) itemAggregates[entry.itemId] = 0;
+        itemAggregates[entry.itemId] += entry.qty;
+      }
 
-        // Pre-read all affected items
-        const itemDocs = [];
-        for (const [id, aggQty] of Object.entries(itemAggregates)) {
-          const ref = doc(db, 'items', id);
-          const snap = await transaction.get(ref);
-          if (snap.exists()) {
-            itemDocs.push({ ref, data: snap.data(), aggregateQty: aggQty });
-          }
+      // Validate stock and update products sequentially
+      const runningBalances = {};
+      for (const [id, aggQty] of Object.entries(itemAggregates)) {
+        const { data: itemData, error: fetchErr } = await supabase
+          .from('products')
+          .select('stock_qty, name')
+          .eq('id', id)
+          .single();
+        if (fetchErr || !itemData) throw new Error(`تعذّر جلب بيانات الصنف (${id})`);
+        const currentStock = Number(itemData.stock_qty || 0);
+        if (aggQty > currentStock) {
+          throw new Error(`رصيد "${itemData.name}" غير كافٍ. المتاح: ${currentStock}، المطلوب: ${aggQty}`);
         }
+        runningBalances[id] = currentStock;
+        await supabase.from('products').update({ stock_qty: currentStock - aggQty }).eq('id', id);
+      }
 
-        // Validate stock (server-side check)
-        for (const { data, aggregateQty, ref } of itemDocs) {
-          const currentStock = Number(data.stockQty || 0);
-          if (aggregateQty > currentStock) {
-            throw new Error(`رصيد "${data.name}" غير كافٍ. المتاح: ${currentStock}، المطلوب: ${aggregateQty}`);
-          }
+      // Build transaction rows — one row per draft line
+      const now = new Date();
+      const txsToInsert = modalDrafts.slice().reverse().map(entry => {
+        if (runningBalances[entry.itemId] !== undefined) {
+          runningBalances[entry.itemId] -= entry.qty;
         }
-
-        // Write: update items stock
-        const runningBalances = {};
-        for (const { ref, data, aggregateQty } of itemDocs) {
-          const newStock = Number(data.stockQty || 0) - aggregateQty;
-          runningBalances[ref.id] = Number(data.stockQty || 0);
-          transaction.update(ref, { stockQty: newStock });
-        }
-
-        // Write: transaction documents
-        modalDrafts.slice().reverse().forEach(entry => {
-          const txRef = doc(collection(db, 'transactions'));
-          if (runningBalances[entry.itemId] !== undefined) {
-            runningBalances[entry.itemId] -= entry.qty;
-          }
-          transaction.set(txRef, {
-            type: 'صادر',
-            item: entry.item,
-            itemId: entry.itemId,
-            company: entry.company,
-            qty: entry.qty,
-            unit: entry.unit,
-            cat: entry.cat,
-            recipient: bulkRecipient.trim(),
-            date: bulkDate,
-            timestamp: serverTimestamp(),
-            balanceAfter: runningBalances[entry.itemId] ?? 0,
-          });
-        });
+        return {
+          type: 'out',
+          item: entry.item,
+          item_id: entry.itemId,
+          company: entry.company,
+          qty: Number(entry.qty),          // must be Number
+          unit: entry.unit,
+          cat: entry.cat,
+          recipient: bulkRecipient.trim(),
+          date: bulkDate || now.toISOString().split('T')[0],  // YYYY-MM-DD
+          timestamp: now.toISOString(),    // required for ordering
+          balance_after: runningBalances[entry.itemId] ?? 0,
+          status: 'مكتمل',
+        };
       });
+
+      const { error: insertError } = await supabase.from('transactions').insert(txsToInsert);
+      if (insertError) throw insertError;
 
       toast.success(`✅ تم صرف ${modalDrafts.length} أصناف لـ "${bulkRecipient}" وتحديث المخزن بنجاح`);
       playSuccess();
@@ -293,7 +327,7 @@ export default function StockOut() {
       setIsAddModalOpen(false);
       handleClearDynamicRow();
     } catch (err) {
-      const msg = err.message?.includes('رصيد') ? err.message : 'حدث خطأ أثناء المزامنة. يرجى المحاولة.';
+      const msg = err.message?.includes('رصيد') ? err.message : `حدث خطأ أثناء الحفظ: ${err.message}`;
       toast.error(msg);
       playWarning();
     } finally {
@@ -313,19 +347,19 @@ export default function StockOut() {
     if (Number(editForm.qty) <= 0) return;
     setLoading(true);
     try {
-      const txRef = doc(db, 'transactions', selectedTx.id);
-      const matchedItem = items.find(i => i.id === selectedTx.itemId);
-      await runTransaction(db, async (transaction) => {
-        if (matchedItem) {
-          const itemRef = doc(db, 'items', matchedItem.id);
-          const itemDoc = await transaction.get(itemRef);
-          if (itemDoc.exists()) {
-            const diff = Number(selectedTx.qty) - Number(editForm.qty); // positive = returning stock
-            transaction.update(itemRef, { stockQty: Number(itemDoc.data().stockQty || 0) + diff });
+      const matchedItem = items.find(i => i.id === selectedTx.itemId || (i.name === selectedTx.item && (i.company || 'بدون شركة') === (selectedTx.company || 'بدون شركة')));
+      
+      if (matchedItem) {
+          const { data: itemData } = await supabase.from('products').select('stock_qty').eq('id', matchedItem.id).single();
+          if (itemData) {
+              const diff = Number(selectedTx.qty) - Number(editForm.qty); 
+              const currentBalance = Number(itemData.stock_qty || 0);
+              await supabase.from('products').update({ stock_qty: currentBalance + diff }).eq('id', matchedItem.id);
           }
-        }
-        transaction.update(txRef, { qty: Number(editForm.qty), date: editForm.date, recipient: editForm.recipient });
-      });
+      }
+      
+      const { error } = await supabase.from('transactions').update({ qty: Number(editForm.qty), date: editForm.date, recipient: editForm.recipient }).eq('id', selectedTx.id);
+      if (error) throw error;
       toast.success('تم تعديل سند الصرف بنجاح ✅');
       playSuccess();
       setIsEditModalOpen(false);
@@ -343,18 +377,18 @@ export default function StockOut() {
     e.preventDefault();
     setLoading(true);
     try {
-      const txRef = doc(db, 'transactions', selectedTx.id);
-      const matchedItem = items.find(i => i.id === selectedTx.itemId);
-      await runTransaction(db, async (transaction) => {
-        if (matchedItem) {
-          const itemRef = doc(db, 'items', matchedItem.id);
-          const itemDoc = await transaction.get(itemRef);
-          if (itemDoc.exists()) {
-            transaction.update(itemRef, { stockQty: Number(itemDoc.data().stockQty || 0) + Number(selectedTx.qty) });
+      const matchedItem = items.find(i => i.id === selectedTx.itemId || (i.name === selectedTx.item && (i.company || 'بدون شركة') === (selectedTx.company || 'بدون شركة')));
+      
+      if (matchedItem) {
+          const { data: itemData } = await supabase.from('products').select('stock_qty').eq('id', matchedItem.id).single();
+          if (itemData) {
+              const currentBalance = Number(itemData.stock_qty || 0);
+              await supabase.from('products').update({ stock_qty: currentBalance + Number(selectedTx.qty) }).eq('id', matchedItem.id);
           }
-        }
-        transaction.delete(txRef);
-      });
+      }
+      
+      const { error } = await supabase.from('transactions').delete().eq('id', selectedTx.id);
+      if (error) throw error;
       toast.success('تم حذف سند الصرف وإعادة الكمية للمخزن 🗑️');
       playSuccess();
       setIsDeleteModalOpen(false);
@@ -842,10 +876,25 @@ export default function StockOut() {
                     <input ref={itemNameRef} type="text" className={`${InputClass} pr-9 text-sm`} placeholder="ابحث عن الصنف..."
                       value={searchNameText} onChange={e => { setSearchNameText(e.target.value); setItemSearchActiveIndex(-1); }}
                       onKeyDown={(e) => {
-                        if (e.key === 'ArrowDown') { e.preventDefault(); setItemSearchActiveIndex(p => p < itemSuggestions.length - 1 ? p + 1 : p); }
-                        else if (e.key === 'ArrowUp') { e.preventDefault(); setItemSearchActiveIndex(p => p > 0 ? p - 1 : 0); }
-                        else if (e.key === 'Enter' && itemSearchActiveIndex >= 0 && itemSuggestions[itemSearchActiveIndex]) { e.preventDefault(); handleSelectSuggestion(itemSuggestions[itemSearchActiveIndex]); }
-                      }} />
+                        if (e.key === 'ArrowDown') { 
+                          e.preventDefault(); 
+                          setItemSearchActiveIndex(p => p < itemSuggestions.length - 1 ? p + 1 : p); 
+                        }
+                        else if (e.key === 'ArrowUp') { 
+                          e.preventDefault(); 
+                          setItemSearchActiveIndex(p => p > 0 ? p - 1 : 0); 
+                        }
+                        else if (e.key === 'Enter') {
+                          if (itemSearchActiveIndex >= 0 && itemSuggestions[itemSearchActiveIndex]) {
+                            e.preventDefault(); 
+                            handleSelectSuggestion(itemSuggestions[itemSearchActiveIndex]);
+                          } else if (selectedItemModel) {
+                            e.preventDefault();
+                            document.getElementById('stock-out-qty-input')?.focus();
+                          }
+                        }
+                      }} 
+                    />
                   )}
                 </div>
                 {!selectedItemModel && searchNameText && itemSuggestions.length > 0 && (

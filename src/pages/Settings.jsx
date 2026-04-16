@@ -1,8 +1,8 @@
 /**
- * Settings.jsx — Octopus Settings (8 sections)
+ * Settings.jsx — Octopus Settings (10 sections)
  * ─────────────────────────────────────────────────────────────────
  * Emerald / Night Mode card-grid layout.
- * All state persists via SettingsContext → localStorage.
+ * All state persists via SettingsContext → Supabase (system_settings table).
  */
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -18,15 +18,7 @@ import {
 } from 'lucide-react';
 import { useSettings, DEFAULT_SETTINGS } from '../contexts/SettingsContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { db } from '../lib/firebase';
-import {
-  collection, query, orderBy, onSnapshot,
-  addDoc, deleteDoc, doc, getDocs, serverTimestamp,
-  Timestamp, writeBatch, where, setDoc, updateDoc
-} from 'firebase/firestore';
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
-import { firebaseConfig } from '../lib/firebase';
+import { supabase } from '../lib/supabaseClient';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 
@@ -42,12 +34,6 @@ const COLOR_PRESETS = [
   { hex: '#06b6d4', name: 'سماوي' },
   { hex: '#64748b', name: 'رمادي' },
   { hex: '#ec4899', name: 'وردي' },
-];
-
-const FILENAME_FORMATS = [
-  { id: 'code_date', label: 'رقم السند + التاريخ', example: 'Barakat_IN-001_20250329.png' },
-  { id: 'name_date', label: 'اسم المنشأة + التاريخ', example: 'بركةالثمار_20250329.png' },
-  { id: 'date_code', label: 'التاريخ + رقم السند',   example: '20250329_IN-001.png' },
 ];
 
 // ─── Shared tiny helpers ──────────────────────────────────────────
@@ -325,11 +311,20 @@ function S5Contacts() {
   const [showForm, setShowForm] = useState(false);
 
   useEffect(() => {
-    const u = onSnapshot(
-      query(collection(db, 'reps'), orderBy('createdAt', 'desc')),
-      s => setReps(s.docs.map(d => ({ id: d.id, ...d.data() })))
-    );
-    return u;
+    const unsub = supabase
+      .channel('public:reps:settings')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reps' }, () => {
+        supabase.from('reps').select('*').order('created_at', { ascending: false }).then(({ data }) => {
+          if (data) setReps(data.map(d => ({ ...d, createdAt: d.created_at })));
+        });
+      })
+      .subscribe();
+    
+    supabase.from('reps').select('*').order('created_at', { ascending: false }).then(({ data }) => {
+      if (data) setReps(data.map(d => ({ ...d, createdAt: d.created_at })));
+    });
+
+    return () => { supabase.removeChannel(unsub); };
   }, []);
 
   const handleAdd = async (e) => {
@@ -337,16 +332,24 @@ function S5Contacts() {
     if (!name.trim()) { toast.error('أدخل اسم المندوب'); return; }
     setAdding(true);
     try {
-      await addDoc(collection(db, 'reps'), { name: name.trim(), phone: phone.trim(), zone: zone.trim(), notes: '', createdAt: serverTimestamp() });
+      const { error } = await supabase.from('reps').insert([{ name: name.trim(), phone: phone.trim(), zone: zone.trim(), notes: '' }]);
+      if (error) throw error;
       toast.success('✅ تمت إضافة المندوب');
       setName(''); setPhone(''); setZone(''); setShowForm(false);
-    } catch { toast.error('فشل الحفظ'); }
+    } catch (err) {
+      console.error(err);
+      toast.error('فشل الحفظ');
+    }
     finally { setAdding(false); }
   };
   const handleDelete = async (id) => {
     if (!window.confirm('حذف هذا المندوب؟')) return;
-    await deleteDoc(doc(db, 'reps', id));
-    toast.success('تم الحذف');
+    const { error } = await supabase.from('reps').delete().eq('id', id);
+    if (error) {
+      toast.error('فشل الحذف');
+    } else {
+      toast.success('تم الحذف');
+    }
   };
 
   const AVATAR = ['from-violet-500 to-purple-600','from-blue-500 to-indigo-600','from-emerald-500 to-teal-600','from-amber-500 to-orange-500','from-rose-500 to-pink-600'];
@@ -422,9 +425,10 @@ function S6Performance({ settings, update }) {
     try {
       const cutoff = new Date();
       cutoff.setMonth(cutoff.getMonth() - 6);
-      const q = query(collection(db, 'transactions'), where('timestamp', '<', Timestamp.fromDate(cutoff)));
-      const snap = await getDocs(q);
-      setOldCount(snap.size);
+      const iso = cutoff.toISOString();
+      const { count, error } = await supabase.from('transactions').select('*', { count: 'exact', head: true }).lt('timestamp', iso);
+      if (error) throw error;
+      setOldCount(count || 0);
     } catch { setOldCount(0); }
     finally { setCounting(false); }
   }, []);
@@ -436,15 +440,10 @@ function S6Performance({ settings, update }) {
     try {
       const cutoff = new Date();
       cutoff.setMonth(cutoff.getMonth() - 6);
-      const q = query(collection(db, 'transactions'), where('timestamp', '<', Timestamp.fromDate(cutoff)));
-      const snap = await getDocs(q);
-      const MAX_BATCH = 499;
-      for (let i = 0; i < snap.docs.length; i += MAX_BATCH) {
-        const batch = writeBatch(db);
-        snap.docs.slice(i, i + MAX_BATCH).forEach(d => batch.delete(d.ref));
-        await batch.commit();
-      }
-      toast.success(`✅ تم حذف ${snap.size} سجل بنجاح`);
+      const iso = cutoff.toISOString();
+      const { error } = await supabase.from('transactions').delete().lt('timestamp', iso);
+      if (error) throw error;
+      toast.success(`✅ تم حذف السجلات بنجاح`);
       update({ lastCleanupDate: new Date().toISOString() });
       setOldCount(0);
     } catch { toast.error('فشل الحذف'); }
@@ -454,23 +453,21 @@ function S6Performance({ settings, update }) {
   const checkIntegrity = async () => {
     setCounting(true);
     try {
-      const [itemsSnap, txSnap] = await Promise.all([
-        getDocs(collection(db, 'items')),
-        getDocs(collection(db, 'transactions'))
-      ]);
-      const itemsMap = new Map(itemsSnap.docs.map(i => [i.id, { ...i.data(), id: i.id }]));
+      const { data: itemsData } = await supabase.from('products').select('*');
+      const { data: txData } = await supabase.from('transactions').select('*');
+      
+      const itemsMap = new Map(itemsData.map(i => [i.id, i]));
       const calcs = {};
-      txSnap.docs.forEach(doc => {
-        const t = doc.data();
+      txData.forEach(t => {
         if (t.documentary) return;
-        if (!calcs[t.itemId]) calcs[t.itemId] = 0;
-        if (t.type === 'وارد' || t.type === 'مرتجع') calcs[t.itemId] += Number(t.qty || 0);
-        else if (t.type === 'صادر') calcs[t.itemId] -= Number(t.qty || 0);
+        if (!calcs[t.item_id]) calcs[t.item_id] = 0;
+        if (t.type === 'وارد' || t.type === 'مرتجع') calcs[t.item_id] += Number(t.qty || 0);
+        else if (t.type === 'صادر') calcs[t.item_id] -= Number(t.qty || 0);
       });
       let errors = 0;
       itemsMap.forEach(item => {
         const expected = calcs[item.id] || 0;
-        if ((item.stockQty || 0) !== expected) errors++;
+        if ((item.stock_qty || 0) !== expected) errors++;
       });
       if (errors > 0) toast.error(`⚠️ تنبيه: وُجد ${errors} أصناف رصيدها لا يطابق مجموع الحركات`);
       else toast.success('✅ سلامة البيانات ممتازة (الأرصدة متطابقة 100%)');
@@ -588,44 +585,34 @@ function S8MasterBackup({ settings, update }) {
     try {
       const wb = XLSX.utils.book_new();
 
-      // Items
+      // Products
       if (collections.items) {
-        const snap = await getDocs(collection(db, 'items'));
-        const rows = snap.docs.map(d => {
-          const r = d.data();
-          return { 'الكود': d.id, 'اسم الصنف': r.name||'', 'الشركة': r.company||'', 'القسم': r.cat||'', 'الوحدة': r.unit||'', 'الرصيد': r.stockQty??0 };
-        });
+        const { data } = await supabase.from('products').select('*');
+        const rows = (data || []).map(r => ({ 'الكود': r.id, 'اسم الصنف': r.name||'', 'الشركة': r.company||'', 'القسم': r.cat||'', 'الوحدة': r.unit||'', 'الرصيد': r.stock_qty??0 }));
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{}]), 'الأصناف');
       }
 
       // Transactions
       if (collections.transactions) {
-        const snap = await getDocs(query(collection(db, 'transactions'), orderBy('timestamp', 'desc')));
-        const rows = snap.docs.map(d => {
-          const r = d.data();
-          const ts = r.timestamp instanceof Timestamp ? r.timestamp.toDate().toLocaleDateString('ar-SA') : r.date||'';
-          return { 'التاريخ': ts, 'النوع': r.type||'', 'الصنف': r.item||'', 'الشركة': r.company||'', 'الكمية': r.qty??'', 'الوحدة': r.unit||'', 'المندوب': r.rep||'', 'ملاحظة': r.lineNote||r.note||'' };
+        const { data } = await supabase.from('transactions').select('*').order('timestamp', { ascending: false });
+        const rows = (data || []).map(r => {
+          const ts = r.timestamp ? new Date(r.timestamp).toLocaleDateString('ar-SA') : r.date||'';
+          return { 'التاريخ': ts, 'النوع': r.type||'', 'الصنف': r.item||'', 'الشركة': r.company||'', 'الكمية': r.qty??'', 'الوحدة': r.unit||'', 'المندوب': r.rep||'', 'ملاحظة': r.line_note||r.note||'' };
         });
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{}]), 'الحركات');
       }
 
       // Reps
       if (collections.reps) {
-        const snap = await getDocs(collection(db, 'reps'));
-        const rows = snap.docs.map(d => {
-          const r = d.data();
-          return { 'الاسم': r.name||'', 'الهاتف': r.phone||'', 'المنطقة': r.zone||'', 'ملاحظات': r.notes||'' };
-        });
+        const { data } = await supabase.from('reps').select('*');
+        const rows = (data || []).map(r => ({ 'الاسم': r.name||'', 'الهاتف': r.phone||'', 'المنطقة': r.zone||'', 'ملاحظات': r.notes||'' }));
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{}]), 'المناديب');
       }
 
       // Discrepancies
       if (collections.discrepancies) {
-        const snap = await getDocs(collection(db, 'discrepancies'));
-        const rows = snap.docs.map(d => {
-          const r = d.data();
-          return { 'التاريخ': r.date||'', 'الصنف': r.itemName||'', 'السبب': r.reason||'', 'المتوقع': r.expectedQty??'', 'الفعلي': r.actualQty??'', 'الفارق': r.diff??'', 'الحالة': r.status||'' };
-        });
+        const { data } = await supabase.from('discrepancies').select('*');
+        const rows = (data || []).map(r => ({ 'التاريخ': r.date||'', 'الصنف': r.itemName||'', 'السبب': r.reason||'', 'المتوقع': r.expectedQty??'', 'الفعلي': r.actualQty??'', 'الفارق': r.diff??'', 'الحالة': r.status||'' }));
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{}]), 'الفوارق');
       }
 
@@ -692,10 +679,14 @@ function S9Users() {
   const [role, setRole] = useState('Viewer');
 
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'users'), s => {
-      setUsersList(s.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
-    return unsub;
+    const fetchUsers = async () => {
+      const { data, error } = await supabase.from('users').select('*');
+      if (data) setUsersList(data);
+    };
+    fetchUsers();
+
+    const unsub = supabase.channel('public:users:settings').on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, fetchUsers).subscribe();
+    return () => { supabase.removeChannel(unsub); };
   }, []);
 
   const handleAddUser = async (e) => {
@@ -706,35 +697,44 @@ function S9Users() {
     }
     setAdding(true);
     try {
-      // Reuse the secondary app if already initialized — avoids "app already exists" crash
-      const secondaryApp = getApps().find(a => a.name === 'SecondaryApp')
-        ?? initializeApp(firebaseConfig, 'SecondaryApp');
-      const secondaryAuth = getAuth(secondaryApp);
+      // In Supabase client, signing up another user might affect current session.
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            username,
+            role,
+          }
+        }
+      });
       
-      const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+      if (error) throw error;
       
-      await setDoc(doc(db, 'users', cred.user.uid), {
+      // Upsert into users table
+      const { error: dbError } = await supabase.from('users').upsert({
+        id: data.user.id,
         email,
         username,
         role,
-        createdAt: new Date().toISOString()
       });
+
+      if (dbError) throw dbError;
       
-      await secondaryAuth.signOut();
-      
-      toast.success('✅ تمت إضافة المستخدم بنجاح');
+      toast.success('✅ تمت إضافة المستخدم بنجاح. قد يحتاج المستخدم لتأكيد بريده.');
       setEmail(''); setPassword(''); setUsername(''); setRole('Viewer'); setShowForm(false);
     } catch (err) {
       console.error(err);
-      toast.error('فشل إضافة المستخدم. قد يكون البريد مستخدماً أو كلمة المرور ضعيفة.');
+      toast.error('فشل إضافة المستخدم. ' + (err.message || ''));
     } finally {
       setAdding(false);
     }
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('ملاحظة: سيتم حذف بيانات المستخدم، ولكن تأكد من إزالته عبر لوحة Firebase Authentication للأمان. هل تريد إزالة بياناته؟')) return;
-    await deleteDoc(doc(db, 'users', id));
+    if (!window.confirm('ملاحظة: سيتم حذف بيانات المستخدم من الجدول، ولكن يجب حذفه من Supabase Auth يدوياً. هل تريد المتابعة؟')) return;
+    const { error } = await supabase.from('users').delete().eq('id', id);
+    if (error) throw error;
     toast.success('تم الحذف');
   };
 
@@ -762,7 +762,8 @@ function S9Users() {
               value={u.role}
               onChange={async (e) => {
                 try {
-                  await updateDoc(doc(db, 'users', u.id), { role: e.target.value });
+                  const { error } = await supabase.from('users').update({ role: e.target.value }).eq('id', u.id);
+                  if (error) throw error;
                   toast.success('تم تحديث الصلاحية');
                 } catch { toast.error('خطأ في التحديث'); }
               }}
@@ -917,10 +918,9 @@ export default function SettingsPage() {
         )}
       </AnimatePresence>
 
-      {/* ── 8 Cards Grid ── */}
+      {/* ── 10 Cards Grid ── */}
       <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pb-8">
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-          {/* Row 1: 4 compact cards */}
           <S1DefaultValues settings={settings} update={updateSettings} />
           <S2SystemFreeze  settings={settings} update={updateSettings} />
           <S3Template      settings={settings} update={updateSettings} />

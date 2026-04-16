@@ -5,7 +5,6 @@ import './index.css'
 
 // TEMPORARY: Purge all old local storage to prevent stale sessions
 localStorage.clear();
-indexedDB.deleteDatabase('firebaseLocalStorageDb');
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

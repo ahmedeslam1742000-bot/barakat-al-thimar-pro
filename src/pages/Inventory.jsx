@@ -6,8 +6,7 @@ import {
   BarChart3, ShieldAlert, CheckCircle2, Truck, Info, ToggleLeft, ToggleRight, ClipboardX,
   Plus, Minus, Zap, Camera, MessageCircle, Layers, TrendingDown, Ban, Heart
 } from 'lucide-react';
-import { db } from '../lib/firebase';
-import { collection, onSnapshot, query, orderBy, doc, updateDoc } from 'firebase/firestore';
+import { supabase } from '../lib/supabaseClient';
 import { useSettings } from '../contexts/SettingsContext';
 import { useAuth } from '../contexts/AuthContext';
 import html2canvas from 'html2canvas';
@@ -60,20 +59,35 @@ export default function Inventory() {
   // WhatsApp share state
   const [sharing, setSharing] = useState(false);
 
-  // --- FIREBASE SYNC (simplified query - no compound index needed) ---
+  // --- SUPABASE SYNC ---
   useEffect(() => {
-    const qItems = query(collection(db, 'items'));
-    const unsub1 = onSnapshot(qItems, (snap) => {
-      setItems(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    const fetchInitialData = async () => {
+      const { data: itemsData } = await supabase.from('products').select('*');
+      if (itemsData) {
+        setItems(itemsData.map(d => ({ ...d, stockQty: d.stock_qty, searchKey: d.search_key, createdAt: d.created_at })));
+      }
+      
+      const { data: transData } = await supabase.from('transactions').select('*').order('timestamp', { ascending: false });
+      if (transData) {
+        setTransactions(transData.map(d => ({ ...d, itemId: d.item_id, balanceAfter: d.balance_after, expiryDate: d.expiry_date })));
+      }
       setLoading(false);
-    });
+    };
+    
+    fetchInitialData();
 
-    const qTrans = query(collection(db, 'transactions'), orderBy('timestamp', 'desc'));
-    const unsub2 = onSnapshot(qTrans, (snap) => {
-      setTransactions(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
+    const itemsChannel = supabase.channel('public:products:inventory')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, fetchInitialData)
+      .subscribe();
 
-    return () => { unsub1(); unsub2(); };
+    const transChannel = supabase.channel('public:transactions:inventory')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, fetchInitialData)
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(itemsChannel);
+      supabase.removeChannel(transChannel);
+    };
   }, []);
 
   // Expiry map
@@ -97,7 +111,7 @@ export default function Inventory() {
     transactions.forEach(tx => {
       if (tx.type !== 'Issue' && tx.type !== 'صادر') return;
       if (!tx.timestamp) return;
-      const txDate = tx.timestamp.toDate ? tx.timestamp.toDate() : new Date();
+      const txDate = tx.timestamp ? new Date(tx.timestamp) : new Date();
       const diffDays = Math.ceil(Math.abs(now - txDate) / 86400000);
       if (diffDays <= 45) {
         if (tx.itemId) {
@@ -274,7 +288,8 @@ export default function Inventory() {
     if (!fixingId || !fixNewDate) return;
     setSaving(true);
     try {
-      await updateDoc(doc(db, 'transactions', fixingId), { expiryDate: fixNewDate });
+      const { error } = await supabase.from('transactions').update({ expiry_date: fixNewDate }).eq('id', fixingId);
+      if (error) throw error;
       toast.success('تم تحديث تاريخ الصلاحية بنجاح ✅');
       setFixingId(null);
       setFixNewDate('');

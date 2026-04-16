@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { doc, onSnapshot, setDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { supabase } from '../lib/supabaseClient';
 
 const LS_KEY = 'wms_app_settings_v3';
 
@@ -56,27 +55,65 @@ export function SettingsProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const docRef = doc(db, 'system', 'settings');
-    const unsubscribe = onSnapshot(docRef, (docSnap) => {
-      if (docSnap.exists()) {
-        setSettings({ ...DEFAULT_SETTINGS, ...docSnap.data() });
+    const fetchSettings = async () => {
+      const { data, error } = await supabase
+        .from('system_settings')
+        .select('*')
+        .eq('id', '00000000-0000-0000-0000-000000000001')
+        .maybeSingle();
+
+      if (error) {
+        console.error("error fetching settings:", error);
+      }
+
+      if (data && data.settings) {
+        setSettings({ ...DEFAULT_SETTINGS, ...data.settings });
       } else {
         setSettings(DEFAULT_SETTINGS);
       }
       setLoading(false);
-    });
-    return () => unsubscribe();
+    };
+
+    fetchSettings();
+
+    // Subscribe to real-time changes
+    const channel = supabase
+      .channel('settings-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'system_settings',
+          filter: 'id=eq.00000000-0000-0000-0000-000000000001',
+        },
+        (payload) => {
+          setSettings({ ...DEFAULT_SETTINGS, ...payload.new.settings });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const updateSettings = async (patch) => {
     const newSettings = { ...settings, ...patch };
     setSettings(newSettings);
-    await setDoc(doc(db, 'system', 'settings'), newSettings, { merge: true });
+
+    await supabase
+      .from('system_settings')
+      .update({ settings: newSettings, updated_at: new Date().toISOString() })
+      .eq('id', '00000000-0000-0000-0000-000000000001');
   };
 
   const resetSettings = async () => {
     setSettings(DEFAULT_SETTINGS);
-    await setDoc(doc(db, 'system', 'settings'), DEFAULT_SETTINGS);
+    await supabase
+      .from('system_settings')
+      .update({ settings: DEFAULT_SETTINGS, updated_at: new Date().toISOString() })
+      .eq('id', '00000000-0000-0000-0000-000000000001');
   };
 
   return (

@@ -7,8 +7,7 @@ import {
   CalendarDays, Truck, PackageX, LayoutGrid, Keyboard,
   CheckCircle2, CornerDownLeft, Save, Trash, RotateCcw
 } from 'lucide-react';
-import { db } from '../lib/firebase';
-import { collection, onSnapshot, query, orderBy, deleteDoc, doc, updateDoc, addDoc, serverTimestamp, getDocs } from 'firebase/firestore';
+import { supabase } from '../lib/supabaseClient';
 import { toast } from 'sonner';
 import { useAudio } from '../contexts/AudioContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -558,22 +557,33 @@ export default function Items() {
   const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
   const [batchEyeItem, setBatchEyeItem] = useState(null);
 
-  // --- LIVE FIREBASE SYNC ---
+  // --- LIVE SUPABASE SYNC ---
   useEffect(() => {
-    if (!db) return;
-    const qItems = query(collection(db, 'items'), orderBy('createdAt', 'desc'));
-    const unsubscribeItems = onSnapshot(qItems, (snapshot) => {
-      setItems(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
+    const fetchInitialData = async () => {
+      const { data: itemsData } = await supabase.from('products').select('*').order('created_at', { ascending: false });
+      if (itemsData) {
+        setItems(itemsData.map(d => ({ ...d, stockQty: d.stock_qty, searchKey: d.search_key, createdAt: d.created_at })));
+      }
+      
+      const { data: transData } = await supabase.from('transactions').select('*').order('timestamp', { ascending: false });
+      if (transData) {
+        setTransactions(transData.map(d => ({ ...d, itemId: d.item_id, balanceAfter: d.balance_after, expiryDate: d.expiry_date })));
+      }
+    };
+    
+    fetchInitialData();
 
-    const qTrans = query(collection(db, 'transactions'), orderBy('timestamp', 'desc'));
-    const unsubscribeTrans = onSnapshot(qTrans, (snapshot) => {
-      setTransactions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
+    const itemsChannel = supabase.channel('public:products')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, fetchInitialData)
+      .subscribe();
+
+    const transChannel = supabase.channel('public:transactions')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, fetchInitialData)
+      .subscribe();
 
     return () => {
-      unsubscribeItems();
-      unsubscribeTrans();
+      supabase.removeChannel(itemsChannel);
+      supabase.removeChannel(transChannel);
     };
   }, []);
 
@@ -592,7 +602,7 @@ export default function Items() {
     transactions.forEach(tx => {
       if (tx.type !== 'Issue') return;
       if (!tx.timestamp) return;
-      const txDate = tx.timestamp.toDate ? tx.timestamp.toDate() : new Date();
+      const txDate = tx.timestamp ? new Date(tx.timestamp) : new Date();
       const diffDays = Math.ceil(Math.abs(now - txDate) / 86400000);
       if (diffDays <= 7) {
         const matchedItem = items.find(i => tx.item.includes(i.name) && (i.company === 'بدون شركة' || tx.item.includes(i.company)));
@@ -612,7 +622,7 @@ export default function Items() {
     transactions.forEach(tx => {
       if (tx.type !== 'Issue' && tx.type !== 'صادر') return;
       if (!tx.timestamp) return;
-      const txDate = tx.timestamp.toDate ? tx.timestamp.toDate() : new Date();
+      const txDate = tx.timestamp ? new Date(tx.timestamp) : new Date();
       const diffDays = Math.ceil(Math.abs(now - txDate) / 86400000);
       if (diffDays <= 30) {
         if (tx.itemId) {
@@ -695,14 +705,26 @@ export default function Items() {
     }
 
     try {
-      await addDoc(collection(db, 'items'), {
+      const { data: insertedDoc, error } = await supabase.from('products').insert({
         name: rawName,
         company: rawCompany,
         cat: formState.cat,
         unit: formState.unit,
-        stockQty: 0,
-        searchKey: `${rawName} ${rawCompany}`.toLowerCase(),
-        createdAt: serverTimestamp()
+        stock_qty: 0,
+        search_key: `${rawName} ${rawCompany}`.toLowerCase()
+      }).select().single();
+      if (error) throw error;
+
+      await supabase.from('transactions').insert({
+        type: 'adjust_in',
+        item_id: insertedDoc.id,
+        qty: 0,
+        unit: formState.unit,
+        cat: formState.cat,
+        date: new Date().toISOString().split('T')[0],
+        location: 'إداري',
+        notes: 'Initial Stock / رصيد افتتاحي',
+        invoiced: false
       });
       toast.success("تم إضافة الصنف بنجاح ✅");
       playSuccess();
@@ -726,14 +748,26 @@ export default function Items() {
         i => normalizeText(i.name) === normName && normalizeText(i.company || 'بدون شركة') === normCompany
       );
       if (isDup) { skipped++; continue; }
-      await addDoc(collection(db, 'items'), {
+      const { data: insertedDoc, error } = await supabase.from('products').insert({
         name: rawName,
         company: rawCompany,
         cat: row.cat,
         unit: row.unit,
-        stockQty: 0,
-        searchKey: `${rawName} ${rawCompany}`.toLowerCase(),
-        createdAt: serverTimestamp()
+        stock_qty: 0,
+        search_key: `${rawName} ${rawCompany}`.toLowerCase()
+      }).select().single();
+      if (error) throw error;
+
+      await supabase.from('transactions').insert({
+        type: 'adjust_in',
+        item_id: insertedDoc.id,
+        qty: 0,
+        unit: row.unit,
+        cat: row.cat,
+        date: new Date().toISOString().split('T')[0],
+        location: 'إداري',
+        notes: 'Initial Stock / رصيد افتتاحي',
+        invoiced: false
       });
       added++;
     }
@@ -754,13 +788,14 @@ export default function Items() {
     if (!formState.name.trim()) return;
 
     try {
-      await updateDoc(doc(db, 'items', selectedItem.id), {
+      const { error } = await supabase.from('products').update({
         name: formState.name.trim(),
         company: formState.company.trim() || 'بدون شركة',
         cat: formState.cat,
         unit: formState.unit,
-        searchKey: `${formState.name} ${formState.company}`.toLowerCase(),
-      });
+        search_key: `${formState.name} ${formState.company}`.toLowerCase(),
+      }).eq('id', selectedItem.id);
+      if (error) throw error;
       toast.success("تم التعديل بنجاح ✅");
       playSuccess();
       setIsEditModalOpen(false);
@@ -783,7 +818,8 @@ export default function Items() {
   const handleDeleteSubmit = async (e) => {
     e.preventDefault();
     try {
-      await deleteDoc(doc(db, 'items', selectedItem.id));
+      const { error } = await supabase.from('products').delete().eq('id', selectedItem.id);
+      if (error) throw error;
       toast.success("تم الحذف بنجاح 🗑️");
       playSuccess();
       setIsDeleteModalOpen(false);
@@ -805,7 +841,7 @@ export default function Items() {
     }
 
     try {
-      await Promise.all(itemsToDelete.map(item => deleteDoc(doc(db, 'items', item.id))));
+      await Promise.all(itemsToDelete.map(item => supabase.from('products').delete().eq('id', item.id)));
       toast.success(`تم حذف ${itemsToDelete.length} أصناف بنجاح 🗑️`);
       playSuccess();
       setIsBulkDeleteModalOpen(false);

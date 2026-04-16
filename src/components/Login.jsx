@@ -1,8 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Apple, Lock, Loader2, Mail, Phone, User, Warehouse } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { collection, doc, getDocs, query, setDoc, where } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { supabase } from '../lib/supabaseClient';
 
 const TYPING_TEXT = 'بركة الثمار... دقة، سرعة، أمان.';
 
@@ -135,7 +134,7 @@ export default function Login() {
     () =>
       visibleForm === 'signup'
         ? 'أكمل البيانات التالية للوصول إلى تجربة إدارة أكثر سلاسة.'
-        : 'أدخل بريدك الإلكتروني وكلمة المرور للمتابعة إلى النظام.',
+        : 'أدخل بريدك الإلكتروني واسم المستخدم للمتابعة إلى النظام.',
     [visibleForm]
   );
 
@@ -148,30 +147,39 @@ export default function Login() {
       if (mode === 'login') {
         let loginEmail = email;
 
+        // If input doesn't contain @, treat it as username and look up email
         if (!email.includes('@')) {
-          const q = query(collection(db, 'users'), where('username', '==', email));
-          const snap = await getDocs(q);
+          const { data, error } = await supabase
+            .from('users')
+            .select('email')
+            .eq('username', email)
+            .single();
 
-          if (snap.empty) {
+          if (error || !data) {
             throw new Error('المستخدم غير موجود');
           }
 
-          loginEmail = snap.docs[0].data().email;
+          loginEmail = data.email;
         }
 
         await login(loginEmail, password);
         sessionStorage.setItem('auth_token', 'active');
       } else {
-        const cred = await signup(email, password);
+        const { user } = await signup(email, password);
 
-        await setDoc(doc(db, 'users', cred.user.uid), {
-          email,
-          username: email.split('@')[0],
-          fullName,
-          phone,
-          role: 'User',
-          createdAt: new Date().toISOString(),
-        });
+        // Insert user record into Supabase
+        const { error: insertError } = await supabase
+          .from('users')
+          .insert({
+            id: user.id,
+            email,
+            username: email.split('@')[0],
+            full_name: fullName,
+            phone,
+            role: 'User',
+          });
+
+        if (insertError) throw insertError;
         sessionStorage.setItem('auth_token', 'active');
       }
     } catch (err) {

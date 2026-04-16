@@ -5,8 +5,7 @@ import {
   Snowflake, Package, Archive, Box, AlertTriangle, 
   Download, ChevronDown, CheckCircle, Truck, Flame, MapPin, Printer
 } from 'lucide-react';
-import { db } from '../lib/firebase';
-import { collection, onSnapshot, query, orderBy, runTransaction, doc, serverTimestamp, Timestamp, where } from 'firebase/firestore';
+import { supabase } from '../lib/supabaseClient';
 import { toast } from 'sonner';
 import { useAudio } from '../contexts/AudioContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -17,7 +16,7 @@ import html2canvas from 'html2canvas';
 // --- HELPER: Date Formatter ---
 const formatDate = (date) => {
   if (!date) return '';
-  const d = date instanceof Timestamp ? date.toDate() : new Date(date);
+  const d = new Date(date);
   return d.toISOString().split('T')[0];
 };
 
@@ -50,7 +49,7 @@ const ModalWrapper = ({ title, isOpen, onClose, children, onSubmit, maxWidth = "
               <X size={20} className="stroke-[3]" />
             </button>
           </div>
-          <form onSubmit={onSubmit} className="flex flex-col flex-1 overflow-hidden">
+          <form onSubmit={onSubmit} noValidate className="flex flex-col flex-1 overflow-hidden">
             <div className="p-5 overflow-y-auto custom-scrollbar flex-1">{children}</div>
             <div className="p-5 border-t border-slate-100 bg-slate-50 flex space-x-3 space-x-reverse justify-end shrink-0">
                 <button type="button" onClick={onClose} className="px-5 py-2 rounded-xl font-bold text-slate-600 hover:bg-slate-200 transition-colors">إلغاء</button>
@@ -111,21 +110,53 @@ export default function StockIn() {
   const [draftExpiryDate, setDraftExpiryDate] = useState('');
   const [itemSearchActiveIndex, setItemSearchActiveIndex] = useState(-1);
 
-  // --- FIREBASE SYNC ---
+  // --- SUPABASE SYNC ---
+  // Auto-focus on item search when modal opens
   useEffect(() => {
-    const qItems = query(collection(db, 'items'));
-    const unsubscribeItems = onSnapshot(qItems, (snapshot) => {
-      setItems(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
+    if (isAddModalOpen) {
+      setTimeout(() => itemNameRef.current?.focus(), 150);
+    }
+  }, [isAddModalOpen]);
 
-    const qTrans = query(collection(db, 'transactions'), orderBy('timestamp', 'desc'));
-    const unsubscribeTrans = onSnapshot(qTrans, (snapshot) => {
-      setTransactions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
+  // Global Keyboard Shortcuts for Modals
+  useEffect(() => {
+    const handleGlobalKeys = (e) => {
+      if (e.key === 'Escape') {
+        if (isAddModalOpen) setIsAddModalOpen(false);
+        if (isEditModalOpen) setIsEditModalOpen(false);
+        if (isDeleteModalOpen) setIsDeleteModalOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeys);
+    return () => window.removeEventListener('keydown', handleGlobalKeys);
+  }, [isAddModalOpen, isEditModalOpen, isDeleteModalOpen]);
+
+  useEffect(() => {
+    const fetchInitialData = async () => {
+      const { data: itemsData } = await supabase.from('products').select('*');
+      if (itemsData) {
+        setItems(itemsData.map(d => ({ ...d, stockQty: d.stock_qty, searchKey: d.search_key, createdAt: d.created_at })));
+      }
+      
+      const { data: transData } = await supabase.from('transactions').select('*').order('timestamp', { ascending: false });
+      if (transData) {
+        setTransactions(transData.map(d => ({ ...d, itemId: d.item_id, balanceAfter: d.balance_after, expiryDate: d.expiry_date })));
+      }
+    };
+    
+    fetchInitialData();
+
+    const itemsChannel = supabase.channel('public:products:stockin')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, fetchInitialData)
+      .subscribe();
+
+    const transChannel = supabase.channel('public:transactions:stockin')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, fetchInitialData)
+      .subscribe();
 
     return () => {
-      unsubscribeItems();
-      unsubscribeTrans();
+      supabase.removeChannel(itemsChannel);
+      supabase.removeChannel(transChannel);
     };
   }, []);
 
@@ -208,8 +239,14 @@ export default function StockIn() {
   };
 
   const handlePushToDraft = () => {
-    if (!selectedItemModel || !draftQty || Number(draftQty) <= 0 || !draftExpiryDate) {
-      toast.error('يرجى اختيار صنف صحيح، إدخال الكمية بصورة سليمة، وتحديد تاريخ الصلاحية.');
+    if (!selectedItemModel || !draftQty || Number(draftQty) <= 0) {
+      toast.error('يرجى اختيار صنف صحيح وإدخال الكمية بصورة سليمة.');
+      playWarning();
+      return;
+    }
+
+    if (!draftExpiryDate && selectedItemModel.cat !== 'بلاستيك') {
+      toast.error('يرجى إدخال تاريخ الصلاحية.');
       playWarning();
       return;
     }
@@ -238,64 +275,43 @@ export default function StockIn() {
 
     setLoading(true);
     try {
-      await runTransaction(db, async (transaction) => {
-        // Accumulate exactly identical item drops
-        const itemAggregates = {};
-        modalDrafts.forEach(entry => {
-          if (!itemAggregates[entry.itemId]) itemAggregates[entry.itemId] = 0;
-          itemAggregates[entry.itemId] += entry.qty;
+      // 1. تجهيز البيانات بشكل سليم تماماً حسب الـ Schema
+      const itemsToInsert = modalDrafts.map(item => ({
+        type: 'in',
+        item_id: item.itemId,
+        qty: parseInt(item.qty, 10) || 0,
+        unit: item.unit || 'كرتونة',
+        cat: item.cat || 'عام',
+        date: new Date().toISOString().split('T')[0],
+        location: bulkLocation.trim() || 'مستودع الرياض',
+        expiry_date: item.expiryDate || null,
+        invoiced: false
+      }));
+
+      // 2. إرسال البيانات لجدول الترانزكشن
+      const { error: txError } = await supabase
+        .from('transactions')
+        .insert(itemsToInsert);
+
+      if (txError) throw txError;
+
+      // 3. تحديث كميات المخزن (Stock_qty) للأصناف
+      for (const item of modalDrafts) {
+        const { error: updateError } = await supabase.rpc('increment_stock', { 
+          product_id: item.itemId, 
+          amount: parseInt(item.qty, 10) 
         });
-
-        // Pre-read
-        const itemDocs = [];
-        for (const [id, aggQty] of Object.entries(itemAggregates)) {
-          const ref = doc(db, 'items', id);
-          const docSnap = await transaction.get(ref);
-          if (docSnap.exists()) {
-            itemDocs.push({ ref, data: docSnap.data(), aggregateQty: aggQty });
-          }
-        }
-
-        // Writes
-        const runningBalances = {};
-        for (const { ref, data, aggregateQty } of itemDocs) {
-          const newStock = Number(data.stockQty || 0) + aggregateQty;
-          runningBalances[ref.id] = Number(data.stockQty || 0);
-          transaction.update(ref, { stockQty: newStock });
-        }
-
-        modalDrafts.slice().reverse().forEach(entry => {
-           const txRef = doc(collection(db, 'transactions'));
-           if(runningBalances[entry.itemId] !== undefined) {
-             runningBalances[entry.itemId] += entry.qty;
-           }
-
-           transaction.set(txRef, {
-             type: 'وارد',
-             item: entry.item,
-             itemId: entry.itemId,
-             company: entry.company,
-             qty: entry.qty,
-             unit: entry.unit,
-             cat: entry.cat,
-             invoice: 'بدون فاتورة', // Removed per instructions
-             location: bulkLocation.trim() || 'مستودع الرياض',
-             date: bulkDate,
-             timestamp: serverTimestamp(),
-             expiryDate: entry.expiryDate || '',
-             balanceAfter: runningBalances[entry.itemId] || entry.qty
-           });
-        });
-      });
+        if (updateError) console.error("Update stock error:", updateError);
+      }
 
       toast.success(`تم حفظ ${modalDrafts.length} أصناف وتحديث الرصيد بنجاح ✅`);
       playSuccess();
-      setModalDrafts([]);
+      setModalDrafts([]); // تفريغ القائمة بعد الحفظ
       setIsAddModalOpen(false);
       handleClearDynamicRow();
-
     } catch (err) {
-      toast.error('حدث خطأ أثناء المزامنة الجماعية. يرجى المحاولة مرة أخرى.');
+      console.error("Detailed Error:", err.message, err);
+      toast.error(`خطأ في الحفظ: ${err.message || 'يرجى المحاولة مرة أخرى.'}`);
       playWarning();
     } finally {
       setLoading(false);
@@ -315,21 +331,19 @@ export default function StockIn() {
     if (Number(editForm.qty) <= 0) return;
     setLoading(true);
     try {
-      const txRef = doc(db, 'transactions', selectedTx.id);
       const matchedItem = items.find(i => i.id === selectedTx.itemId || (i.name === selectedTx.item && (i.company || 'بدون شركة') === (selectedTx.company || 'بدون شركة')));
       
-      await runTransaction(db, async (transaction) => {
-        if (matchedItem) {
-            const itemRef = doc(db, 'items', matchedItem.id);
-            const itemDoc = await transaction.get(itemRef);
-            if (itemDoc.exists()) {
-                const diff = Number(editForm.qty) - Number(selectedTx.qty);
-                const currentBalance = Number(itemDoc.data().stockQty || 0);
-                transaction.update(itemRef, { stockQty: currentBalance + diff });
-            }
-        }
-        transaction.update(txRef, { qty: Number(editForm.qty), invoice: editForm.invoice, date: editForm.date });
-      });
+      if (matchedItem) {
+          const { data: itemData } = await supabase.from('products').select('stock_qty').eq('id', matchedItem.id).single();
+          if (itemData) {
+              const diff = Number(editForm.qty) - Number(selectedTx.qty);
+              const currentBalance = Number(itemData.stock_qty || 0);
+              await supabase.from('products').update({ stock_qty: currentBalance + diff }).eq('id', matchedItem.id);
+          }
+      }
+      
+      const { error } = await supabase.from('transactions').update({ qty: Number(editForm.qty), invoice: editForm.invoice, date: editForm.date }).eq('id', selectedTx.id);
+      if (error) throw error;
       toast.success('تم التعديل بنجاح ✅');
       playSuccess();
       setIsEditModalOpen(false);
@@ -350,20 +364,18 @@ export default function StockIn() {
     e.preventDefault();
     setLoading(true);
     try {
-      const txRef = doc(db, 'transactions', selectedTx.id);
       const matchedItem = items.find(i => i.id === selectedTx.itemId || (i.name === selectedTx.item && (i.company || 'بدون شركة') === (selectedTx.company || 'بدون شركة')));
       
-      await runTransaction(db, async (transaction) => {
-        if (matchedItem) {
-            const itemRef = doc(db, 'items', matchedItem.id);
-            const itemDoc = await transaction.get(itemRef);
-            if (itemDoc.exists()) {
-                const currentBalance = Number(itemDoc.data().stockQty || 0);
-                transaction.update(itemRef, { stockQty: Math.max(0, currentBalance - Number(selectedTx.qty)) });
-            }
-        }
-        transaction.delete(txRef);
-      });
+      if (matchedItem) {
+          const { data: itemData } = await supabase.from('products').select('stock_qty').eq('id', matchedItem.id).single();
+          if (itemData) {
+              const currentBalance = Number(itemData.stock_qty || 0);
+              await supabase.from('products').update({ stock_qty: Math.max(0, currentBalance - Number(selectedTx.qty)) }).eq('id', matchedItem.id);
+          }
+      }
+      
+      const { error } = await supabase.from('transactions').delete().eq('id', selectedTx.id);
+      if (error) throw error;
       toast.success('تم الحذف واسترجاع الرصيد 🗑️');
       playSuccess();
       setIsDeleteModalOpen(false);
@@ -829,13 +841,13 @@ export default function StockIn() {
            <div className="grid grid-cols-2 gap-4 pb-4 border-b border-slate-100">
               <div>
                 <label className={LabelClass}>تاريخ الإذن</label>
-                <input type="date" className={InputClass} value={bulkDate} onChange={e => setBulkDate(e.target.value)} required />
+                <input type="date" className={InputClass} value={bulkDate} onChange={e => setBulkDate(e.target.value)} />
               </div>
               <div>
                 <label className={LabelClass}>جهة الورود / المورد</label>
                 <div className="relative">
                    <MapPin size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 z-10" />
-                   <input type="text" className={`${InputClass} pr-10`} value={bulkLocation} onChange={e => setBulkLocation(e.target.value)} required />
+                   <input type="text" className={`${InputClass} pr-10`} value={bulkLocation} onChange={e => setBulkLocation(e.target.value)} />
                 </div>
               </div>
            </div>
@@ -868,8 +880,12 @@ export default function StockIn() {
                            onKeyDown={(e) => {
                               if (e.key === 'ArrowDown') { e.preventDefault(); setItemSearchActiveIndex(prev => prev < itemSuggestions.length - 1 ? prev + 1 : prev); }
                               else if (e.key === 'ArrowUp') { e.preventDefault(); setItemSearchActiveIndex(prev => prev > 0 ? prev - 1 : 0); }
-                              else if (e.key === 'Enter' && itemSearchActiveIndex >= 0 && itemSuggestions[itemSearchActiveIndex]) {
-                                e.preventDefault(); handleSelectSuggestion(itemSuggestions[itemSearchActiveIndex]);
+                              else if (e.key === 'Enter') {
+                                if (itemSearchActiveIndex >= 0 && itemSuggestions[itemSearchActiveIndex]) {
+                                  e.preventDefault(); handleSelectSuggestion(itemSuggestions[itemSearchActiveIndex]);
+                                } else if (selectedItemModel) {
+                                  e.preventDefault(); document.getElementById('stockin-expiry-input')?.focus();
+                                }
                               }
                            }}
                          />
@@ -896,16 +912,22 @@ export default function StockIn() {
                    <input type="text" className="w-full bg-slate-100 border border-transparent text-slate-500 text-xs font-bold rounded-xl px-3 py-2.5 outline-none cursor-not-allowed truncate" readOnly value={selectedItemModel?.company || '---'} />
                 </div>
 
-                {/* Expiry Date (Required) — 2 cols */}
+                {/* Expiry Date — 2 cols */}
                 <div className="col-span-12 md:col-span-2">
-                   <label className={LabelClass}>تاريخ الانتهاء <span className="text-rose-500">*</span></label>
+                   <label className={LabelClass}>تاريخ الانتهاء</label>
                    <input 
-                     type="date" 
-                     className={`${InputClass} text-xs font-bold ${!draftExpiryDate && selectedItemModel ? 'border-rose-400 ring-2 ring-rose-500/20' : 'text-slate-600'}`} 
+                     id="stockin-expiry-input"
+                     type="date"
+                     className={`${InputClass} text-xs font-bold text-slate-600`} 
                      disabled={!selectedItemModel}
                      value={draftExpiryDate} 
                      onChange={e => setDraftExpiryDate(e.target.value)}
-                     required
+                     onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          document.getElementById('stockin-qty-input')?.focus();
+                        }
+                     }}
                    />
                    {!draftExpiryDate && selectedItemModel && <p className="text-[10px] text-rose-500 font-bold mt-1 animate-pulse">⚠ حقل إلزامي</p>}
                 </div>

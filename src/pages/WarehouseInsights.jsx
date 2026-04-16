@@ -19,8 +19,7 @@ import {
   Plus, Trash2, AlertCircle, CheckCircle2, Info,
   ChevronUp, ChevronDown, ShieldCheck, Lock,
 } from 'lucide-react';
-import { db } from '../lib/firebase';
-import { collection, onSnapshot, query, orderBy, Timestamp } from 'firebase/firestore';
+import { supabase } from '../lib/supabaseClient';
 
 // ─── Constants & helpers ─────────────────────────────────────────────────────
 const LOCAL_KEY = 'warehouse_notepad_v1';
@@ -29,7 +28,7 @@ const todayISO = () => new Date().toISOString().split('T')[0];
 
 const fmtTime = (ts) => {
   if (!ts) return '—';
-  const d = ts instanceof Timestamp ? ts.toDate() : new Date(ts);
+  const d = new Date(ts);
   return d.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', hour12: true });
 };
 
@@ -49,17 +48,24 @@ export default function WarehouseInsights() {
   const [transactions, setTransactions] = useState([]);
   const [items, setItems] = useState([]);
 
-  // ── Firestore reads (zero writes) ──
+  // ── SUPABASE Reads (zero writes) ──
   useEffect(() => {
-    const u1 = onSnapshot(
-      query(collection(db, 'transactions'), orderBy('timestamp', 'desc')),
-      (s) => setTransactions(s.docs.map((d) => ({ id: d.id, ...d.data() })))
-    );
-    const u2 = onSnapshot(
-      query(collection(db, 'items')),
-      (s) => setItems(s.docs.map((d) => ({ id: d.id, ...d.data() })))
-    );
-    return () => { u1(); u2(); };
+    const fetchInitialData = async () => {
+      const { data: transData } = await supabase.from('transactions').select('*').order('timestamp', { ascending: false });
+      if (transData) setTransactions(transData);
+
+      const { data: itemsData } = await supabase.from('products').select('*');
+      if (itemsData) setItems(itemsData.map(d => ({ ...d, stockQty: d.stock_qty })));
+    };
+
+    fetchInitialData();
+
+    const channels = [
+      supabase.channel('public:transactions:insights').on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, fetchInitialData).subscribe(),
+      supabase.channel('public:products:insights').on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, fetchInitialData).subscribe()
+    ];
+
+    return () => { channels.forEach(c => supabase.removeChannel(c)); };
   }, []);
 
   const TABS = [
@@ -146,8 +152,8 @@ function DailyLog({ transactions }) {
     return transactions.filter((tx) => {
       const txDate =
         tx.date ||
-        (tx.timestamp instanceof Timestamp
-          ? tx.timestamp.toDate().toISOString().split('T')[0]
+        (tx.timestamp
+          ? new Date(tx.timestamp).toISOString().split('T')[0]
           : '');
       if (date && txDate !== date) return false;
       if (typeF !== 'all' && tx.type !== typeF) return false;
