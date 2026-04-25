@@ -32,8 +32,7 @@ export function AuthProvider({ children }) {
   }
 
   async function logout() {
-    localStorage.clear();
-    sessionStorage.clear();
+    sessionStorage.removeItem('auth_token');
     await supabase.auth.signOut();
     window.location.href = '/';
   }
@@ -42,11 +41,13 @@ export function AuthProvider({ children }) {
     // Check active session
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
+        sessionStorage.setItem('auth_token', 'active');
         fetchUserRole(session.user.id).then(userData => {
           setCurrentUser({ ...session.user, ...userData });
           setLoading(false);
         });
       } else {
+        sessionStorage.removeItem('auth_token');
         setCurrentUser(null);
         setLoading(false);
       }
@@ -56,9 +57,11 @@ export function AuthProvider({ children }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         if (session?.user) {
+          sessionStorage.setItem('auth_token', 'active');
           const userData = await fetchUserRole(session.user.id);
           setCurrentUser({ ...session.user, ...userData });
         } else {
+          sessionStorage.removeItem('auth_token');
           setCurrentUser(null);
         }
         setLoading(false);

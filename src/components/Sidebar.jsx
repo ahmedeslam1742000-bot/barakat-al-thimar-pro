@@ -72,10 +72,11 @@ const menuGroups = [
     label: 'إدارة المستودع',
     icon: Archive,
     subItems: [
-      { id: 'archive', label: 'أرشيف التعاملات', view: 'archive' },
-      { id: 'inventory', label: 'الجرد', view: 'inventory' },
+      { id: 'archive', label: 'أرشيف العمليات', view: 'archive' },
+      { id: 'inbound-records', label: 'أذونات الواردات', view: 'inbound-records' },
+      { id: 'inventory-check', label: 'جرد المستودع', view: 'inventory' },
       { id: 'reports', label: 'التقارير', view: 'reports' },
-      { id: 'reps', label: 'المناديب', view: 'reps' },
+      { id: 'reps', label: 'إدارة المناديب', view: 'reps' },
     ]
   }
 ];

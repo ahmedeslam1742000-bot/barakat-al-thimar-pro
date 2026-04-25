@@ -3,20 +3,28 @@
  * Provides intelligent text processing for Arabic input with dialect normalization
  */
 
+// Helper functions for normalization
+const removeDiacritics = (text) => text.replace(/[\u064B-\u065F]/g, '');
+const normalizeAlif = (text) => text.replace(/[أإآٱ]/g, 'ا');
+const normalizeTaMarbuta = (text) => text.replace(/ة/g, 'ه');
+const normalizeAlifMaqsura = (text) => text.replace(/[ىئ]/g, 'ي');
+const normalizeLamAlif = (text) => text.replace(/لا/g, 'لا');
+const collapseWhitespace = (text) => text.replace(/\s+/g, ' ');
+
 /**
  * Comprehensive Arabic text normalization
  * Standardizes various Arabic character forms for consistent comparison
  */
 export const normalizeArabic = (text) => {
   if (!text) return '';
-  return text.toString()
-    .removeDiacritics()
-    .normalizeAlif()
-    .normalizeTaMarbuta()
-    .normalizeAlifMaqsura()
-    .normalizeLamAlif()
-    .collapseWhitespace()
-    .trim();
+  let normalized = text.toString().toLowerCase();
+  normalized = removeDiacritics(normalized);
+  normalized = normalizeAlif(normalized);
+  normalized = normalizeTaMarbuta(normalized);
+  normalized = normalizeAlifMaqsura(normalized);
+  normalized = normalizeLamAlif(normalized);
+  normalized = collapseWhitespace(normalized);
+  return normalized.trim();
 };
 
 /**
@@ -110,40 +118,3 @@ const levenshteinDistance = (str1, str2) => {
   
   return matrix[str2.length][str1.length];
 };
-
-// Add methods to String prototype for convenience
-if (!String.prototype.removeDiacritics) {
-  String.prototype.removeDiacritics = function() {
-    return this.replace(/[\u064B-\u065F]/g, '');
-  };
-}
-
-if (!String.prototype.normalizeAlif) {
-  String.prototype.normalizeAlif = function() {
-    return this.replace(/[أإآٱ]/g, 'ا');
-  };
-}
-
-if (!String.prototype.normalizeTaMarbuta) {
-  String.prototype.normalizeTaMarbuta = function() {
-    return this.replace(/ة/g, 'ه');
-  };
-}
-
-if (!String.prototype.normalizeAlifMaqsura) {
-  String.prototype.normalizeAlifMaqsura = function() {
-    return this.replace(/[ىئ]/g, 'ي');
-  };
-}
-
-if (!String.prototype.normalizeLamAlif) {
-  String.prototype.normalizeLamAlif = function() {
-    return this.replace(/لا/g, 'لا');
-  };
-}
-
-if (!String.prototype.collapseWhitespace) {
-  String.prototype.collapseWhitespace = function() {
-    return this.replace(/\s+/g, ' ');
-  };
-}

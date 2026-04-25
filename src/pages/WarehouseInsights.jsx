@@ -20,6 +20,7 @@ import {
   ChevronUp, ChevronDown, ShieldCheck, Lock,
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
+import { normalizeArabic } from '../lib/arabicTextUtils';
 
 // ─── Constants & helpers ─────────────────────────────────────────────────────
 const LOCAL_KEY = 'warehouse_notepad_v1';
@@ -51,10 +52,10 @@ export default function WarehouseInsights() {
   // ── SUPABASE Reads (zero writes) ──
   useEffect(() => {
     const fetchInitialData = async () => {
-      const { data: transData } = await supabase.from('transactions').select('*').order('timestamp', { ascending: false });
+      const { data: transData } = await supabase.from('transactions').select('id, date, timestamp, type, item, company, qty, unit, line_note, note, voucher_supply_notes').order('timestamp', { ascending: false });
       if (transData) setTransactions(transData);
 
-      const { data: itemsData } = await supabase.from('products').select('*');
+      const { data: itemsData } = await supabase.from('products').select('id, name, company, cat, unit, stock_qty');
       if (itemsData) setItems(itemsData.map(d => ({ ...d, stockQty: d.stock_qty })));
     };
 
@@ -158,10 +159,10 @@ function DailyLog({ transactions }) {
       if (date && txDate !== date) return false;
       if (typeF !== 'all' && tx.type !== typeF) return false;
       if (search.trim()) {
-        const q = search.toLowerCase();
+        const q = normalizeArabic(search);
         return (
-          (tx.item    || '').toLowerCase().includes(q) ||
-          (tx.company || '').toLowerCase().includes(q)
+          normalizeArabic(tx.item    || '').includes(q) ||
+          normalizeArabic(tx.company || '').includes(q)
         );
       }
       return true;
@@ -357,8 +358,8 @@ function Notepad() {
 
   const filtered = useMemo(() => {
     if (!search.trim()) return notes;
-    const q = search.toLowerCase();
-    return notes.filter(n => n.text.toLowerCase().includes(q) || (n.tag || '').toLowerCase().includes(q));
+    const q = normalizeArabic(search);
+    return notes.filter(n => normalizeArabic(n.text).includes(q) || normalizeArabic(n.tag || '').includes(q));
   }, [notes, search]);
 
   const fmtNoteDate = (iso) => {
@@ -511,11 +512,11 @@ function PreInventory({ items }) {
   const sorted = useMemo(() => {
     let list = [...items];
     if (search.trim()) {
-      const q = search.toLowerCase();
+      const q = normalizeArabic(search);
       list = list.filter(i =>
-        (i.name    || '').toLowerCase().includes(q) ||
-        (i.company || '').toLowerCase().includes(q) ||
-        (i.cat     || '').toLowerCase().includes(q)
+        normalizeArabic(i.name    || '').includes(q) ||
+        normalizeArabic(i.company || '').includes(q) ||
+        normalizeArabic(i.cat     || '').includes(q)
       );
     }
     if (catFilter !== 'all') list = list.filter(i => (i.cat || 'أخرى') === catFilter);

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Search, Plus, X, Pencil, Trash2, FileText, Image, 
   Snowflake, Package, Archive, Box, AlertTriangle, 
-  Download, ChevronDown, CheckCircle, ArrowUpRight, Flame, User, Printer
+  Download, ChevronDown, CheckCircle, ArrowUpRight, Flame, User, Printer, Calendar
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { toast } from 'sonner';
@@ -12,13 +12,8 @@ import { useAuth } from '../contexts/AuthContext';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import html2canvas from 'html2canvas';
-
-// --- HELPERS ---
-const formatDate = (date) => {
-  if (!date) return '';
-  const d = new Date(date);
-  return d.toISOString().split('T')[0];
-};
+import { normalizeArabic } from '../lib/arabicTextUtils';
+import { formatDate } from '../lib/dateUtils';
 
 const categoryIcons = {
   'مجمدات': <Snowflake size={18} className="text-cyan-500" />,
@@ -64,7 +59,7 @@ const ModalWrapper = ({ title, isOpen, onClose, children, onSubmit, maxWidth = "
   </AnimatePresence>
 );
 
-const InputClass = "w-full bg-slate-50 border border-slate-200 text-slate-800 text-sm font-bold rounded-xl focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 block px-4 py-2.5 outline-none transition-all";
+const InputClass = "w-full bg-slate-50 border border-slate-200 text-slate-800 text-sm font-bold rounded-xl focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 block px-4 h-[38px] outline-none transition-all";
 const LabelClass = "block text-xs font-black text-slate-700 mb-1.5";
 
 export default function StockOut() {
@@ -84,6 +79,7 @@ export default function StockOut() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [selectedTx, setSelectedTx] = useState(null);
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -124,14 +120,14 @@ export default function StockOut() {
 
   useEffect(() => {
     const fetchInitialData = async () => {
-      const { data: itemsData } = await supabase.from('products').select('*');
+      const { data: itemsData } = await supabase.from('products').select('id, name, company, cat, unit, stock_qty');
       if (itemsData) {
-        setItems(itemsData.map(d => ({ ...d, stockQty: d.stock_qty, searchKey: d.search_key, createdAt: d.created_at })));
+        setItems(itemsData.map(d => ({ ...d, stockQty: d.stock_qty })));
       }
       
-      const { data: transData } = await supabase.from('transactions').select('*').order('timestamp', { ascending: false });
+      const { data: transData } = await supabase.from('transactions').select('id, type, item_id, balance_after, timestamp, item, company, qty, unit, cat, recipient, beneficiary, date, status, batch_id, is_summary, total_qty, items_summary').order('timestamp', { ascending: false });
       if (transData) {
-        setTransactions(transData.map(d => ({ ...d, itemId: d.item_id, balanceAfter: d.balance_after, expiryDate: d.expiry_date })));
+        setTransactions(transData.map(d => ({ ...d, itemId: d.item_id, balanceAfter: d.balance_after })));
       }
     };
     
@@ -151,15 +147,17 @@ export default function StockOut() {
     };
   }, []);
 
-  const stockOutTransactions = useMemo(() => transactions.filter(t => t.type === 'صادر'), [transactions]);
+  const stockOutTransactions = useMemo(() => transactions.filter(t => t.type === 'out'), [transactions]);
 
   // Autocomplete suggestions (name + company pairing)
   const itemSuggestions = useMemo(() => {
     if (!searchNameText || selectedItemModel) return [];
-    return items.filter(i =>
-      i.name.toLowerCase().includes(searchNameText.toLowerCase()) ||
-      (i.company || '').toLowerCase().includes(searchNameText.toLowerCase())
-    );
+    const query = normalizeArabic(searchNameText);
+    return items.filter(i => {
+      const name = normalizeArabic(i.name);
+      const company = normalizeArabic(i.company || '');
+      return name.includes(query) || company.includes(query) || `${name} - ${company}`.includes(query);
+    }).slice(0, 10);
   }, [items, searchNameText, selectedItemModel]);
 
   const dynamicCompanies = ['الكل', ...new Set(items.map(i => i.company || 'بدون شركة'))].filter(Boolean);
@@ -180,27 +178,24 @@ export default function StockOut() {
   }, [transactions]);
 
   const filteredTransactions = useMemo(() => {
-    return stockOutTransactions.map(tx => {
-      const matchedItem = items.find(i => i.id === tx.itemId || (i.name === tx.item && (i.company || 'بدون شركة') === (tx.company || 'بدون شركة')));
-      return { ...tx, cat: matchedItem ? matchedItem.cat : 'أخرى', _itemId: matchedItem ? matchedItem.id : tx.itemId };
-    }).filter(tx => {
-      const searchKey = `${tx.item} ${tx.company} ${tx.recipient || ''}`.toLowerCase();
-      const matchSearch = searchKey.includes(searchQuery.toLowerCase());
-      const matchCat = categoryFilter === 'الكل' || tx.cat === categoryFilter;
-      const matchComp = companyFilter === 'الكل' || (tx.company || 'بدون شركة') === companyFilter;
-      const matchHot = showHotOnly ? ((hotItemsMap[tx._itemId] || 0) >= 50) : true;
-      return matchSearch && matchCat && matchComp && matchHot;
+    return stockOutTransactions.filter(tx => {
+      const itemsList = tx.items_summary || [];
+      const itemsText = itemsList.map(i => `${i.item} ${i.company}`).join(' ');
+      const searchKey = normalizeArabic(`${tx.item || ''} ${tx.recipient || ''} ${itemsText}`);
+      const matchSearch = searchKey.includes(normalizeArabic(searchQuery));
+      
+      const cats = new Set(itemsList.map(i => i.cat));
+      const matchCat = categoryFilter === 'الكل' || cats.has(categoryFilter);
+      
+      const comps = new Set(itemsList.map(i => i.company || 'بدون شركة'));
+      const matchComp = companyFilter === 'الكل' || comps.has(companyFilter);
+      
+      return matchSearch && matchCat && matchComp;
     });
-  }, [stockOutTransactions, items, searchQuery, categoryFilter, companyFilter, showHotOnly, hotItemsMap]);
+  }, [stockOutTransactions, searchQuery, categoryFilter, companyFilter]);
 
   const groupedTransactions = useMemo(() => {
-    const groups = {};
-    filteredTransactions.forEach(tx => {
-      const cat = tx.cat || 'أخرى';
-      if (!groups[cat]) groups[cat] = [];
-      groups[cat].push(tx);
-    });
-    return groups;
+    return { 'سجلات الصادر': filteredTransactions };
   }, [filteredTransactions]);
 
   const todayTotal = useMemo(() => {
@@ -228,28 +223,46 @@ export default function StockOut() {
   };
 
   const handlePushToDraft = () => {
-    if (!selectedItemModel || !draftQty || Number(draftQty) <= 0) {
+    let finalName = searchNameText.trim();
+    let finalCompany = 'بدون شركة';
+    let targetItem = selectedItemModel;
+
+    if (!targetItem) {
+      if (finalName.includes(" - ")) {
+        const parts = finalName.split(" - ");
+        finalName = parts[0].trim();
+        finalCompany = parts[1].trim();
+      }
+      const normName = normalizeArabic(finalName);
+      const normComp = normalizeArabic(finalCompany);
+      targetItem = items.find(i => 
+        normalizeArabic(i.name) === normName && 
+        normalizeArabic(i.company || 'بدون شركة') === normComp
+      );
+    }
+
+    if (!targetItem || !draftQty || Number(draftQty) <= 0) {
       toast.error('يرجى اختيار صنف وإدخال الكمية الصادرة.');
       playWarning();
       return;
     }
 
     // Stock guard — don't allow dispatching more than available
-    const availableQty = Number(selectedItemModel.stockQty || 0);
-    const alreadyInDraft = modalDrafts.filter(d => d.itemId === selectedItemModel.id).reduce((s, d) => s + d.qty, 0);
+    const availableQty = Number(targetItem.stockQty || 0);
+    const alreadyInDraft = modalDrafts.filter(d => d.itemId === targetItem.id).reduce((s, d) => s + d.qty, 0);
     if (Number(draftQty) + alreadyInDraft > availableQty) {
-      toast.error(`الرصيد المتاح لـ "${selectedItemModel.name}" هو ${availableQty} فقط. الكمية المطلوبة تتجاوز المتاح.`);
+      toast.error(`الرصيد المتاح لـ "${targetItem.name}" هو ${availableQty} فقط. الكمية المطلوبة تتجاوز المتاح.`);
       playWarning();
       return;
     }
 
     setModalDrafts(prev => [{
       draftId: crypto.randomUUID(),
-      itemId: selectedItemModel.id,
-      item: selectedItemModel.name,
-      company: selectedItemModel.company || 'بدون شركة',
-      cat: selectedItemModel.cat || 'أخرى',
-      unit: selectedItemModel.unit || 'كرتونة',
+      itemId: targetItem.id,
+      item: targetItem.name,
+      company: targetItem.company || 'بدون شركة',
+      cat: targetItem.cat || 'أخرى',
+      unit: targetItem.unit || 'كرتونة',
       qty: Number(draftQty),
     }, ...prev]);
 
@@ -277,46 +290,58 @@ export default function StockOut() {
         itemAggregates[entry.itemId] += entry.qty;
       }
 
-      // Validate stock and update products sequentially
-      const runningBalances = {};
+      const now = new Date();
+      const timestamp = now.toISOString();
+      const beneficiary = bulkRecipient.trim();
+      const itemsSummary = modalDrafts.map(d => ({
+        id: d.itemId,
+        item: d.item,
+        company: d.company,
+        qty: d.qty,
+        unit: d.unit,
+        cat: d.cat
+      }));
+      const totalQty = modalDrafts.reduce((sum, d) => sum + d.qty, 0);
+
+      // 1. Path A: Inventory Update (Decrement)
+      console.log("🔄 Path A: Updating Stock Quantities...");
       for (const [id, aggQty] of Object.entries(itemAggregates)) {
         const { data: itemData, error: fetchErr } = await supabase
           .from('products')
           .select('stock_qty, name')
           .eq('id', id)
           .single();
+          
         if (fetchErr || !itemData) throw new Error(`تعذّر جلب بيانات الصنف (${id})`);
+        
         const currentStock = Number(itemData.stock_qty || 0);
         if (aggQty > currentStock) {
           throw new Error(`رصيد "${itemData.name}" غير كافٍ. المتاح: ${currentStock}، المطلوب: ${aggQty}`);
         }
-        runningBalances[id] = currentStock;
-        await supabase.from('products').update({ stock_qty: currentStock - aggQty }).eq('id', id);
+        
+        const { error: updateError } = await supabase
+          .from('products')
+          .update({ stock_qty: currentStock - aggQty })
+          .eq('id', id);
+          
+        if (updateError) throw updateError;
       }
 
-      // Build transaction rows — one row per draft line
-      const now = new Date();
-      const txsToInsert = modalDrafts.slice().reverse().map(entry => {
-        if (runningBalances[entry.itemId] !== undefined) {
-          runningBalances[entry.itemId] -= entry.qty;
-        }
-        return {
+      // 2. Path B: Transaction Archiving (Single Summary Record)
+      console.log("📝 Path B: Recording Transaction Summary...");
+      const { error: insertError } = await supabase
+        .from('transactions')
+        .insert({
           type: 'out',
-          item: entry.item,
-          item_id: entry.itemId,
-          company: entry.company,
-          qty: Number(entry.qty),          // must be Number
-          unit: entry.unit,
-          cat: entry.cat,
-          recipient: bulkRecipient.trim(),
-          date: bulkDate || now.toISOString().split('T')[0],  // YYYY-MM-DD
-          timestamp: now.toISOString(),    // required for ordering
-          balance_after: runningBalances[entry.itemId] ?? 0,
-          status: 'مكتمل',
-        };
-      });
+          recipient: beneficiary,
+          beneficiary: beneficiary,
+          items_summary: itemsSummary,
+          total_qty: totalQty,
+          date: bulkDate || now.toISOString().split('T')[0],
+          timestamp: timestamp,
+          status: 'مكتمل'
+        });
 
-      const { error: insertError } = await supabase.from('transactions').insert(txsToInsert);
       if (insertError) throw insertError;
 
       toast.success(`✅ تم صرف ${modalDrafts.length} أصناف لـ "${bulkRecipient}" وتحديث المخزن بنجاح`);
@@ -433,182 +458,173 @@ export default function StockOut() {
   };
 
   // --- BLANK TEMPLATE PDF (30-Row A4-Optimised — Outbound) ---
-  const handleBlankTemplate = () => {
+  const handleBlankTemplate = async () => {
+    const el = document.createElement('div');
+    el.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:794px;background:white;padding:30px;font-family:Cairo,sans-serif;direction:rtl;';
+    
+    const ROWS_COUNT = 30;
+    const rowsHtml = Array.from({ length: ROWS_COUNT }).map((_, i) => `
+      <tr style="height:32px;border-bottom:1px solid #e2e8f0;${(i + 1) % 5 === 0 ? 'background:#f8fafc;' : ''}">
+        <td style="border:1px solid #cbd5e1;text-align:center;font-size:12px;color:#64748b;font-weight:700;">${i + 1}</td>
+        <td style="border:1px solid #cbd5e1;"></td>
+        <td style="border:1px solid #cbd5e1;"></td>
+        <td style="border:1px solid #cbd5e1;"></td>
+        <td style="border:1px solid #cbd5e1;"></td>
+      </tr>
+    `).join('');
+
+    el.innerHTML = `
+      <div style="border:1px solid #0f172a;padding:20px;min-height:1050px;display:flex;flex-direction:column;">
+        <div style="background:#0f172a;color:white;padding:15px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+          <div style="width:3.5mm;height:18mm;background:#3b82f6;margin-left:15px;border-radius:2px;"></div>
+          <div style="flex:1;text-align:center;">
+            <div style="font-size:20px;font-weight:900;">بركة الثمار | Barakat Al-Thimar</div>
+            <div style="font-size:12px;color:#60a5fa;margin-top:4px;">إذن صرف بضاعة — Stock Outbound Voucher</div>
+          </div>
+          <div style="width:100px;"></div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;margin-bottom:15px;padding:0 10px;">
+          <div style="font-size:14px;font-weight:700;">المندوب: _________________________________</div>
+          <div style="font-size:12px;color:#94a3b8;direction:ltr;">Date: ____ / ____ / 202__</div>
+        </div>
+
+        <table style="width:100%;border-collapse:collapse;flex:1;">
+          <thead>
+            <tr style="background:#1e293b;color:white;font-size:12px;">
+              <th style="border:1px solid #0f172a;padding:8px;width:30px;">م</th>
+              <th style="border:1px solid #0f172a;padding:8px;width:120px;">كود الصنف</th>
+              <th style="border:1px solid #0f172a;padding:8px;">الصنف والشركة</th>
+              <th style="border:1px solid #0f172a;padding:8px;width:80px;">الكمية</th>
+              <th style="border:1px solid #0f172a;padding:8px;width:150px;">ملاحظات</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:20px;">
+          <div style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:8px;padding:15px;text-align:center;">
+            <div style="background:#3b82f6;height:3px;margin-bottom:10px;"></div>
+            <div style="font-size:13px;font-weight:900;margin-bottom:30px;">أمين المخزن (Warehouse Keeper)</div>
+            <div style="border-bottom:1px dashed #94a3b8;width:80%;margin:0 auto;"></div>
+          </div>
+          <div style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:8px;padding:15px;text-align:center;">
+            <div style="background:#3b82f6;height:3px;margin-bottom:10px;"></div>
+            <div style="font-size:13px;font-weight:900;margin-bottom:30px;">المستلم (Recipient)</div>
+            <div style="border-bottom:1px dashed #94a3b8;width:80%;margin:0 auto;"></div>
+          </div>
+        </div>
+
+        <div style="text-align:center;margin-top:15px;font-size:10px;color:#94a3b8;">
+          نظام بركة الثمار PRO • Barakat Al-Thimar Warehouse Management
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(el);
     try {
-      const d = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const pageH = d.internal.pageSize.getHeight();
-      const W = d.internal.pageSize.getWidth();
-      const BLUE = [59, 130, 246];
-      const BLUE_DARK = [29, 78, 216];
-      const BLUE_NEON = [96, 165, 250];
-      const SLATE_DARK = [15, 23, 42];
-      const SLATE_MID = [71, 85, 105];
-      const SLATE_LIGHT = [241, 245, 249];
-      const GRAY_BORDER = [203, 213, 225];
-
-      // ── COMPACT HEADER (18mm band) ──────────────────────────────────
-      const drawHeader = () => {
-        d.setFillColor(...SLATE_DARK);
-        d.roundedRect(10, 8, W - 20, 18, 2, 2, 'F');
-
-        // Blue accent bar
-        d.setFillColor(...BLUE);
-        d.rect(10, 8, 3.5, 18, 'F');
-
-        d.setFontSize(11); d.setFont('helvetica', 'bold'); d.setTextColor(255, 255, 255);
-        d.text('بركة الثمار  |  Barakat Al-Thimar', W / 2, 14.5, { align: 'center' });
-
-        d.setFontSize(7); d.setTextColor(...BLUE_NEON);
-        d.text('إذن صرف بضاعة — Stock Outbound Voucher', W / 2, 21, { align: 'center' });
-
-        // ── Meta band (9mm) ──────────────────────────────────────────
-        d.setFillColor(...SLATE_LIGHT);
-        d.roundedRect(10, 29, W - 20, 9, 1.5, 1.5, 'F');
-        d.setDrawColor(...GRAY_BORDER); d.setLineWidth(0.25);
-        d.roundedRect(10, 29, W - 20, 9, 1.5, 1.5, 'S');
-
-        d.setFontSize(7.5); d.setFont('helvetica', 'normal'); d.setTextColor(...SLATE_MID);
-        d.text('التاريخ:', W - 13, 35, { align: 'right' });
-        d.setTextColor(...SLATE_DARK); d.setFont('helvetica', 'bold');
-        d.text('___ / ___ / _______', W - 30, 35, { align: 'right' });
-
-        d.setFont('helvetica', 'normal'); d.setTextColor(...SLATE_MID);
-        d.text('المندوب:', 13, 35);
-        d.setFont('helvetica', 'bold'); d.setTextColor(...SLATE_DARK);
-        d.text('_________________________________', 30, 35);
-
-        d.setFont('helvetica', 'normal'); d.setFontSize(6); d.setTextColor(170, 185, 200);
-        d.text(`طُبع: ${new Date().toLocaleDateString('ar-SA')}`, W / 2, 36.5, { align: 'center' });
-      };
-
-      // ── TABLE HEADER ROW ──────────────────────────────────────────
-      // Columns: م | كود الصنف | الصنف والشركة (large) | الكمية | ملاحظات
-      // A4=297mm. Band=8+18=26, meta=9, gap=1 → table Y=41mm. Hdr=7mm.
-      // 30×5.8=174mm. Sigs=22, footer=6 → total≈250mm < 297mm ✅
-      const SEP = [28, 50, W - 48, W - 26]; // 5-col separators
-      const drawTableHeader = (yPos) => {
-        d.setFillColor(...BLUE_DARK);
-        d.rect(10, yPos, W - 20, 7, 'F');
-
-        d.setFontSize(7); d.setFont('helvetica', 'bold'); d.setTextColor(255, 255, 255);
-        d.text('م',              19,        yPos + 4.8, { align: 'center' });
-        d.text('كود الصنف',     39,        yPos + 4.8, { align: 'center' });
-        d.text('الصنف والشركة', W / 2 + 5, yPos + 4.8, { align: 'center' });
-        d.text('الكمية',        W - 37,    yPos + 4.8, { align: 'center' });
-        d.text('ملاحظات',       W - 13,    yPos + 4.8, { align: 'right'  });
-
-        d.setDrawColor(255, 255, 255); d.setLineWidth(0.2);
-        SEP.forEach(x => d.line(x, yPos, x, yPos + 7));
-        return yPos + 7;
-      };
-
-      const ROWS_TOTAL = 30;
-      const ROW_H = 5.8;
-      const TABLE_START_Y = 41;
-
-      drawHeader();
-      let y = drawTableHeader(TABLE_START_Y);
-
-      for (let i = 1; i <= ROWS_TOTAL; i++) {
-        if (i % 2 === 0) {
-          d.setFillColor(248, 250, 252);
-          d.rect(10, y, W - 20, ROW_H, 'F');
-        }
-
-        d.setDrawColor(...GRAY_BORDER); d.setLineWidth(0.18);
-        d.rect(10, y, W - 20, ROW_H, 'S');
-
-        SEP.forEach(x => {
-          d.setDrawColor(...GRAY_BORDER); d.setLineWidth(0.18);
-          d.line(x, y, x, y + ROW_H);
-        });
-
-        d.setFontSize(6.5); d.setFont('helvetica', 'bold');
-        if (i % 5 === 0) { d.setTextColor(...BLUE_DARK); } else { d.setTextColor(...SLATE_MID); }
-        d.text(`${i}`, 19, y + 3.9, { align: 'center' });
-
-        if (i % 10 === 0) {
-          d.setFillColor(...BLUE);
-          d.circle(14, y + ROW_H / 2, 1, 'F');
-        }
-
-        y += ROW_H;
-      }
-
-      // ── SIGNATURE BOXES (compact 18mm) ────────────────────────────
-      y += 4;
-      const sigBoxW = (W - 28) / 2;
-
-      const drawSigBox = (bx, label, sublabel) => {
-        d.setFillColor(...SLATE_LIGHT);
-        d.roundedRect(bx, y, sigBoxW, 18, 1.5, 1.5, 'F');
-        d.setDrawColor(...GRAY_BORDER); d.setLineWidth(0.25);
-        d.roundedRect(bx, y, sigBoxW, 18, 1.5, 1.5, 'S');
-        d.setFillColor(...BLUE);
-        d.roundedRect(bx, y, sigBoxW, 2.5, 1.5, 1.5, 'F');
-        d.rect(bx, y + 1.2, sigBoxW, 1.3, 'F');
-        d.setFontSize(7); d.setFont('helvetica', 'bold'); d.setTextColor(...SLATE_DARK);
-        d.text(label,    bx + sigBoxW / 2, y + 7.5,  { align: 'center' });
-        d.setFontSize(6); d.setTextColor(...SLATE_MID); d.setFont('helvetica', 'normal');
-        d.text(sublabel, bx + sigBoxW / 2, y + 11.5, { align: 'center' });
-        d.setDrawColor(...GRAY_BORDER); d.setLineWidth(0.35);
-        d.line(bx + 6, y + 15.5, bx + sigBoxW - 6, y + 15.5);
-      };
-
-      drawSigBox(10,              'أمين المخزن', 'Warehouse Keeper');
-      drawSigBox(W - 10 - sigBoxW, 'المستلم',     'Recipient');
-
-      // ── FOOTER ────────────────────────────────────────────────────
-      d.setFontSize(5.5); d.setTextColor(200, 210, 225);
-      d.text('نظام بركة الثمار PRO  •  Barakat Al-Thimar Warehouse Management', W / 2, pageH - 4, { align: 'center' });
-
-      d.save(`Blank_StockOut_30Rows_${Date.now()}.pdf`);
-      toast.success('تم توليد سند صادر A4 جاهز للطباعة (30 صنف) 📋');
-    } catch(e) {
+      const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff' });
+      const imgData = canvas.toDataURL('image/jpeg', 0.9);
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`Blank_StockOut_Voucher_${Date.now()}.pdf`);
+      toast.success('تم توليد سند صادر A4 جاهز للطباعة 📋');
+    } catch (e) {
       console.error(e);
-      toast.error('خطأ أثناء توليد السند الفارغ');
+      toast.error('خطأ أثناء توليد السند');
+    } finally {
+      document.body.removeChild(el);
     }
   };
 
   // --- ROW: Export single صادر voucher as PDF ---
-  const handleRowExportPDF = (tx) => {
+  const handleRowExportPDF = async (tx) => {
+    const el = document.createElement('div');
+    el.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:595px;background:white;padding:40px;font-family:Cairo,sans-serif;direction:rtl;color:#1e293b;';
+    
+    const itemsList = tx.items_summary || [
+      { item: tx.item, company: tx.company, qty: tx.qty, unit: tx.unit, cat: tx.cat }
+    ];
+
+    el.innerHTML = `
+      <div style="border:2px solid #f97316;border-radius:24px;padding:30px;background:#fff;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:30px;border-bottom:3px solid #f97316;padding-bottom:20px;">
+          <div>
+            <div style="font-size:28px;font-weight:900;color:#f97316;">بركة الثمار</div>
+            <div style="font-size:12px;color:#64748b;font-weight:700;">سند صادر رسمي — Official Stock-Out Voucher</div>
+          </div>
+          <div style="text-align:left;direction:ltr;">
+            <div style="font-size:14px;font-weight:800;">Date: ${tx.date || formatDate(new Date())}</div>
+            <div style="font-size:12px;color:#94a3b8;">Voucher: #${tx.id.slice(0,8).toUpperCase()}</div>
+          </div>
+        </div>
+
+        <div style="background:#fff7ed;border-radius:16px;padding:20px;margin-bottom:25px;display:flex;justify-content:space-between;border:1px solid #ffedd5;">
+          <div style="font-size:16px;font-weight:900;color:#c2410c;">المستلم: ${tx.recipient || tx.rep || '—'}</div>
+          <div style="font-size:14px;font-weight:700;color:#9a3412;">نوع الحركة: ${tx.type === 'out' ? 'صادر بضاعة' : tx.type}</div>
+        </div>
+
+        <table style="width:100%;border-collapse:collapse;margin-bottom:30px;font-size:14px;">
+          <thead>
+            <tr style="background:#f97316;color:white;">
+              <th style="padding:12px;border:1px solid #ea580c;text-align:center;width:40px;">م</th>
+              <th style="padding:12px;border:1px solid #ea580c;text-align:right;">الصنف والشركة</th>
+              <th style="padding:12px;border:1px solid #ea580c;text-align:center;width:80px;">الكمية</th>
+              <th style="padding:12px;border:1px solid #ea580c;text-align:center;width:100px;">الوحدة</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itemsList.map((it, idx) => `
+              <tr style="background:${idx % 2 === 0 ? '#fff' : '#fffaf5'};">
+                <td style="padding:10px;border:1px solid #fed7aa;text-align:center;font-weight:700;">${idx + 1}</td>
+                <td style="padding:10px;border:1px solid #fed7aa;text-align:right;">
+                  <div style="font-weight:800;">${it.item}</div>
+                  <div style="font-size:11px;color:#94a3b8;">${it.company || '—'}</div>
+                </td>
+                <td style="padding:10px;border:1px solid #fed7aa;text-align:center;font-weight:900;color:#c2410c;">${it.qty}</td>
+                <td style="padding:10px;border:1px solid #fed7aa;text-align:center;color:#64748b;">${it.unit || 'كرتونة'}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:40px;padding-top:20px;border-top:1px dashed #fdba74;">
+          <div style="text-align:center;">
+            <div style="font-size:13px;font-weight:900;color:#475569;margin-bottom:40px;">توقيع أمين المستودع</div>
+            <div style="border-bottom:2px solid #cbd5e1;width:160px;margin:0 auto;"></div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:13px;font-weight:900;color:#475569;margin-bottom:40px;">توقيع المستلم</div>
+            <div style="border-bottom:2px solid #cbd5e1;width:160px;margin:0 auto;"></div>
+          </div>
+        </div>
+
+        <div style="margin-top:40px;text-align:center;font-size:10px;color:#94a3b8;border-top:1px solid #f1f5f9;padding-top:15px;">
+          نظام بركة الثمار الإلكتروني PRO • طُبع في: ${new Date().toLocaleString('ar-SA')}
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(el);
     try {
-      const d = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const W = d.internal.pageSize.getWidth();
-      d.setFillColor(15, 23, 42); d.roundedRect(14, 10, W - 28, 28, 4, 4, 'F');
-      d.setFontSize(17); d.setTextColor(255, 255, 255);
-      d.text('بركة الثمار', W / 2, 22, { align: 'center' });
-      d.setFontSize(9); d.setTextColor(249, 115, 22);
-      d.text('Baraka Al Thimar — سند صادر رسمي / Official Stock-Out Voucher', W / 2, 30, { align: 'center' });
-      d.setFillColor(255, 247, 237); d.roundedRect(14, 44, W - 28, 12, 3, 3, 'F');
-      d.setFontSize(9); d.setTextColor(249, 115, 22);
-      d.text(`سند صادر | نوع الحركة: ${tx.type || 'صادر'}`, 20, 52);
-      d.text(`التاريخ: ${tx.date || formatDate(new Date())}`, W - 20, 52, { align: 'right' });
-      const rows = [
-        ['الصنف', tx.item || '-'],
-        ['الشركة', tx.company || '-'],
-        ['القسم', tx.cat || '-'],
-        ['الكمية', `${tx.qty} ${tx.unit || 'كرتونة'}`],
-        ['المستلم', tx.recipient || '-'],
-        ['الرصيد بعد الحركة', `${tx.balanceAfter ?? '-'} ${tx.unit || 'كرتونة'}`],
-      ];
-      d.autoTable({
-        startY: 62, head: [['البيان', 'القيمة']],
-        body: rows,
-        headStyles: { fillColor: [249, 115, 22], textColor: [255, 255, 255], halign: 'center' },
-        styles: { halign: 'right', fontSize: 12, cellPadding: 5 },
-        alternateRowStyles: { fillColor: [255, 247, 237] },
-      });
-      const finalY = d.lastAutoTable.finalY + 20;
-      d.setFontSize(9); d.setTextColor(100, 120, 150);
-      d.text('توقيع المستلم: ___________________________', 20, finalY);
-      d.text('توقيع المدير: ___________________________', W - 20, finalY, { align: 'right' });
-      d.setFontSize(7); d.setTextColor(148, 163, 184);
-      d.text(`نظام بركة الثمار PRO — طُبع: ${new Date().toLocaleDateString('ar-SA')}`, W / 2, 287, { align: 'center' });
-      d.save(`StockOut_Voucher_${tx.item}_${tx.date || Date.now()}.pdf`);
-      toast.success('تم تصدير السند كـ PDF 📄');
-    } catch(e) {
-      toast.error('خطأ أثناء تصدير السند');
+      const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff' });
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const imgProps = pdf.getImageProperties(imgData);
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`StockOut_Voucher_${tx.date || Date.now()}.pdf`);
+      toast.success('تم تصدير السند كـ PDF بنجاح 📄');
+    } catch (e) {
+      console.error(e);
+      toast.error('خطأ أثناء تصدير PDF');
+    } finally {
+      document.body.removeChild(el);
     }
   };
 
@@ -776,50 +792,35 @@ export default function StockOut() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
                   {groupedTransactions[cat].map(tx => (
                     <motion.div key={tx.id} variants={cardVariants}
-                      className="group relative flex flex-col justify-between p-6 rounded-[2rem] bg-white border border-slate-100 shadow-sm hover:shadow-2xl hover:border-orange-200 transition-all duration-500">
+                      onClick={() => { setSelectedTx(tx); setIsDetailsOpen(true); }}
+                      className="group relative flex flex-col justify-between p-6 rounded-[2rem] bg-white border border-slate-100 shadow-sm hover:shadow-2xl hover:border-orange-200 transition-all duration-500 cursor-pointer">
                       <div className="flex flex-col h-full">
                         <div className="flex items-start justify-between w-full mb-4">
                           <div className="flex flex-col w-full overflow-hidden">
                             <div className="flex items-center justify-between mb-1">
-                              <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase truncate">{tx.company || 'بدون شركة'}</span>
-                              <span className="text-[10px] font-bold text-slate-400">{tx.date || (tx.timestamp?.toDate ? formatDate(tx.timestamp.toDate()) : '')}</span>
+                              <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase truncate">{tx.recipient || 'بدون مستلم'}</span>
+                              <span className="text-[10px] font-bold text-slate-400">{tx.date}</span>
                             </div>
                             <div className="flex items-center gap-2 w-full">
-                              <h4 className="text-lg font-black text-slate-800 leading-tight group-hover:text-orange-600 transition-colors truncate tracking-tight">{tx.item}</h4>
-                              {(hotItemsMap[tx._itemId] || 0) >= 50 && (
-                                <Flame size={18} className="text-orange-500 animate-pulse shrink-0" />
-                              )}
+                              <h4 className="text-lg font-black text-slate-800 leading-tight group-hover:text-orange-600 transition-colors truncate tracking-tight">
+                                {tx.items_summary?.length || 0} أصناف منصرفة
+                              </h4>
                             </div>
                           </div>
                         </div>
 
                         <div className="flex items-end justify-between mt-auto pt-4 border-t border-slate-50">
                           <div className="flex flex-col space-y-2">
-                            {/* Recipient badge */}
-                            {tx.recipient && (
-                              <div className="flex items-center text-[10px] font-black text-slate-500 bg-slate-50 w-max px-2.5 py-1 rounded-lg border border-slate-100">
-                                <User size={10} className="ml-1.5 opacity-60" /> {tx.recipient}
-                              </div>
-                            )}
-                            {/* Qty badge — orange/rose for outgoing */}
                             <span className="inline-flex items-center px-4 py-1.5 rounded-xl text-sm font-black bg-orange-50 text-orange-600 border border-orange-100 w-max shadow-sm">
-                              -{tx.qty} <span className="text-[10px] font-bold mr-1 opacity-70">{tx.unit}</span>
+                              -{tx.total_qty || tx.qty} <span className="text-[10px] font-bold mr-1 opacity-70">إجمالي</span>
                             </span>
                           </div>
 
-                          {/* Actions Menu */}
                           <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all duration-300">
-                            {!isViewer && (
-                              <>
-                                <button onClick={(e) => { e.stopPropagation(); openEditTx(tx); }} title="تعديل" className="p-2.5 rounded-xl bg-white border border-slate-200 text-slate-400 hover:text-blue-500 hover:border-blue-200 hover:shadow-lg transition-all active:scale-90"><Pencil size={14} /></button>
-                                <button onClick={(e) => { e.stopPropagation(); openDeleteTx(tx); }} title="حذف" className="p-2.5 rounded-xl bg-white border border-slate-200 text-slate-400 hover:text-rose-500 hover:border-rose-200 hover:shadow-lg transition-all active:scale-90"><Trash2 size={14} /></button>
-                              </>
-                            )}
                             <button onClick={(e) => { e.stopPropagation(); handleRowExportPDF(tx); }} title="تصدير PDF" className="p-2.5 rounded-xl bg-white border border-slate-200 text-slate-400 hover:text-orange-500 hover:border-orange-200 hover:shadow-lg transition-all active:scale-90"><FileText size={14} /></button>
                           </div>
                         </div>
                       </div>
-                      {/* Bottom accent — orange for outgoing */}
                       <div className="absolute bottom-0 right-10 left-10 h-1 bg-gradient-to-r from-orange-500 to-rose-500 scale-x-0 group-hover:scale-x-100 transition-transform duration-500 ease-out rounded-t-full"></div>
                     </motion.div>
                   ))}
@@ -859,72 +860,74 @@ export default function StockOut() {
             </div>
           </div>
 
-          {/* Row 2: 4-col Entry Grid */}
-          <div className="bg-orange-50/50 border border-orange-200/60 rounded-2xl p-4 flex flex-col gap-3 relative z-30">
-            <p className="text-[11px] font-black text-orange-400 uppercase tracking-widest">إضافة صنف للصرف</p>
-            <div className="grid grid-cols-12 gap-3 items-end">
-              <div className="col-span-6 relative group/findItem">
-                <label className={LabelClass}>اسم الصنف</label>
-                <div className="relative">
-                  <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 z-10" />
-                  {selectedItemModel ? (
-                    <div className="flex items-center justify-between w-full bg-orange-50 border border-orange-200 text-orange-800 text-sm font-bold rounded-xl px-3 py-2.5">
-                      <span className="truncate text-xs">{selectedItemModel.name}</span>
-                      <button type="button" onClick={handleClearDynamicRow} className="text-orange-400 hover:text-orange-600 shrink-0"><X size={13} /></button>
-                    </div>
-                  ) : (
-                    <input ref={itemNameRef} type="text" className={`${InputClass} pr-9 text-sm`} placeholder="ابحث عن الصنف..."
-                      value={searchNameText} onChange={e => { setSearchNameText(e.target.value); setItemSearchActiveIndex(-1); }}
+          {/* Row 2: Standardized Entry Row */}
+          <div className="bg-orange-50/50 border border-orange-200/60 rounded-2xl p-4 shadow-sm">
+            <div className="flex flex-wrap items-end gap-3 relative z-30">
+              
+              {/* Unified Search (flex-grow) */}
+              <div className="flex-1 min-w-[300px] relative group/finder">
+                 <label className={LabelClass}>البحث عن صنف أو شركة</label>
+                 <div className="relative">
+                    <Search size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 z-10" />
+                    <input 
+                      ref={itemNameRef} type="text" 
+                      className={`${InputClass} pr-11 text-center`}
+                      placeholder="ابحث عن صنف أو شركة..." 
+                      value={searchNameText} 
+                      onChange={e => { setSearchNameText(e.target.value); setSelectedItemModel(null); if (e.target.value.length >= 2) setItemSearchActiveIndex(-1); }}
                       onKeyDown={(e) => {
-                        if (e.key === 'ArrowDown') { 
-                          e.preventDefault(); 
-                          setItemSearchActiveIndex(p => p < itemSuggestions.length - 1 ? p + 1 : p); 
-                        }
-                        else if (e.key === 'ArrowUp') { 
-                          e.preventDefault(); 
-                          setItemSearchActiveIndex(p => p > 0 ? p - 1 : 0); 
-                        }
+                        if (e.key === 'ArrowDown') { e.preventDefault(); setItemSearchActiveIndex(prev => prev < itemSuggestions.length - 1 ? prev + 1 : prev); }
+                        else if (e.key === 'ArrowUp') { e.preventDefault(); setItemSearchActiveIndex(prev => prev > 0 ? prev - 1 : 0); }
                         else if (e.key === 'Enter') {
-                          if (itemSearchActiveIndex >= 0 && itemSuggestions[itemSearchActiveIndex]) {
-                            e.preventDefault(); 
-                            handleSelectSuggestion(itemSuggestions[itemSearchActiveIndex]);
-                          } else if (selectedItemModel) {
-                            e.preventDefault();
-                            document.getElementById('stock-out-qty-input')?.focus();
-                          }
+                           e.preventDefault();
+                           if (itemSearchActiveIndex >= 0 && itemSuggestions[itemSearchActiveIndex]) handleSelectSuggestion(itemSuggestions[itemSearchActiveIndex]);
+                           else if (selectedItemModel) {
+                             document.getElementById('stock-out-qty-input')?.focus();
+                           }
                         }
-                      }} 
+                      }}
                     />
-                  )}
-                </div>
-                {!selectedItemModel && searchNameText && itemSuggestions.length > 0 && (
-                  <div className="absolute top-full right-0 w-full max-h-48 overflow-y-auto bg-white rounded-xl shadow-2xl border border-slate-100 z-50 p-1 mt-1">
-                    {itemSuggestions.map((s, idx) => (
-                      <button key={s.id} type="button" onMouseDown={(e) => { e.preventDefault(); handleSelectSuggestion(s); }}
-                        className={`w-full text-right px-3 py-2 border-b border-slate-50 last:border-0 text-sm flex flex-col items-start transition-colors ${itemSearchActiveIndex === idx ? 'bg-orange-50 text-orange-700' : 'text-slate-700 hover:bg-slate-50'}`}>
-                        <span className="font-black text-xs">{s.name}</span>
-                        <span className="text-[10px] opacity-70 font-bold">{s.company || 'بدون شركة'} • {s.cat} • رصيد: {s.stockQty ?? '—'}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
+                    <AnimatePresence>
+                      {itemSuggestions.length > 0 && !selectedItemModel && (
+                        <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 5 }} className="absolute top-full mt-2 left-0 right-0 bg-white border border-slate-100 shadow-2xl rounded-2xl overflow-hidden z-[100] py-2">
+                           {itemSuggestions.map((item, idx) => (
+                             <button key={item.id} type="button" onMouseEnter={() => setItemSearchActiveIndex(idx)} onClick={() => handleSelectSuggestion(item)} className={`w-full px-5 py-2 cursor-pointer flex items-center justify-between transition-colors ${idx === itemSearchActiveIndex ? 'bg-orange-50 text-orange-700' : 'hover:bg-slate-50'}`}>
+                                <div className="text-right">
+                                  <div className="text-sm font-bold text-slate-800">{item.name} - {item.company || 'بدون شركة'}</div>
+                                  <div className="text-[10px] text-slate-400 font-bold">{item.cat}</div>
+                                </div>
+                                <div className="text-[10px] font-black bg-orange-100/50 text-orange-600 px-2 py-1 rounded-lg tabular-nums">رصيد: {item.stockQty} {item.unit}</div>
+                             </button>
+                           ))}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                 </div>
               </div>
-              <div className="col-span-2">
-                <label className={LabelClass}>الشركة</label>
-                <input type="text" className="w-full bg-slate-100 border border-transparent text-slate-500 text-xs font-bold rounded-xl px-3 py-2.5 outline-none cursor-not-allowed truncate" readOnly value={selectedItemModel?.company || '---'} />
+
+              {/* Quantity */}
+              <div className="w-[120px]">
+                 <label className={LabelClass}>الكمية</label>
+                 <input 
+                   id="stock-out-qty-input" 
+                   type="number" 
+                   className={`${InputClass} text-center font-black !border-orange-500/40 focus:!ring-orange-500/20`}
+                   placeholder="0" 
+                   value={draftQty} 
+                   onChange={e => setDraftQty(e.target.value)} 
+                   onKeyDown={e => e.key === 'Enter' && handlePushToDraft()} 
+                 />
               </div>
-              <div className="col-span-2">
-                <label className={LabelClass}>الوحدة</label>
-                <input type="text" className="w-full bg-slate-100 border border-transparent text-slate-500 text-xs font-bold rounded-xl px-3 py-2.5 outline-none cursor-not-allowed text-center" readOnly value={selectedItemModel?.unit || 'كرتونة'} />
-              </div>
-              <div className="col-span-2">
-                <label className={LabelClass}>الكمية <span className="text-orange-500">↵</span></label>
-                <input id="stock-out-qty-input" type="number" min="1"
-                  className={`${InputClass} !border-orange-500/60 focus:!ring-orange-500/30 text-orange-700 font-bold text-center`}
-                  placeholder="0" disabled={!selectedItemModel} value={draftQty}
-                  onChange={e => setDraftQty(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handlePushToDraft(); } }} />
-              </div>
+
+              {/* Add Button */}
+              <button 
+                type="button" 
+                onClick={handlePushToDraft} 
+                className="h-[42px] px-6 bg-orange-500 text-white rounded-xl font-black text-sm hover:shadow-lg hover:shadow-orange-500/30 transition-all flex items-center gap-2"
+              >
+                <Plus size={18} />
+                <span>إضافة</span>
+              </button>
             </div>
           </div>
 
@@ -1006,6 +1009,92 @@ export default function StockOut() {
         </div>
       </ModalWrapper>
 
+      {/* ─── DETAILS MODAL ─── */}
+      <AnimatePresence>
+        {isDetailsOpen && selectedTx && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md" dir="rtl">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 30 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 30 }}
+              className="bg-white dark:bg-slate-800 w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-700 flex flex-col max-h-[85vh]"
+            >
+              <div className="p-8 border-b border-slate-50 dark:border-slate-700 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/50">
+                 <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-orange-500 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-orange-500/20">
+                       <ArrowUpRight size={24} />
+                    </div>
+                    <div>
+                       <h3 className="text-xl font-black text-slate-800 dark:text-white leading-none">تفاصيل إذن الصرف</h3>
+                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2">مراجعة بيانات الصادر</p>
+                    </div>
+                 </div>
+                 <button onClick={() => setIsDetailsOpen(false)} className="p-3 bg-white dark:bg-slate-700 text-slate-400 hover:text-rose-500 rounded-2xl shadow-sm transition-colors active:scale-90">
+                    <X size={20} />
+                 </button>
+              </div>
+
+              <div className="p-8 overflow-y-auto custom-scrollbar flex-1 space-y-8">
+                 <div className="grid grid-cols-2 gap-6">
+                    <div className="bg-slate-50 dark:bg-slate-900/40 p-5 rounded-2xl border border-slate-100 dark:border-slate-800">
+                       <span className="text-[10px] font-black text-slate-400 uppercase block mb-2">المستلم / المندوب</span>
+                       <div className="flex items-center gap-2 text-slate-800 dark:text-white font-black">
+                          <User size={16} className="text-orange-500" />
+                          {selectedTx.recipient}
+                       </div>
+                    </div>
+                    <div className="bg-slate-50 dark:bg-slate-900/40 p-5 rounded-2xl border border-slate-100 dark:border-slate-800">
+                       <span className="text-[10px] font-black text-slate-400 uppercase block mb-2">تاريخ الحركة</span>
+                       <div className="flex items-center gap-2 text-slate-800 dark:text-white font-black">
+                          <Calendar size={16} className="text-orange-500" />
+                          {selectedTx.date}
+                       </div>
+                    </div>
+                 </div>
+
+                 <div className="space-y-4">
+                    <h4 className="text-xs font-black text-slate-800 dark:text-white flex items-center gap-2">
+                       <Package size={14} className="text-orange-500" />
+                       قائمة الأصناف المنصرفة
+                    </h4>
+                    <div className="rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden shadow-sm">
+                       <table className="w-full text-right text-xs">
+                          <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-400 font-black uppercase tracking-wider border-b border-slate-100 dark:border-slate-700">
+                             <tr>
+                                <th className="px-5 py-3">الصنف والشركة</th>
+                                <th className="px-5 py-3 text-center">القسم</th>
+                                <th className="px-5 py-3 text-center">الكمية</th>
+                             </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
+                             {(selectedTx.items_summary || []).map((it, idx) => (
+                                <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
+                                   <td className="px-5 py-3 font-bold text-slate-700 dark:text-slate-300 border-x border-slate-100 dark:border-slate-700">{it.item}</td>
+                                   <td className="px-5 py-3 text-center border-x border-slate-100 dark:border-slate-700">
+                                      <span className="px-2 py-0.5 bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 rounded-md text-[9px] font-black">{it.cat}</span>
+                                   </td>
+                                   <td className="px-5 py-3 text-center font-black text-orange-600 tabular-nums border-x border-slate-100 dark:border-slate-700">
+                                      -{it.qty} {it.unit}
+                                   </td>
+                                </tr>
+                             ))}
+                          </tbody>
+                       </table>
+                    </div>
+                 </div>
+              </div>
+
+              <div className="p-8 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-100 dark:border-slate-700 flex justify-end gap-3">
+                 <button onClick={() => handleRowExportPDF(selectedTx)} className="flex items-center gap-2 px-6 py-3 bg-orange-500 text-white rounded-xl font-black text-sm shadow-lg shadow-orange-500/20 active:scale-95 transition-all">
+                    <Printer size={18} />
+                    <span>طباعة السند</span>
+                 </button>
+                 <button onClick={() => setIsDetailsOpen(false)} className="px-8 py-3 bg-white dark:bg-slate-700 text-slate-500 dark:text-slate-300 rounded-xl font-bold text-sm border border-slate-200 dark:border-slate-600 active:scale-95 transition-all">إغلاق</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -10,6 +10,7 @@ import { supabase } from '../lib/supabaseClient';
 import { toast } from 'sonner';
 import { useAudio } from '../contexts/AudioContext';
 import { useAuth } from '../contexts/AuthContext';
+import { normalizeArabic } from '../lib/arabicTextUtils';
 
 /* ─── helpers ─── */
 const fmt = (date) => {
@@ -101,10 +102,10 @@ export default function Reps() {
   /* live Supabase sync */
   useEffect(() => {
     const fetchInitialData = async () => {
-      const { data: repsData } = await supabase.from('reps').select('*').order('created_at', { ascending: false });
+      const { data: repsData } = await supabase.from('reps').select('id, name, phone, area, created_at').order('created_at', { ascending: false });
       if (repsData) setReps(repsData.map(d => ({ ...d, createdAt: d.created_at })));
 
-      const { data: transData } = await supabase.from('transactions').select('*').order('timestamp', { ascending: false });
+      const { data: transData } = await supabase.from('transactions').select('id, type, timestamp, rep, qty, date, item_id, item, balance_after').order('timestamp', { ascending: false });
       if (transData) setTransactions(transData);
     };
 
@@ -145,9 +146,10 @@ export default function Reps() {
 
   const filtered = useMemo(
     () =>
-      reps.filter((r) =>
-        [r.name, r.phone, r.zone, r.notes].join(' ').toLowerCase().includes(searchQuery.toLowerCase())
-      ),
+      reps.filter((r) => {
+        const q = normalizeArabic(searchQuery);
+        return normalizeArabic([r.name, r.phone, r.area, r.notes].join(' ')).includes(q);
+      }),
     [reps, searchQuery]
   );
 

@@ -8,8 +8,10 @@ import { supabase } from '../lib/supabaseClient';
 import { toast } from 'sonner';
 import { useAudio } from '../contexts/AudioContext';
 import { useAuth } from '../contexts/AuthContext';
+import { normalizeArabic } from '../lib/arabicTextUtils';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
+import html2canvas from 'html2canvas';
 import { getItemName, getCompany, getCategory, getUnit } from '../lib/itemFields';
 
 const formatDate = (date) => {
@@ -159,10 +161,10 @@ export default function Returns() {
 
   useEffect(() => {
     const fetchInitialData = async () => {
-      const { data: itemsData } = await supabase.from('products').select('*');
+      const { data: itemsData } = await supabase.from('products').select('id, name, company, cat, unit, stock_qty');
       if (itemsData) setItems(itemsData.map(d => ({ ...d, stockQty: d.stock_qty, damagedQty: d.damaged_qty })));
 
-      const { data: transData } = await supabase.from('transactions').select('*').order('timestamp', { ascending: false });
+      const { data: transData } = await supabase.from('transactions').select('id, type, timestamp, item_id, item, company, qty, unit, cat, status, rep, beneficiary, date, batch_id, is_summary, total_qty, balance_after').order('timestamp', { ascending: false });
       if (transData) setTransactions(transData.map(d => ({ ...d, itemId: d.item_id })));
     };
 
@@ -176,14 +178,14 @@ export default function Returns() {
     return () => { channels.forEach(c => supabase.removeChannel(c)); };
   }, []);
 
-  const returnTxs = useMemo(() => transactions.filter((t) => t.type === 'مرتجع'), [transactions]);
+  const returnTxs = useMemo(() => transactions.filter((t) => t.type === 'return'), [transactions]);
 
   const itemSuggestions = useMemo(() => {
     if (!searchNameText || selectedItem) return [];
-    const q = searchNameText.toLowerCase();
+    const q = normalizeArabic(searchNameText);
     return items.filter((i) => {
-      const n = getItemName(i).toLowerCase();
-      const c = (getCompany(i) || '').toLowerCase();
+      const n = normalizeArabic(getItemName(i));
+      const c = normalizeArabic(getCompany(i) || '');
       return n.includes(q) || c.includes(q);
     });
   }, [items, searchNameText, selectedItem]);
@@ -210,9 +212,9 @@ export default function Returns() {
           return { ...tx, cat: mi ? getCategory(mi) : 'أخرى', _iid: mi?.id || tx.itemId };
         })
         .filter((tx) => {
-          const sk = `${tx.item} ${tx.company} ${tx.rep || ''}`.toLowerCase();
+          const sk = normalizeArabic(`${tx.item} ${tx.company} ${tx.rep || ''}`);
           return (
-            sk.includes(searchQuery.toLowerCase()) &&
+            sk.includes(normalizeArabic(searchQuery)) &&
             (categoryFilter === 'الكل' || tx.cat === categoryFilter) &&
             (companyFilter === 'الكل' || (tx.company || 'بدون شركة') === companyFilter) &&
             (!showHotOnly || (hotMap[tx._iid] || 0) >= 50)
@@ -300,8 +302,13 @@ export default function Returns() {
       }
 
       // 2. Create Transactions
+      const batchId = `RETURN-${Date.now()}`;
+      const totalQty = modalDrafts.reduce((sum, d) => sum + d.qty, 0);
+      const beneficiary = bulkRep.trim();
+      const now = new Date();
+
       const txRows = modalDrafts.map((d) => ({
-        type: 'مرتجع',
+        type: 'return',
         item: d.item,
         item_id: d.itemId,
         company: d.company,
@@ -309,9 +316,29 @@ export default function Returns() {
         unit: d.unit,
         cat: d.cat,
         status: d.status,
-        rep: bulkRep.trim(),
-        date: bulkDate,
+        rep: beneficiary,
+        beneficiary: beneficiary,
+        date: bulkDate || now.toISOString().split('T')[0],
+        timestamp: now.toISOString(),
+        batch_id: batchId,
+        is_summary: false
       }));
+
+      // Add Summary Row
+      txRows.push({
+        type: 'return',
+        item: 'ملخص مرتجع بضاعة',
+        qty: totalQty,
+        total_qty: totalQty,
+        date: bulkDate || now.toISOString().split('T')[0],
+        timestamp: now.toISOString(),
+        status: 'مكتمل',
+        rep: beneficiary,
+        beneficiary: beneficiary,
+        batch_id: batchId,
+        is_summary: true
+      });
+
       const { error: insError } = await supabase.from('transactions').insert(txRows);
       if (insError) throw insError;
 
@@ -424,44 +451,77 @@ export default function Returns() {
     }
   };
 
-  const exportPDF = () => {
+  const exportPDF = async () => {
+    const el = document.createElement('div');
+    el.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:794px;background:white;padding:40px;font-family:Cairo,sans-serif;direction:rtl;color:#1e293b;';
+    
+    el.innerHTML = `
+      <div style="border:2px solid #ef4444;border-radius:24px;padding:30px;background:#fff;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:30px;border-bottom:3px solid #ef4444;padding-bottom:20px;">
+          <div>
+            <div style="font-size:28px;font-weight:900;color:#ef4444;">بركة الثمار</div>
+            <div style="font-size:12px;color:#64748b;font-weight:700;">سجل المرتجعات — Returns Registry</div>
+          </div>
+          <div style="text-align:left;direction:ltr;">
+            <div style="font-size:14px;font-weight:800;">Date: ${new Date().toLocaleDateString('ar-SA')}</div>
+            <div style="font-size:12px;color:#94a3b8;">User: ${currentUser?.email || 'System'}</div>
+          </div>
+        </div>
+
+        <table style="width:100%;border-collapse:collapse;margin-bottom:30px;font-size:14px;">
+          <thead>
+            <tr style="background:#ef4444;color:white;">
+              <th style="padding:12px;border:1px solid #dc2626;text-align:center;width:40px;">م</th>
+              <th style="padding:12px;border:1px solid #dc2626;text-align:center;">التاريخ</th>
+              <th style="padding:12px;border:1px solid #dc2626;text-align:right;">الصنف والشركة</th>
+              <th style="padding:12px;border:1px solid #dc2626;text-align:center;width:80px;">الكمية</th>
+              <th style="padding:12px;border:1px solid #dc2626;text-align:center;width:100px;">الحالة</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${filtered.map((tx, idx) => `
+              <tr style="background:${idx % 2 === 0 ? '#fff' : '#fef2f2'};">
+                <td style="padding:10px;border:1px solid #fecaca;text-align:center;font-weight:700;">${idx + 1}</td>
+                <td style="padding:10px;border:1px solid #fecaca;text-align:center;">${tx.date || '-'}</td>
+                <td style="padding:10px;border:1px solid #fecaca;text-align:right;">
+                  <div style="font-weight:800;">${tx.item}</div>
+                  <div style="font-size:11px;color:#94a3b8;">${tx.company || '—'}</div>
+                </td>
+                <td style="padding:10px;border:1px solid #fecaca;text-align:center;font-weight:900;color:#dc2626;">${tx.qty} ${tx.unit}</td>
+                <td style="padding:10px;border:1px solid #fecaca;text-align:center;">
+                   <span style="font-weight:900;color:${tx.status === 'سليم' ? '#059669' : '#e11d48'}">
+                    ${tx.status === 'سليم' ? 'سليم ✅' : 'تالف ❌'}
+                   </span>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+
+        <div style="margin-top:40px;text-align:center;font-size:10px;color:#94a3b8;border-top:1px solid #f1f5f9;padding-top:15px;">
+          نظام بركة الثمار الإلكتروني PRO • سجل المرتجعات المستخرج
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(el);
     try {
-      const d = new jsPDF();
-      d.setFontSize(20);
-      d.text('Baraka Al Thimar PRO — سجل المرتجعات', 105, 15, { align: 'center' });
-      d.setFontSize(9);
-      d.text(`${new Date().toLocaleDateString('ar-SA')} | ${currentUser?.email || ''}`, 195, 24, { align: 'right' });
-      d.autoTable({
-        startY: 30,
-        head: [['#', 'التاريخ', 'المندوب', 'الصنف', 'الشركة', 'الكمية', 'الحالة']],
-        body: filtered.map((tx, i) => [
-          i + 1,
-          tx.date || '-',
-          tx.rep || '-',
-          tx.item,
-          tx.company || '-',
-          `${tx.qty} ${tx.unit}`,
-          tx.status || '-',
-        ]),
-        headStyles: {
-          fillColor: [249, 115, 22],
-          textColor: [255, 255, 255],
-          fontStyle: 'bold',
-          halign: 'center',
-        },
-        styles: { halign: 'center' },
-        didParseCell: (data) => {
-          if (data.section === 'body' && data.column.index === 6) {
-            data.cell.styles.textColor = data.cell.raw === 'سليم' ? [5, 150, 105] : [225, 29, 72];
-          }
-        },
-      });
-      d.save(`Returns_Note_${Date.now()}.pdf`);
-      toast.success('تم تصدير PDF 📄');
-    } catch {
-      toast.error('خطأ أثناء إنشاء PDF');
+      const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff' });
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const imgProps = pdf.getImageProperties(imgData);
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`Returns_Report_${Date.now()}.pdf`);
+      toast.success('تم تصدير سجل المرتجعات كـ PDF بنجاح 📄');
+    } catch (e) {
+      console.error(e);
+      toast.error('خطأ أثناء تصدير PDF');
+    } finally {
+      document.body.removeChild(el);
+      setIsExportMenuOpen(false);
     }
-    setIsExportMenuOpen(false);
   };
 
   const cv = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.05 } } };

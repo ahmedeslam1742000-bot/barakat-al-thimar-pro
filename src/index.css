@@ -138,6 +138,20 @@
     white-space: nowrap;
   }
 
+  /* Vertical scroll animation for Stock Alerts */
+  @keyframes vertical-scroll {
+    0%   { transform: translateY(0); }
+    45%  { transform: translateY(-30%); }
+    55%  { transform: translateY(-30%); }
+    100% { transform: translateY(0); }
+  }
+  .animate-auto-scroll {
+    animation: vertical-scroll 14s ease-in-out infinite;
+  }
+  .animate-auto-scroll:hover {
+    animation-play-state: paused;
+  }
+
   /* Expiry blink animation for urgent items (< 1 month) */
   @keyframes expiry-blink {
     0%, 100% { opacity: 1; }

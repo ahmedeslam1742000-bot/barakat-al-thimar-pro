@@ -58,7 +58,7 @@ export function SettingsProvider({ children }) {
     const fetchSettings = async () => {
       const { data, error } = await supabase
         .from('system_settings')
-        .select('*')
+        .select('id, settings')
         .eq('id', '00000000-0000-0000-0000-000000000001')
         .maybeSingle();
 

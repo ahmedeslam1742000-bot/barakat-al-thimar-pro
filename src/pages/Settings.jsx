@@ -314,13 +314,13 @@ function S5Contacts() {
     const unsub = supabase
       .channel('public:reps:settings')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'reps' }, () => {
-        supabase.from('reps').select('*').order('created_at', { ascending: false }).then(({ data }) => {
+        supabase.from('reps').select('id, name, phone, area, created_at').order('created_at', { ascending: false }).then(({ data }) => {
           if (data) setReps(data.map(d => ({ ...d, createdAt: d.created_at })));
         });
       })
       .subscribe();
     
-    supabase.from('reps').select('*').order('created_at', { ascending: false }).then(({ data }) => {
+    supabase.from('reps').select('id, name, phone, area, created_at').order('created_at', { ascending: false }).then(({ data }) => {
       if (data) setReps(data.map(d => ({ ...d, createdAt: d.created_at })));
     });
 
@@ -426,7 +426,7 @@ function S6Performance({ settings, update }) {
       const cutoff = new Date();
       cutoff.setMonth(cutoff.getMonth() - 6);
       const iso = cutoff.toISOString();
-      const { count, error } = await supabase.from('transactions').select('*', { count: 'exact', head: true }).lt('timestamp', iso);
+      const { count, error } = await supabase.from('transactions').select('id', { count: 'exact', head: true }).lt('timestamp', iso);
       if (error) throw error;
       setOldCount(count || 0);
     } catch { setOldCount(0); }
@@ -453,8 +453,8 @@ function S6Performance({ settings, update }) {
   const checkIntegrity = async () => {
     setCounting(true);
     try {
-      const { data: itemsData } = await supabase.from('products').select('*');
-      const { data: txData } = await supabase.from('transactions').select('*');
+      const { data: itemsData } = await supabase.from('products').select('id, name, company, cat, unit, stock_qty');
+      const { data: txData } = await supabase.from('transactions').select('id, documentary, item_id, qty, type');
       
       const itemsMap = new Map(itemsData.map(i => [i.id, i]));
       const calcs = {};
@@ -587,14 +587,14 @@ function S8MasterBackup({ settings, update }) {
 
       // Products
       if (collections.items) {
-        const { data } = await supabase.from('products').select('*');
+        const { data } = await supabase.from('products').select('id, name, company, cat, unit, stock_qty');
         const rows = (data || []).map(r => ({ 'الكود': r.id, 'اسم الصنف': r.name||'', 'الشركة': r.company||'', 'القسم': r.cat||'', 'الوحدة': r.unit||'', 'الرصيد': r.stock_qty??0 }));
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{}]), 'الأصناف');
       }
 
       // Transactions
       if (collections.transactions) {
-        const { data } = await supabase.from('transactions').select('*').order('timestamp', { ascending: false });
+        const { data } = await supabase.from('transactions').select('timestamp, date, type, item, company, qty, unit, rep, line_note, note').order('timestamp', { ascending: false });
         const rows = (data || []).map(r => {
           const ts = r.timestamp ? new Date(r.timestamp).toLocaleDateString('ar-SA') : r.date||'';
           return { 'التاريخ': ts, 'النوع': r.type||'', 'الصنف': r.item||'', 'الشركة': r.company||'', 'الكمية': r.qty??'', 'الوحدة': r.unit||'', 'المندوب': r.rep||'', 'ملاحظة': r.line_note||r.note||'' };
@@ -604,14 +604,14 @@ function S8MasterBackup({ settings, update }) {
 
       // Reps
       if (collections.reps) {
-        const { data } = await supabase.from('reps').select('*');
+        const { data } = await supabase.from('reps').select('id, name, phone, zone, notes');
         const rows = (data || []).map(r => ({ 'الاسم': r.name||'', 'الهاتف': r.phone||'', 'المنطقة': r.zone||'', 'ملاحظات': r.notes||'' }));
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{}]), 'المناديب');
       }
 
       // Discrepancies
       if (collections.discrepancies) {
-        const { data } = await supabase.from('discrepancies').select('*');
+        const { data } = await supabase.from('discrepancies').select('id, date, itemName, reason, expectedQty, actualQty, diff, status');
         const rows = (data || []).map(r => ({ 'التاريخ': r.date||'', 'الصنف': r.itemName||'', 'السبب': r.reason||'', 'المتوقع': r.expectedQty??'', 'الفعلي': r.actualQty??'', 'الفارق': r.diff??'', 'الحالة': r.status||'' }));
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{}]), 'الفوارق');
       }
@@ -680,7 +680,7 @@ function S9Users() {
 
   useEffect(() => {
     const fetchUsers = async () => {
-      const { data, error } = await supabase.from('users').select('*');
+      const { data, error } = await supabase.from('users').select('id, username, role, full_name, created_at');
       if (data) setUsersList(data);
     };
     fetchUsers();

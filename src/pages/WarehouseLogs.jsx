@@ -9,6 +9,7 @@ import {
 import { supabase } from '../lib/supabaseClient';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
+import { normalizeArabic } from '../lib/arabicTextUtils';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 const todayStr = () => {
@@ -51,13 +52,13 @@ export default function WarehouseLogs() {
 
   useEffect(() => {
     const fetchInitialData = async () => {
-      const { data: transData } = await supabase.from('transactions').select('*').order('timestamp', { ascending: false });
+      const { data: transData } = await supabase.from('transactions').select('id, type, timestamp, item, company, qty, unit, lineNote, note, supplyNotes, date, balance_after, item_id').order('timestamp', { ascending: false });
       if (transData) setTransactions(transData);
 
-      const { data: itemsData } = await supabase.from('products').select('*');
+      const { data: itemsData } = await supabase.from('products').select('id, name, company, cat, unit, stock_qty');
       if (itemsData) setItems(itemsData.map(d => ({ ...d, stockQty: d.stock_qty })));
 
-      const { data: discData } = await supabase.from('discrepancies').select('*').order('created_at', { ascending: false });
+      const { data: discData } = await supabase.from('discrepancies').select('id, created_at, item_id, item_name, expected_qty, actual_qty, diff, note, status').order('created_at', { ascending: false });
       if (discData) setDiscrepancies(discData.map(d => ({ 
           ...d, 
           itemName: d.item_name, 
@@ -152,10 +153,11 @@ function DailyActivity({ transactions }) {
       if (dateFilter && txDate !== dateFilter) return false;
       if (typeFilter !== 'all' && tx.type !== typeFilter) return false;
       if (search.trim()) {
-        const q = search.trim().toLowerCase();
-        if (!(tx.item || '').toLowerCase().includes(q) &&
-            !(tx.company || '').toLowerCase().includes(q) &&
-            !(tx.type || '').toLowerCase().includes(q)) return false;
+        const q = normalizeArabic(search);
+        const itemText = normalizeArabic(tx.item || '');
+        const compText = normalizeArabic(tx.company || '');
+        const typeText = normalizeArabic(tx.type || '');
+        if (!itemText.includes(q) && !compText.includes(q) && !typeText.includes(q)) return false;
       }
       return true;
     });
@@ -343,17 +345,17 @@ function DiscrepancyLog({ discrepancies, items }) {
 
   const suggestions = useMemo(() => {
     if (!form.itemSearch || form.selectedItem) return [];
-    const q = form.itemSearch.toLowerCase();
-    return items.filter(i => (i.name || '').toLowerCase().includes(q) || (i.company || '').toLowerCase().includes(q)).slice(0, 8);
+    const q = normalizeArabic(form.itemSearch);
+    return items.filter(i => normalizeArabic(i.name || '').includes(q) || normalizeArabic(i.company || '').includes(q)).slice(0, 8);
   }, [items, form.itemSearch, form.selectedItem]);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return discrepancies;
-    const q = search.toLowerCase();
+    const q = normalizeArabic(search);
     return discrepancies.filter(d =>
-      (d.itemName || '').toLowerCase().includes(q) ||
-      (d.reason || '').toLowerCase().includes(q) ||
-      (d.notes || '').toLowerCase().includes(q)
+      normalizeArabic(d.itemName || '').includes(q) ||
+      normalizeArabic(d.reason   || '').includes(q) ||
+      normalizeArabic(d.notes    || '').includes(q)
     );
   }, [discrepancies, search]);
 

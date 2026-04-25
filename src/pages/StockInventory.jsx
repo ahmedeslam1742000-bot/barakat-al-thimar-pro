@@ -11,6 +11,8 @@ import { useSettings } from '../contexts/SettingsContext';
 import { useAuth } from '../contexts/AuthContext';
 import html2canvas from 'html2canvas';
 import { toast } from 'sonner';
+import { normalizeArabic } from '../lib/arabicTextUtils';
+import StockInwardModal from '../components/StockInwardModal';
 
 // --- Helpers ---
 const getExpiryThresholds = (cat) => {
@@ -28,7 +30,7 @@ const containerVariants = {
   show: { opacity: 1, transition: { staggerChildren: 0.08 } }
 };
 
-export default function Inventory() {
+export default function StockInventory({ setActiveView }) {
   const [items, setItems] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -59,15 +61,18 @@ export default function Inventory() {
   // WhatsApp share state
   const [sharing, setSharing] = useState(false);
 
+  // Stock In Modal State
+  const [isStockInModalOpen, setIsStockInModalOpen] = useState(false);
+
   // --- SUPABASE SYNC ---
   useEffect(() => {
     const fetchInitialData = async () => {
-      const { data: itemsData } = await supabase.from('products').select('*');
+      const { data: itemsData } = await supabase.from('products').select('id, name, company, cat, unit, stock_qty');
       if (itemsData) {
         setItems(itemsData.map(d => ({ ...d, stockQty: d.stock_qty, searchKey: d.search_key, createdAt: d.created_at })));
       }
       
-      const { data: transData } = await supabase.from('transactions').select('*').order('timestamp', { ascending: false });
+      const { data: transData } = await supabase.from('transactions').select('id, type, expiry_date, item_id, date, qty, location, timestamp, item, balance_after').order('timestamp', { ascending: false });
       if (transData) {
         setTransactions(transData.map(d => ({ ...d, itemId: d.item_id, balanceAfter: d.balance_after, expiryDate: d.expiry_date })));
       }
@@ -128,6 +133,10 @@ export default function Inventory() {
   // Client-side sort (avoids compound index)
   const sortedItems = useMemo(() => {
     return [...items].sort((a, b) => {
+      // Prioritize "مجمدات"
+      if (a.cat === 'مجمدات' && b.cat !== 'مجمدات') return -1;
+      if (a.cat !== 'مجمدات' && b.cat === 'مجمدات') return 1;
+      
       const catOrder = (a.cat || '').localeCompare(b.cat || '', 'ar');
       if (catOrder !== 0) return catOrder;
       return (a.name || '').localeCompare(b.name || '', 'ar');
@@ -136,10 +145,10 @@ export default function Inventory() {
 
   const filteredItems = useMemo(() => {
     let result = sortedItems.filter(i => {
-      const q = searchTerm.toLowerCase();
-      return (i.name || '').toLowerCase().includes(q) || 
-             (i.company || '').toLowerCase().includes(q) || 
-             (i.cat || '').toLowerCase().includes(q);
+      const q = normalizeArabic(searchTerm);
+      return normalizeArabic(i.name || '').includes(q) || 
+             normalizeArabic(i.company || '').includes(q) || 
+             normalizeArabic(i.cat || '').includes(q);
     });
     if (showOnlyMismatch) {
       result = result.filter(i => {
@@ -346,6 +355,13 @@ export default function Inventory() {
           </button>
           <button 
             type="button" 
+            onClick={() => setIsStockInModalOpen(true)}
+            className="flex items-center gap-2.5 px-6 py-3 rounded-2xl font-black text-sm text-white bg-teal-600 shadow-xl shadow-teal-500/25 hover:scale-[1.02] active:scale-95 transition-all"
+          >
+            <Plus size={18} /> توريد مخزني
+          </button>
+          <button 
+            type="button" 
             onClick={exportReport} 
             disabled={exporting} 
             className="flex items-center gap-2.5 px-6 py-3 rounded-2xl font-black text-sm text-white bg-gradient-to-br from-emerald-600 to-teal-700 shadow-xl shadow-emerald-500/25 hover:scale-[1.02] active:scale-95 transition-all"
@@ -354,6 +370,15 @@ export default function Inventory() {
           </button>
         </div>
       </div>
+
+      <StockInwardModal 
+        isOpen={isStockInModalOpen} 
+        onClose={() => setIsStockInModalOpen(false)}
+        onExitToDashboard={() => setActiveView('dashboard')}
+        onSaveSuccess={() => {
+          // Success handled in modal toast
+        }}
+      />
 
       {/* ═══ SUMMARY CARDS ═══ */}
       <motion.div 

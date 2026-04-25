@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { useAudio } from '../../contexts/AudioContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSettings } from '../../contexts/SettingsContext';
+import { normalizeArabic } from '../../lib/arabicTextUtils';
 import html2canvas from 'html2canvas';
 
 const formatDate = (date) => {
@@ -379,20 +380,26 @@ export default function VoucherWorkspace({ kind }) {
 
   useEffect(() => {
     const fetchInitialData = async () => {
-      const { data: itemsData } = await supabase.from('products').select('*');
-      if (itemsData) setItems(itemsData.map(d => ({ ...d, stockQty: d.stock_qty })));
+      try {
+        const { data: itemsData, error: itemsError } = await supabase.from('products').select('id, name, company, cat, unit, stock_qty');
+        if (itemsError) throw itemsError;
+        if (itemsData) setItems(itemsData.map(d => ({ ...d, stockQty: d.stock_qty })));
 
-      const { data: transData } = await supabase.from('transactions').select('*').order('timestamp', { ascending: false });
-      if (transData) setTransactions(transData.map(d => ({ 
-        ...d, 
-        itemId: d.item_id,
-        voucherGroupId: d.voucher_group_id,
-        voucherCode: d.voucher_code,
-        isFunctional: d.is_functional,
-        voucherKind: d.voucher_kind,
-        voucherSupplyNotes: d.voucher_supply_notes,
-        lineNote: d.line_note
-      })));
+        const { data: transData, error: transError } = await supabase.from('transactions').select('id, type, timestamp, item_id, voucher_group_id, voucher_code, is_functional, voucher_kind, voucher_supply_notes, line_note, item, company, qty, unit, expiry_date, date, supplier, rep, documentary, balance_after').order('timestamp', { ascending: false });
+        if (transError) throw transError;
+        if (transData) setTransactions(transData.map(d => ({ 
+          ...d, 
+          itemId: d.item_id,
+          voucherGroupId: d.voucher_group_id,
+          voucherCode: d.voucher_code,
+          isFunctional: d.is_functional,
+          voucherKind: d.voucher_kind,
+          voucherSupplyNotes: d.voucher_supply_notes,
+          lineNote: d.line_note
+        })));
+      } catch (err) {
+        console.error("❌ VoucherWorkspace: Error fetching data:", err);
+      }
     };
 
     fetchInitialData();
@@ -483,11 +490,11 @@ export default function VoucherWorkspace({ kind }) {
   const filteredGroups = useMemo(() => {
     return voucherGroups.filter((g) => {
       if (filterSearch.trim()) {
-        const q = filterSearch.trim().toLowerCase();
+        const q = normalizeArabic(filterSearch);
         const header = (kind === 'in' ? g.supplier : g.rep) || '';
-        const headerMatch = header.toLowerCase().includes(q);
-        const itemMatch = g.lines.some((l) => (l.item || '').toLowerCase().includes(q));
-        const codeMatch = (g.voucherCode || '').toLowerCase().includes(q);
+        const headerMatch = normalizeArabic(header).includes(q);
+        const itemMatch = g.lines.some((l) => normalizeArabic(l.item || '').includes(q));
+        const codeMatch = normalizeArabic(g.voucherCode || '').includes(q);
         if (!headerMatch && !itemMatch && !codeMatch) return false;
       }
       if (filterDateFrom && g.date && g.date < filterDateFrom) return false;
@@ -504,10 +511,10 @@ export default function VoucherWorkspace({ kind }) {
 
   const itemSuggestions = useMemo(() => {
     if (!searchNameText || selectedItem) return [];
-    const q = searchNameText.toLowerCase();
+    const q = normalizeArabic(searchNameText);
     return items.filter((i) => {
-      const n = getItemName(i).toLowerCase();
-      const c = (getCompany(i) || '').toLowerCase();
+      const n = normalizeArabic(getItemName(i));
+      const c = normalizeArabic(getCompany(i) || '');
       return n.includes(q) || c.includes(q);
     });
   }, [items, searchNameText, selectedItem]);
@@ -640,13 +647,21 @@ export default function VoucherWorkspace({ kind }) {
         voucher_kind: kind,
         date: session.date,
         voucher_group_id: voucherGroupId,
+        batch_id: voucherGroupId,
         voucher_code: voucherCode,
       };
+
+      const beneficiary = kind === 'in' 
+        ? String(session.supplier).trim() 
+        : String(session.rep).trim();
+
+      common.beneficiary = beneficiary;
+
       if (kind === 'in') {
-        common.supplier = String(session.supplier).trim();
+        common.supplier = beneficiary;
         common.voucher_supply_notes = voucherSupplyNotes;
       } else {
-        common.rep = String(session.rep).trim();
+        common.rep = beneficiary;
       }
 
       const rows = modalDrafts.map((entry) => ({
@@ -659,7 +674,19 @@ export default function VoucherWorkspace({ kind }) {
         cat: entry.cat,
         expiry_date: entry.expiryDate || '',
         line_note: entry.lineNote || '',
+        is_summary: false
       }));
+
+      // Add Summary Row
+      const totalQty = modalDrafts.reduce((sum, d) => sum + d.qty, 0);
+      rows.push({
+        ...common,
+        item: kind === 'in' ? 'ملخص سند إدخال' : 'ملخص عهده مندوب',
+        qty: totalQty,
+        total_qty: totalQty,
+        is_summary: true,
+        notes: `مستند رقم ${voucherCode}`
+      });
 
       const { error: insError } = await supabase.from('transactions').insert(rows);
       if (insError) throw insError;

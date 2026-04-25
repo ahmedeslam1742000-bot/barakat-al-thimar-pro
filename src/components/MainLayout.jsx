@@ -23,6 +23,7 @@ import { useAudio } from '../contexts/AudioContext';
 import { useSettings } from '../contexts/SettingsContext';
 import { supabase } from '../lib/supabaseClient';
 import Sidebar from './Sidebar';
+import { normalizeArabic } from '../lib/arabicTextUtils';
 
 export default function MainLayout({ children, activeView, setActiveView }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -52,7 +53,7 @@ export default function MainLayout({ children, activeView, setActiveView }) {
     const fetchItems = async () => {
       const { data, error } = await supabase
         .from('products')
-        .select('*')
+        .select('id, name, company, cat, unit, stock_qty, created_at')
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -163,6 +164,7 @@ export default function MainLayout({ children, activeView, setActiveView }) {
                   onFocus={() => setIsSearchFocused(true)}
                   onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)}
                   placeholder="ابحث عن أصناف، شركات، أو أكواد..." 
+                  title="البحث السريع"
                   className={`w-full bg-slate-100/50 border border-transparent focus:bg-white text-slate-800 text-xs rounded-full pr-10 pl-4 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30 transition-all duration-300 ${isSearchFocused ? 'scale-[1.02]' : ''}`}
                />
                
@@ -176,8 +178,16 @@ export default function MainLayout({ children, activeView, setActiveView }) {
                      <div className="p-2 border-b border-slate-100 bg-slate-50/50">
                        <span className="text-[10px] font-bold text-slate-400 uppercase px-2">نتائج البحث</span>
                      </div>
-                     {allItems.filter(i => (i.name + i.company + i.cat).toLowerCase().includes(searchQuery.toLowerCase())).length > 0 ? (
-                       allItems.filter(i => (i.name + i.company + i.cat).toLowerCase().includes(searchQuery.toLowerCase())).slice(0, 8).map((item, idx) => (
+                     {allItems.filter(i => {
+                       const combinedText = normalizeArabic(i.name + (i.company || '') + (i.cat || ''));
+                       const query = normalizeArabic(searchQuery);
+                       return combinedText.includes(query);
+                     }).length > 0 ? (
+                       allItems.filter(i => {
+                         const combinedText = normalizeArabic(i.name + (i.company || '') + (i.cat || ''));
+                         const query = normalizeArabic(searchQuery);
+                         return combinedText.includes(query);
+                       }).slice(0, 8).map((item, idx) => (
                          <div key={idx} onMouseDown={() => {}} className="p-3 hover:bg-slate-50 cursor-pointer transition-colors border-b border-slate-100 last:border-0 flex justify-between items-center group/item text-right">
                            <div className="flex flex-col">
                              <span className="text-sm font-bold text-slate-800 group-hover/item:text-primary transition-colors">{item.name}</span>

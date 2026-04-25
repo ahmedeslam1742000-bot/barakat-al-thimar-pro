@@ -24,7 +24,7 @@ export default function Archive() {
   const loadArchives = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.from('daily_archives').select('*').order('date_key', { ascending: false });
+      const { data, error } = await supabase.from('daily_archives').select('id, date_key, timestamp, date_text, day_name').order('date_key', { ascending: false });
       if (error) throw error;
       setDailyArchives(data.map(d => ({ ...d, dateKey: d.date_key, date: d.date_text, dayName: d.day_name })));
     } catch (err) {
@@ -54,7 +54,7 @@ export default function Archive() {
       // Get today's transactions
       const { data: todayTx, error: txError } = await supabase
         .from('transactions')
-        .select('*')
+        .select('id, type, item_id, balance_after, is_invoice, batch_id, source_voucher_id, timestamp, item, rep, loc, supplier, qty, invoiced, documentary, isFunctional, voucherGroupId, deducted, status, total_qty, is_new_item, beneficiary, recipient, receipt_type, receipt_number, receipt_image, unit, cat, company, date')
         .gte('timestamp', startOfDay)
         .lte('timestamp', endOfDay);
 

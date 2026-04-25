@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import MainLayout from './components/MainLayout';
 import Dashboard from './components/Dashboard';
 import Items from './components/Items';
-import StockIn from './components/StockIn';
 import StockOut from './components/StockOut';
 import Returns from './pages/Returns';
 import CashIn from './pages/CashIn';
@@ -11,20 +10,22 @@ import Reps from './pages/Reps';
 import WarehouseInsights from './pages/WarehouseInsights';
 import WarehouseLogs from './pages/WarehouseLogs';
 import Settings from './pages/Settings';
-import Inventory from './pages/Inventory';
+import StockInventory from './pages/StockInventory';
 import Archive from './pages/Archive';
+import InboundRecords from './pages/InboundRecords';
+import InboundItems from './pages/InboundItems';
 import Placeholder from './components/Placeholder';
 import Login from './components/Login';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { SettingsProvider } from './contexts/SettingsContext';
 import { Toaster } from 'sonner';
-import { Package, Truck, ArrowUpRight, RotateCcw, Download, Upload, User, FileStack, BookOpen, ClipboardList, Activity, Settings as SettingsIcon, Archive as ArchiveIcon, BarChart3, Tags } from 'lucide-react';
+import { Package, Truck, ArrowUpRight, RotateCcw, Download, Upload, User, FileStack, BookOpen, ClipboardList, Activity, Settings as SettingsIcon, Archive as ArchiveIcon, BarChart3, Tags, History, TrendingUp } from 'lucide-react';
 
 const viewConfig = {
   'dashboard': { component: Dashboard },
   'items': { component: Items },
-  'stock-in': { component: StockIn, title: 'وارد', icon: Truck },
+  'stock-in': { component: InboundItems, title: 'الوارد', icon: TrendingUp },
   'stock-out': { component: StockOut, title: 'صادر', icon: ArrowUpRight },
   'returns': { component: Returns, title: 'مرتجع', icon: RotateCcw },
   'voucher-in': { component: CashIn, title: 'سند إدخال', icon: Download },
@@ -34,8 +35,9 @@ const viewConfig = {
   'reps': { component: Reps, title: 'المناديب', icon: User },
   'invoices': { title: 'الفواتير', icon: FileStack },
   'reports': { title: 'التقارير', icon: BarChart3 },
-  'inventory': { component: Inventory, title: 'الجرد', icon: ClipboardList },
+  'inventory': { component: StockInventory, title: 'المخزون الحالي', icon: ClipboardList },
   'archive': { component: Archive, title: 'أرشيف التعاملات', icon: ArchiveIcon },
+  'inbound-records': { component: InboundRecords, title: 'أذونات الواردات', icon: History },
   'price-list': { title: 'الأسعار', icon: Tags },
   'settings': { component: Settings },
 };
@@ -44,9 +46,7 @@ function AuthenticatedApp() {
   const { currentUser } = useAuth();
   const [activeView, setActiveView] = useState('dashboard');
 
-  const hasSessionToken = sessionStorage.getItem('auth_token') === 'active';
-
-  if (!currentUser || !hasSessionToken) {
+  if (!currentUser) {
     return <Login />;
   }
 
@@ -55,7 +55,7 @@ function AuthenticatedApp() {
     if (!config) return <Dashboard />;
     if (config.component) {
       const Component = config.component;
-      return <Component />;
+      return <Component setActiveView={setActiveView} activeView={activeView} />;
     }
     return <Placeholder title={config.title} icon={config.icon} />;
   };
@@ -76,7 +76,7 @@ function App() {
         <AudioProvider>
           <AuthProvider>
             <AuthenticatedApp />
-            <Toaster position="bottom-center" richColors theme="light" />
+            <Toaster position="top-center" richColors theme="light" />
           </AuthProvider>
         </AudioProvider>
       </SettingsProvider>
