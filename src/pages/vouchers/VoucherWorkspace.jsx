@@ -325,7 +325,7 @@ async function allocateVoucherCode(kind) {
 /**
  * @param {{ kind: VoucherKind }} props
  */
-export default function VoucherWorkspace({ kind }) {
+export default function VoucherWorkspace({ kind, setActiveView }) {
   const cfg = KIND_CONFIG[kind];
   const theme = accentTheme(cfg.accent);
   const { playSuccess, playWarning } = useAudio();
@@ -1181,7 +1181,7 @@ export default function VoucherWorkspace({ kind }) {
 
           <button 
             type="button"
-            onClick={() => window.location.hash = '#dashboard'}
+            onClick={() => setActiveView ? setActiveView('dashboard') : (window.location.hash = '#dashboard')}
             className="w-11 h-11 bg-rose-50 dark:bg-rose-500/10 text-rose-500 dark:text-rose-400 rounded-xl flex items-center justify-center transition-all border border-rose-100 dark:border-rose-500/20 group shadow-sm shadow-rose-500/10"
             title="العودة للرئيسية"
           >
