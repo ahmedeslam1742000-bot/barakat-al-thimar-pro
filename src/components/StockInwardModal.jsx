@@ -217,13 +217,21 @@ export default function StockInwardModal({ isOpen, onClose, onSaveSuccess }) {
       return;
     }
 
-    // التحقق من صحة الكميات
-    const invalidItems = stockForm.items.filter(i => !i.qty || i.qty <= 0);
-    if (invalidItems.length > 0) {
-      toast.error(`هناك ${invalidItems.length} صنف بكميات غير صالحة`);
-      clearTimeout(safetyTimeout);
-      setLoading(false);
-      return;
+    // التحقق من تكرار رقم السند في حركات الوارد فقط
+    if (stockForm.receiptNumber.trim()) {
+      const { data: dup } = await supabase
+        .from('transactions')
+        .select('id')
+        .eq('reference_number', stockForm.receiptNumber.trim())
+        .in('type', ['وارد', 'Restock', 'in'])
+        .limit(1);
+      
+      if (dup && dup.length > 0) {
+        toast.error(`رقم السند (${stockForm.receiptNumber}) مسجل مسبقاً! يرجى التأكد من الرقم.`);
+        clearTimeout(safetyTimeout);
+        setLoading(false);
+        return;
+      }
     }
 
     try {

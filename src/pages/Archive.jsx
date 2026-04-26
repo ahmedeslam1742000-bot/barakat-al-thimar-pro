@@ -54,7 +54,7 @@ export default function Archive() {
       // Get today's transactions
       const { data: todayTx, error: txError } = await supabase
         .from('transactions')
-        .select('id, type, item_id, balance_after, is_invoice, batch_id, source_voucher_id, timestamp, item, rep, loc, supplier, qty, invoiced, documentary, isFunctional, voucherGroupId, deducted, status, total_qty, is_new_item, beneficiary, recipient, receipt_type, receipt_number, receipt_image, unit, cat, company, date')
+        .select('id, type, item_id, balance_after, batch_id, timestamp, item, rep, loc, supplier, qty, status, beneficiary, recipient, receipt_type, reference_number, receipt_image, unit, cat, company, date')
         .gte('timestamp', startOfDay)
         .lte('timestamp', endOfDay);
 

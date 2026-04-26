@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Package, TrendingUp, Truck, AlertTriangle, ArrowUpRight, ArrowDownRight, ArrowDownLeft,
   Plus, X, FileText, RotateCcw, Search, Trash2, Bell, Clock, CheckCircle2, AlertOctagon,
-  Timer, History, ChevronDown, Layers, FileCheck, FileInput, Download, Upload, FileOutput, Pencil, Image, Loader2, Eye, CheckCircle, Save
+  Timer, History, ChevronDown, Layers, FileCheck, FileInput, Download, Upload, FileOutput, Pencil, Image, Loader2, Eye, CheckCircle, Save, List, Printer
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
@@ -348,7 +348,7 @@ export default function Dashboard() {
   const [showSaveConfirm, setShowSaveConfirm] = useState(false);
 
 
-  const [invoiceForm, setInvoiceForm] = useState({ rep: '', date: new Date().toISOString().split('T')[0], items: [] });
+  const [invoiceForm, setInvoiceForm] = useState({ client: '', rep: '', date: new Date().toISOString().split('T')[0], items: [] });
   const [currentInvoiceItem, setCurrentInvoiceItem] = useState({ name: '', selectedItem: null, cat: '', unit: '', qty: '' });
   const [invoiceErrors, setInvoiceErrors] = useState({});
   const [isVoucherInvoice, setIsVoucherInvoice] = useState(false); 
@@ -359,10 +359,38 @@ export default function Dashboard() {
   const [returnErrors, setReturnErrors] = useState({});
   const [returnItems, setReturnItems] = useState([]);
   const [showReturnExitConfirm, setShowReturnExitConfirm] = useState(false);
+  const [showInvoiceSaveConfirm, setShowInvoiceSaveConfirm] = useState(false);
+  const [showReturnSaveConfirm, setShowReturnSaveConfirm] = useState(false);
   const returnSearchInputRef = useRef(null);
 
-  // Debounced search values for autocomplete
-  
+  // Safety reset on open to prevent data persistence
+  useEffect(() => {
+    if (isSalesModalOpen && !isVoucherInvoice) {
+      setInvoiceForm({ client: 'سحب مندوب', rep: '', date: new Date().toISOString().split('T')[0], items: [] });
+      setCurrentInvoiceItem({ name: '', selectedItem: null, cat: '', unit: '', qty: '' });
+      setInvoiceErrors({});
+    }
+  }, [isSalesModalOpen, isVoucherInvoice]);
+
+  useEffect(() => {
+    if (isReturnsModalOpen) {
+      setReturnForm({ rep: '', date: new Date().toISOString().split('T')[0], query: '', selectedItem: null, qty: '', returnStatus: 'سليم', cat: '', returnee: '', unit: '' });
+      setReturnItems([]);
+      setReturnErrors({});
+    }
+  }, [isReturnsModalOpen]);
+
+  useEffect(() => {
+    console.log("MODAL_STATE_CHANGE:", { 
+      showInvoiceExitConfirm, 
+      showReturnExitConfirm, 
+      showInvoiceSaveConfirm, 
+      showReturnSaveConfirm,
+      isSalesModalOpen,
+      isReturnsModalOpen
+    });
+  }, [showInvoiceExitConfirm, showReturnExitConfirm, showInvoiceSaveConfirm, showReturnSaveConfirm, isSalesModalOpen, isReturnsModalOpen]);
+
   // Auto-focus item name input when modal opens
   useEffect(() => {
     if (isItemModalOpen) {
@@ -504,6 +532,7 @@ export default function Dashboard() {
   const [txFilter, setTxFilter] = useState('الكل');
   const [movementTypeFilter, setMovementTypeFilter] = useState('الكل');
   const [isMorningBriefOpen, setIsMorningBriefOpen] = useState(false);
+  const [repsList, setRepsList] = useState([]);
 
   // Voucher Status Tracking State
   const [voucherTransactions, setVoucherTransactions] = useState([]);
@@ -523,17 +552,36 @@ export default function Dashboard() {
       if (e.key === 'Escape') {
         if (isItemModalOpen) setIsItemModalOpen(false);
         if (isStockInModalOpen) setIsStockInModalOpen(false);
-        if (isSalesModalOpen) setIsSalesModalOpen(false);
-        if (isReturnsModalOpen) setIsReturnsModalOpen(false);
         if (isTransactionDetailOpen) setIsTransactionDetailOpen(false);
         if (isVoucherDetailOpen) setIsVoucherDetailOpen(false);
       }
     };
     window.addEventListener('keydown', handleGlobalKeys);
     return () => window.removeEventListener('keydown', handleGlobalKeys);
-  }, [isItemModalOpen, isStockInModalOpen, isSalesModalOpen, isReturnsModalOpen, isTransactionDetailOpen, isVoucherDetailOpen]);
+  }, [isItemModalOpen, isStockInModalOpen, isTransactionDetailOpen, isVoucherDetailOpen]);
 
   
+  // Keyboard shortcuts for confirmation modals
+  useEffect(() => {
+    const handleConfirmKeys = (e) => {
+      if (showInvoiceExitConfirm) {
+        if (e.key === 'Enter') { e.preventDefault(); performInvoiceReset(); }
+        if (e.key === 'Escape') { e.preventDefault(); setShowInvoiceExitConfirm(false); }
+      } else if (showReturnExitConfirm) {
+        if (e.key === 'Enter') { e.preventDefault(); performReturnReset(); }
+        if (e.key === 'Escape') { e.preventDefault(); setShowReturnExitConfirm(false); }
+      } else if (showInvoiceSaveConfirm) {
+        if (e.key === 'Enter' && !loading) { e.preventDefault(); performInvoiceSave(); }
+        if (e.key === 'Escape') { e.preventDefault(); setShowInvoiceSaveConfirm(false); }
+      } else if (showReturnSaveConfirm) {
+        if (e.key === 'Enter' && !loading) { e.preventDefault(); performReturnSave(); }
+        if (e.key === 'Escape') { e.preventDefault(); setShowReturnSaveConfirm(false); }
+      }
+    };
+    window.addEventListener('keydown', handleConfirmKeys);
+    return () => window.removeEventListener('keydown', handleConfirmKeys);
+  }, [showInvoiceExitConfirm, showReturnExitConfirm, showInvoiceSaveConfirm, showReturnSaveConfirm, loading]);
+
   // Keyboard shortcuts for Voucher Detail modal
   useEffect(() => {
     const handleVoucherDetailKeys = (event) => {
@@ -564,22 +612,31 @@ export default function Dashboard() {
   const fetchInitialData = useCallback(async () => {
     try {
       console.log("🔍 Dashboard: fetching initial data...");
+      const { data: repsData } = await supabase.from('reps').select('name');
+      if (repsData) setRepsList(repsData.map(r => r.name));
       const { data: itemsData, error: itemsError } = await supabase.from('products').select('id, name, company, cat, unit, stock_qty, search_key, created_at');
       if (itemsError) throw itemsError;
       if (itemsData) {
         setItems(itemsData.map(d => ({ ...d, stockQty: d.stock_qty, searchKey: d.search_key, createdAt: d.created_at })));
       }
       
-      const { data: transData, error: transError } = await supabase.from('transactions').select('id, type, reference_number, receipt_image, receipt_type, items_summary, total_qty, date, location, timestamp, status, beneficiary, recipient, rep, supplier').order('timestamp', { ascending: false }).limit(20);
+      const { data: transData, error: transError } = await supabase
+        .from('transactions')
+        .select('id, type, timestamp, item, company, qty, unit, cat, supplier, beneficiary, loc, location, rep, recipient, reference_number, batch_id, is_summary, item_id, notes')
+        .order('timestamp', { ascending: false })
+        .limit(200);
+        
       if (transError) throw transError;
       if (transData) {
         setDbTransactionsList(transData.map(d => ({ 
           ...d, 
-          itemId: d.item_id || null, 
-          referenceNumber: d.reference_number, 
-          itemsSummary: d.items_summary,
-          totalQty: d.total_qty,
-          voucherCode: d.reference_number || '' 
+          itemId: d.item_id, 
+          referenceNumber: d.reference_number,
+          voucherCode: d.reference_number || '',
+          voucherGroupId: d.batch_id,
+          batchId: d.batch_id,
+          isInvoice: false, // Column doesn't exist
+          isFunctional: d.type === 'سند إدخال' || d.type === 'سند إخراج' || d.type === 'outward' || d.type === 'in' || (d.item && (d.item.includes('ملخص') || d.item.includes('عهده')))
         })));
       }
     } catch (err) {
@@ -664,7 +721,7 @@ export default function Dashboard() {
     const groupedVouchers = new Map();
 
     dbTransactionsList.forEach((tx) => {
-      if (tx.isFunctional !== true || !FUNCTIONAL_VOUCHER_TYPES.includes(tx.type)) return;
+      if (tx.isFunctional !== true || !FUNCTIONAL_VOUCHER_TYPES.includes(tx.type) || tx.is_summary === true) return;
 
       const groupId = tx.voucherGroupId || tx.id;
       const txDate = tx.timestamp ? new Date(tx.timestamp) : new Date();
@@ -936,14 +993,25 @@ export default function Dashboard() {
   useEffect(() => {
     if (isSalesModalOpen) {
       setTimeout(() => {
-        invoiceSearchInputRef.current?.focus();
+        if (!invoiceForm.rep) {
+          // Find the rep input by placeholder or just use a ref if we had one. 
+          // For now let's just use the search input as before but the user might want rep focus.
+          // Let's add an ID to the rep input and focus it.
+          document.getElementById('invoiceRepInput')?.focus();
+        } else {
+          invoiceSearchInputRef.current?.focus();
+        }
       }, 100);
     }
   }, [isSalesModalOpen]);
   
   // Exit guard
   const hasInvoiceUnsavedData = () => {
-    return currentInvoiceItem.name.trim() !== '' || invoiceForm.items.length > 0;
+    return (
+      invoiceForm.rep.trim() !== '' || 
+      currentInvoiceItem.name.trim() !== '' || 
+      invoiceForm.items.length > 0
+    );
   };
   
   const handleCloseInvoiceModal = () => {
@@ -956,12 +1024,22 @@ export default function Dashboard() {
   
   const performInvoiceReset = () => {
     setIsSalesModalOpen(false);
-    setInvoiceForm({ rep: 'أحمد المندوب', date: new Date().toISOString().split('T')[0], items: [] });
+    setInvoiceForm({ client: 'سحب مندوب', rep: '', date: new Date().toISOString().split('T')[0], items: [] });
     setCurrentInvoiceItem({ name: '', selectedItem: null, cat: '', unit: '', qty: '' });
     setInvoiceErrors({});
     setShowInvoiceExitConfirm(false);
-    setIsVoucherInvoice(false); // Reset read-only mode
+     setShowInvoiceSaveConfirm(false);
+    setShowInvoiceSaveConfirm(false);
+    setIsVoucherInvoice(false); 
     setStockSearchActiveIndex(-1);
+  };
+
+  const openInvoiceModal = () => {
+    setInvoiceForm({ client: 'سحب مندوب', rep: '', date: new Date().toISOString().split('T')[0], items: [] });
+    setCurrentInvoiceItem({ name: '', selectedItem: null, cat: '', unit: '', qty: '' });
+    setInvoiceErrors({});
+    setIsVoucherInvoice(false);
+    setIsSalesModalOpen(true);
   };
   
   // Add invoice item to table
@@ -980,31 +1058,31 @@ export default function Dashboard() {
     setTimeout(() => invoiceSearchInputRef.current?.focus(), 50);
   };
 
+  const handleEditInvoiceItem = (idx) => {
+    const item = invoiceForm.items[idx];
+    setCurrentInvoiceItem({
+      name: item.name,
+      selectedItem: item.selectedItem,
+      cat: item.cat,
+      unit: item.unit,
+      qty: item.qty
+    });
+    setInvoiceForm({
+      ...invoiceForm,
+      items: invoiceForm.items.filter((_, i) => i !== idx)
+    });
+    setTimeout(() => invoiceSearchInputRef.current?.focus(), 50);
+  };
+
   // --- 3. ADD INVOICE --- //
-  const handleAddInvoice = async (e) => {
-    e.preventDefault();
-
-    // Mandatory recipient validation
-    if (!invoiceForm.rep.trim()) {
-      setInvoiceErrors({ recipient: true });
-      return toast.error("يرجى تحديد العميل أو المستلم أولاً");
-    }
-
-    if (invoiceForm.items.length === 0) {
-      if (currentInvoiceItem.selectedItem && currentInvoiceItem.qty) return toast.error("اضغط Enter لإضافة الصنف المفتوح إلى الفاتورة أولاً.");
-      return toast.error("الفاتورة فارغة! الرجاء إضافة الأصناف أولاً.");
-    }
-
-    // Validation Loop for Negative Stock Block
+  const handleAddInvoice = (e) => {
+    if (e) e.preventDefault();
+    if (!invoiceForm.client.trim()) { setInvoiceErrors({ client: true }); return toast.error("أدخل اسم العميل أولاً!"); }
+    if (!invoiceForm.rep.trim()) { setInvoiceErrors({ rep: true }); return toast.error("أدخل اسم المندوب!"); }
+    if (invoiceForm.items.length === 0) return toast.error("لا توجد أصناف في الفاتورة!");
+    
     for (let i = 0; i < invoiceForm.items.length; i++) {
         const line = invoiceForm.items[i];
-        if (!line.selectedItem) {
-            setInvoiceErrors({ [`item-${i}`]: true }); return toast.error(`يرجى تحديد الصنف بدقة في السطر ${i+1}.`);
-        }
-        if (!line.qty || line.qty <= 0) {
-            setInvoiceErrors({ [`qty-${i}`]: true }); return toast.error(`الكمية غير صحيحة في السطر ${i+1}.`);
-        }
-
         const invItem = items.find(inv => inv.id === line.selectedItem.id);
         if (!invItem || Number(line.qty) > invItem.stockQty) {
             setInvoiceErrors({ [`qty-${i}`]: true });
@@ -1013,7 +1091,12 @@ export default function Dashboard() {
         }
     }
     setInvoiceErrors({});
+    setShowInvoiceSaveConfirm(true);
+  };
 
+  const performInvoiceSave = async () => {
+    setShowInvoiceSaveConfirm(false);
+    setLoading(true);
     try {
         const processPromises = [];
 
@@ -1049,7 +1132,7 @@ export default function Dashboard() {
             date: new Date().toLocaleTimeString('ar-SA'),
             timestamp: new Date().toISOString(),
             status: 'مكتمل',
-            loc: invoiceForm.rep,
+            loc: invoiceForm.client,
             rep: invoiceForm.rep,
             is_invoice: true,
             user_id: null,
@@ -1062,7 +1145,8 @@ export default function Dashboard() {
         // CREATE INVOICE RECORD
         const { data: insertedInvoice, error: invError } = await supabase.from('invoices').insert({
           status: 'issued',
-          recipient: invoiceForm.rep,
+          recipient: invoiceForm.client,
+          rep: invoiceForm.rep,
           created_by: userId,
           issued_at: new Date().toISOString()
         }).select().single();
@@ -1112,27 +1196,26 @@ export default function Dashboard() {
 
         toast.success(`تم إصدار فاتورة بنجاح ${sourceVoucher ? 'وتوثيق السند' : 'وتحجيم الأرصدة'} ✅`);
         playSuccess();
-        setIsSalesModalOpen(false);
+        performInvoiceReset();
         fetchInitialData();
-        setInvoiceForm({ rep: invoiceForm.rep, date: new Date().toISOString().split('T')[0], items: [] });
-        setCurrentInvoiceItem({ name: '', selectedItem: null, cat: '', unit: '', qty: '' });
     } catch (err) {
         toast.error("حدث خطأ في النظام. قد تحتاج لمراجعة اتصالك.");
+    } finally {
+        setLoading(false);
     }
   };
   
-  // --- Transaction Details Modal Keyboard Shortcuts ---
+  // --- Global Modals ESC Support ---
   useEffect(() => {
-    const handleTransactionDetailsKeys = (event) => {
-      if (!isTransactionDetailOpen) return;
-      if (event.key === 'Enter' || event.key === 'Escape') {
-        event.preventDefault();
-        setIsTransactionDetailOpen(false);
+    const handleGlobalEsc = (event) => {
+      if (event.key === 'Escape') {
+        if (isTransactionDetailOpen) setIsTransactionDetailOpen(false);
+        if (isVoucherDetailOpen) setIsVoucherDetailOpen(false);
       }
     };
-    window.addEventListener('keydown', handleTransactionDetailsKeys);
-    return () => window.removeEventListener('keydown', handleTransactionDetailsKeys);
-  }, [isTransactionDetailOpen]);
+    window.addEventListener('keydown', handleGlobalEsc);
+    return () => window.removeEventListener('keydown', handleGlobalEsc);
+  }, [isTransactionDetailOpen, isVoucherDetailOpen]);
 
   // --- Return Modal Handlers ---
   // Auto-focus on modal open
@@ -1146,12 +1229,19 @@ export default function Dashboard() {
   
   // Exit guard
   const hasReturnUnsavedData = () => {
-    return returnForm.query.trim() !== '' || returnForm.returnee.trim() !== '' || returnItems.length > 0;
+    return (
+      returnForm.returnee.trim() !== '' || 
+      returnForm.rep.trim() !== '' || 
+      returnForm.query.trim() !== '' || 
+      returnItems.length > 0
+    );
   };
   
   const handleCloseReturnModal = () => {
+    console.log("handleCloseReturnModal triggered. Unsaved data:", hasReturnUnsavedData());
     if (hasReturnUnsavedData()) {
       setShowReturnExitConfirm(true);
+      console.log("setShowReturnExitConfirm(true) called");
     } else {
       performReturnReset();
     }
@@ -1159,11 +1249,20 @@ export default function Dashboard() {
   
   const performReturnReset = () => {
     setIsReturnsModalOpen(false);
-    setReturnForm({ rep: 'محمد المندوب', date: new Date().toISOString().split('T')[0], query: '', selectedItem: null, qty: '', reason: 'سليم (يعود للمخزون)', cat: '', returnee: '', unit: '' });
+    setReturnForm({ rep: '', date: new Date().toISOString().split('T')[0], query: '', selectedItem: null, qty: '', returnStatus: 'سليم', cat: '', returnee: '', unit: '' });
     setReturnItems([]);
     setReturnErrors({});
     setShowReturnExitConfirm(false);
+     setShowReturnSaveConfirm(false);
+    setShowReturnSaveConfirm(false);
     setStockSearchActiveIndex(-1);
+  };
+
+  const openReturnModal = () => {
+    setReturnForm({ rep: '', date: new Date().toISOString().split('T')[0], query: '', selectedItem: null, qty: '', returnStatus: 'سليم', cat: '', returnee: '', unit: '' });
+    setReturnItems([]);
+    setReturnErrors({});
+    setIsReturnsModalOpen(true);
   };
   
   // Add return item to table
@@ -1178,73 +1277,101 @@ export default function Dashboard() {
       unit: returnForm.unit || 'كرتونة',
       qty: Number(returnForm.qty),
       selectedItem: returnForm.selectedItem,
-      reason: returnForm.reason
+      returnStatus: returnForm.returnStatus || 'سليم'
     }]);
     setReturnForm({...returnForm, query: '', selectedItem: null, cat: '', unit: '', qty: ''});
     setTimeout(() => returnSearchInputRef.current?.focus(), 50);
   };
 
+  const handleEditReturnItem = (idx) => {
+    const item = returnItems[idx];
+    setReturnForm({
+      ...returnForm,
+      query: item.name,
+      selectedItem: item.selectedItem,
+      cat: item.cat,
+      unit: item.unit,
+      qty: item.qty,
+      returnStatus: item.returnStatus
+    });
+    setReturnItems(returnItems.filter((_, i) => i !== idx));
+    setTimeout(() => returnSearchInputRef.current?.focus(), 50);
+  };
+
   // --- 4. ADD RETURN (Enhanced with Table & Stock Increment) --- //
-  const handleAddReturn = async (e) => {
-    e.preventDefault();
+  const handleAddReturn = (e) => {
+    if (e) e.preventDefault();
+    if (!returnForm.returnee.trim()) { setReturnErrors({ returnee: true }); return toast.error("يرجى تحديد الشخص أو الجهة التي قامت بالترجيع"); }
+    if (!returnForm.rep || !returnForm.rep.trim()) { setReturnErrors({ rep: true }); return toast.error("يرجى تحديد المندوب المستلم أولاً"); }
+    if (returnItems.length === 0) return toast.error("لا توجد أصناف مرتجعة!");
     
-    // Mandatory returnee validation
-    if (!returnForm.returnee.trim()) {
-      setReturnErrors({ returnee: true });
-      return toast.error("يرجى تحديد الشخص أو الجهة التي قامت بالترجيع");
-    }
-    
-    if (returnItems.length === 0) {
-      return toast.error("لا توجد أصناف مرتجعة! الرجاء إضافة الأصناف أولاً.");
-    }
-
     setReturnErrors({});
+    setShowReturnSaveConfirm(true);
+  };
 
+  const performReturnSave = async () => {
+    setShowReturnSaveConfirm(false);
+    setLoading(true);
     try {
-        const processPromises = [];
-        const isGood = returnForm.reason.includes('سليم') || returnForm.reason.includes('خطأ');
-        const txStatus = isGood ? 'مكتمل' : 'مرتجع تالف';
         const batchId = Date.now().toString();
         const userId = currentUser?.email?.split('@')[0] || 'مدير النظام';
+        const now = new Date().toISOString();
 
-        // Increment stock for good returns
-        if (isGood) {
-            const additions = {};
-            returnItems.forEach(it => {
+        const additions = {};
+        returnItems.forEach(it => {
+            if (it.returnStatus === 'سليم') {
                 if (!additions[it.selectedItem.id]) additions[it.selectedItem.id] = { id: it.selectedItem.id, qty: 0 };
                 additions[it.selectedItem.id].qty += Number(it.qty);
-            });
-
-            for (const [id, payload] of Object.entries(additions)) {
-                const currentItem = items.find(i => i.id === id);
-                if (currentItem) {
-                    await supabase.from('products').update({ stock_qty: currentItem.stockQty + payload.qty }).eq('id', id);
-                }
+            }
+        });
+        for (const [id, payload] of Object.entries(additions)) {
+            const currentItem = items.find(i => i.id === id);
+            if (currentItem) {
+                await supabase.from('products').update({ stock_qty: currentItem.stockQty + payload.qty }).eq('id', id);
             }
         }
 
-        // Log transactions
         const txsToInsert = returnItems.map(it => ({
              item: `${it.name}`,
              type: 'return',
              qty: Number(it.qty),
-             date: stockForm.date || new Date().toISOString().split('T')[0],
-             timestamp: new Date().toISOString(),
-             status: txStatus,
+             date: returnForm.date || new Date().toISOString().split('T')[0],
+             timestamp: now,
+             status: it.returnStatus === 'سليم' ? 'مكتمل' : 'مرتجع تالف',
              loc: returnForm.returnee,
              rep: returnForm.rep,
+             beneficiary: returnForm.returnee,
              user_id: null,
              batch_id: batchId,
              item_id: it.selectedItem?.id
         }));
         await supabase.from('transactions').insert(txsToInsert);
 
-        toast.success(`تم تسجيل المرتجع بنجاح ${isGood ? 'وإعادة الأصناف للمخزون' : '(تالف)'} ✅`);
+        const damagedItems = returnItems.filter(it => it.returnStatus === 'تالف');
+        if (damagedItems.length > 0) {
+            const discrepanciesToInsert = damagedItems.map(it => ({
+                item_id: it.selectedItem?.id || null,
+                item_name: it.name || it.selectedItem?.name || '',
+                expected_qty: 0,
+                actual_qty: 0,
+                diff: Number(it.qty),
+                note: `مرتجع تالف - من: ${returnForm.returnee}${returnForm.rep ? ` / مندوب: ${returnForm.rep}` : ''}`,
+                status: 'pending',
+                created_at: now
+            }));
+            await supabase.from('discrepancies').insert(discrepanciesToInsert);
+            toast.warning(`تم تسجيل ${damagedItems.length} صنف في قسم التوالف ❤️`);
+        }
+
+        toast.success(`تم تسجيل المرتجع بنجاح ✅`);
         playSuccess();
         performReturnReset();
         fetchInitialData();
     } catch (err) {
+        console.error('❌ performReturnSave error:', err);
         toast.error("حدث خطأ أثناء حفظ المرتجع.");
+    } finally {
+        setLoading(false);
     }
   };
 
@@ -1313,7 +1440,8 @@ export default function Dashboard() {
     // Pre-fill invoice form
     if (lineItems.length > 0) {
       setInvoiceForm({
-        rep: voucher.clientName || voucher.recipient || 'عميل نقدي',
+        client: voucher.clientName || voucher.recipient || 'عميل نقدي',
+        rep: voucher.rep || 'أحمد المندوب',
         date: new Date().toISOString().split('T')[0],
         items: lineItems
       });
@@ -1327,7 +1455,8 @@ export default function Dashboard() {
     } else {
       // Fallback: create empty invoice with just recipient
       setInvoiceForm({
-        rep: voucher.clientName || voucher.recipient || 'عميل نقدي',
+        client: voucher.clientName || voucher.recipient || 'عميل نقدي',
+        rep: voucher.rep || 'أحمد المندوب',
         date: new Date().toISOString().split('T')[0],
         items: []
       });
@@ -1384,7 +1513,8 @@ export default function Dashboard() {
 
     if (lineItems.length > 0) {
       setInvoiceForm({
-        rep: selectedVoucher.clientName || 'عميل نقدي',
+        client: selectedVoucher.clientName || 'عميل نقدي',
+        rep: selectedVoucher.rep || 'أحمد المندوب',
         date: new Date().toISOString().split('T')[0],
         items: lineItems
       });
@@ -1561,8 +1691,8 @@ export default function Dashboard() {
 
     // Grouping logic to show "Movement Logic" instead of individual lines
     dbTransactionsList.forEach(tx => {
-       // Only movements, exclude "Add Item" (if it existed in this table)
-       if (tx.type === 'product_add' || tx.type === 'AddProduct') return;
+       // Only movements, exclude "Add Item" and summary rows
+       if (tx.type === 'product_add' || tx.type === 'AddProduct' || tx.is_summary === true) return;
 
        const groupId = tx.voucherGroupId || tx.batchId || tx.reference_number || tx.id;
        
@@ -1581,11 +1711,7 @@ export default function Dashboard() {
        }
        
        if (matches) {
-         // Filter out movements with no clear identity (data) to keep the list clean
-         const hasIdentity = tx.supplier || tx.beneficiary || tx.location || tx.recipient || tx.rep;
-         if (hasIdentity) {
-           movements.push(tx);
-         }
+         movements.push(tx);
        }
     });
 
@@ -1610,8 +1736,8 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 shrink-0">
         <StatCard icon={Package} label="إجمالي الأصناف" value={items.length} subtext="صنف مسجل" actionLabel="إضافة صنف" onClick={() => setIsItemModalOpen(true)} accentColor="#10B981" />
         <StatCard icon={Truck} label="الوارد" value={stockInCount} subtext="وحدة مُورّدة" actionLabel="إضافة وارد" onClick={() => setIsStockInModalOpen(true)} accentColor="#3B82F6" />
-        <StatCard icon={TrendingUp} label="الصادر" value={salesCount} subtext="وحدة مُباعة" actionLabel="فاتورة جديدة" onClick={() => setIsSalesModalOpen(true)} accentColor="#F59E0B" />
-        <StatCard icon={RotateCcw} label={damageCount > 0 ? `المرتجعات (${damageCount} تالف)` : "المرتجعات"} value={returnsCount} subtext="وحدة مُرتجعة" actionLabel="تسجيل مرتجع" onClick={() => setIsReturnsModalOpen(true)} accentColor="#EF4444" />
+        <StatCard icon={TrendingUp} label="الصادر" value={salesCount} subtext="وحدة مُباعة" actionLabel="فاتورة جديدة" onClick={openInvoiceModal} accentColor="#F59E0B" />
+        <StatCard icon={RotateCcw} label={damageCount > 0 ? `المرتجعات (${damageCount} تالف)` : "المرتجعات"} value={returnsCount} subtext="وحدة مُرتجعة" actionLabel="تسجيل مرتجع" onClick={openReturnModal} accentColor="#EF4444" />
       </div>
 
       {/* ── Bottom 3-Card Row ── */}
@@ -1661,7 +1787,8 @@ export default function Dashboard() {
                   let actionColor = 'text-slate-600';
                   let actionBg = 'bg-slate-100';
                   let actionIcon = <FileCheck size={14} />;
-                  let docNumber = tx.reference_number || tx.referenceNumber || tx.voucherCode || '';
+                  let docNumberRaw = tx.reference_number || tx.referenceNumber || tx.voucherCode || '';
+                  let docNumber = docNumberRaw.split('-').pop();
 
                   // 1. Map Action Logic
                   const type = String(tx.type || '').toLowerCase();
@@ -1671,7 +1798,17 @@ export default function Dashboard() {
                   const isInbound = type === 'in' || type === 'وارد' || type === 'restock' || type === 'adjust_in';
                   const isOutbound = (type === 'issue' || type === 'out' || type === 'صادر');
 
-                  if (isInbound) {
+                  if (isFunctionalIn) {
+                    actionTitle = 'سند إدخال';
+                    actionColor = 'text-indigo-600';
+                    actionBg = 'bg-indigo-50';
+                    actionIcon = <FileInput size={14} />;
+                  } else if (isFunctionalOut) {
+                    actionTitle = 'سند إخراج';
+                    actionColor = 'text-rose-600';
+                    actionBg = 'bg-rose-50';
+                    actionIcon = <FileOutput size={14} />;
+                  } else if (isInbound) {
                     const isAdj = type === 'adjust_in';
                     actionTitle = isAdj ? 'سند إدخال (تعديل)' : 'وارد';
                     actionColor = isAdj ? 'text-slate-500' : 'text-emerald-600';
@@ -1682,16 +1819,6 @@ export default function Dashboard() {
                     actionColor = 'text-amber-600';
                     actionBg = 'bg-amber-50';
                     actionIcon = <RotateCcw size={14} />;
-                  } else if (isFunctionalIn) {
-                    actionTitle = 'سند إدخال';
-                    actionColor = 'text-indigo-600';
-                    actionBg = 'bg-indigo-50';
-                    actionIcon = <FileInput size={14} />;
-                  } else if (isFunctionalOut) {
-                    actionTitle = 'سند إخراج';
-                    actionColor = 'text-rose-600';
-                    actionBg = 'bg-rose-50';
-                    actionIcon = <FileOutput size={14} />;
                   } else if (isOutbound) {
                     actionTitle = tx.isInvoice ? 'صادر - فاتورة' : 'صادر';
                     actionColor = 'text-blue-600';
@@ -1722,7 +1849,13 @@ export default function Dashboard() {
                     <div 
                       key={tx.id} 
                       onClick={() => {
-                        setSelectedBatchTransactions(tx.voucherGroupId ? dbTransactionsList.filter(t => t.voucherGroupId === tx.voucherGroupId) : tx.batchId ? dbTransactionsList.filter(t => t.batchId === tx.batchId) : [tx]);
+                        const rawBatch = tx.voucherGroupId 
+                          ? dbTransactionsList.filter(t => t.voucherGroupId === tx.voucherGroupId) 
+                          : tx.batchId 
+                            ? dbTransactionsList.filter(t => t.batchId === tx.batchId) 
+                            : [tx];
+                        // FILTER OUT SUMMARY ROWS HERE
+                        setSelectedBatchTransactions(rawBatch.filter(t => t.is_summary !== true));
                         setIsTransactionDetailOpen(true);
                       }}
                       className="flex items-center justify-between p-3.5 hover:bg-slate-50 transition-all rounded-2xl cursor-pointer group border border-transparent hover:border-slate-100"
@@ -2047,189 +2180,203 @@ export default function Dashboard() {
       </div>
 
       {/* MODALS */}
-      {/* 0. Voucher/Transaction Details Modal */}
+      {/* 0. Transaction Details Modal (Redesigned for Premium Look) */}
       <AnimatePresence>
         {isTransactionDetailOpen && selectedBatchTransactions.length > 0 && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md"
+            className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-md"
             dir="rtl"
             onClick={() => setIsTransactionDetailOpen(false)}
           >
             <motion.div
               onClick={(e) => e.stopPropagation()}
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              initial={{ opacity: 0, scale: 0.9, y: 30 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              transition={{ type: 'spring', damping: 28, stiffness: 320 }}
-              className="w-full max-w-2xl bg-white rounded-[32px] shadow-2xl border border-white/20 flex flex-col max-h-[85vh] overflow-hidden"
+              exit={{ opacity: 0, scale: 0.9, y: 30 }}
+              transition={{ type: 'spring', damping: 28, stiffness: 350 }}
+              className="w-full max-w-4xl bg-white rounded-[3rem] shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] border border-white/20 flex flex-col max-h-[90vh] overflow-hidden"
             >
               {(() => {
                 const firstTx = selectedBatchTransactions[0];
                 const type = String(firstTx.type || '').toLowerCase();
-                const isFunctionalIn = firstTx.type === FUNCTIONAL_INBOUND_TYPE;
-                const isFunctionalOut = firstTx.type === FUNCTIONAL_OUTBOUND_TYPE;
+                const isFunctionalIn = firstTx.isFunctional && (type === 'in' || type === 'سند إدخال' || (firstTx.item && firstTx.item.includes('ملخص سند')));
+                const isFunctionalOut = firstTx.isFunctional && (type === 'outward' || type === 'سند إخراج' || (firstTx.item && (firstTx.item.includes('ملخص عهده') || firstTx.item.includes('عهده'))));
                 const isReturn = type === 'return' || type === 'مرتجع' || firstTx.status === 'مرتجع تالف';
-                const isInbound = type === 'in' || type === 'وارد' || type === 'restock' || type === 'adjust_in';
-                const isOutbound = (type === 'issue' || type === 'out' || type === 'صادر');
+                const isInbound = !isFunctionalIn && (type === 'in' || type === 'وارد' || type === 'restock' || type === 'adjust_in');
+                const isOutbound = !isFunctionalOut && (type === 'issue' || type === 'out' || type === 'صادر' || type === 'outward');
 
                 let typeLabel = '';
-                let themeColor = 'text-slate-600';
-                let themeBg = 'bg-slate-50';
-                let themeIcon = <FileText size={20} />;
+                let themeColor = 'indigo';
+                let themeIcon = <FileText size={28} />;
 
-                if (isInbound) {
-                  const isAdj = type === 'adjust_in';
-                  typeLabel = isAdj ? 'سند إدخال (تعديل)' : 'وارد';
-                  themeColor = isAdj ? 'text-slate-500' : 'text-emerald-600';
-                  themeBg = isAdj ? 'bg-slate-50' : 'bg-emerald-50';
-                  themeIcon = isAdj ? <Pencil size={20} /> : <ArrowDownLeft size={20} />;
-                } else if (isReturn) {
-                  typeLabel = 'مرتجع';
-                  themeColor = 'text-amber-600';
-                  themeBg = 'bg-amber-50';
-                  themeIcon = <RotateCcw size={20} />;
-                } else if (isFunctionalIn) {
-                  typeLabel = 'سند إدخال';
-                  themeColor = 'text-indigo-600';
-                  themeBg = 'bg-indigo-50';
-                  themeIcon = <FileInput size={20} />;
+                if (isFunctionalIn) {
+                  typeLabel = 'تفاصيل سند إدخال';
+                  themeColor = 'indigo';
+                  themeIcon = <FileInput size={28} />;
                 } else if (isFunctionalOut) {
-                  typeLabel = 'سند إخراج';
-                  themeColor = 'text-rose-600';
-                  themeBg = 'bg-rose-50';
-                  themeIcon = <FileOutput size={20} />;
+                  typeLabel = 'تفاصيل سند إخراج';
+                  themeColor = 'rose';
+                  themeIcon = <FileOutput size={28} />;
+                } else if (isInbound) {
+                  const isAdj = type === 'adjust_in';
+                  typeLabel = isAdj ? 'سند إدخال (تعديل)' : 'تفاصيل حركة وارد';
+                  themeColor = isAdj ? 'slate' : 'emerald';
+                  themeIcon = isAdj ? <ArrowDownLeft size={28} /> : <ArrowDownLeft size={28} />;
+                } else if (isReturn) {
+                  typeLabel = 'تفاصيل مرتجع مخزني';
+                  themeColor = 'amber';
+                  themeIcon = <RotateCcw size={28} />;
                 } else if (isOutbound) {
-                  typeLabel = firstTx.isInvoice ? 'صادر - فاتورة' : 'صادر';
-                  themeColor = 'text-blue-600';
-                  themeBg = 'bg-blue-50';
-                  themeIcon = <ArrowUpRight size={20} />;
+                  typeLabel = firstTx.isInvoice ? 'تفاصيل فاتورة صادر' : 'تفاصيل حركة صادر';
+                  themeColor = 'blue';
+                  themeIcon = <ArrowUpRight size={28} />;
+                } else {
+                  typeLabel = 'تفاصيل حركة مخزنية';
+                  themeColor = 'slate';
+                  themeIcon = <FileText size={28} />;
                 }
 
-                const docNumber = firstTx.reference_number || firstTx.referenceNumber || firstTx.voucherCode || '';
+                const docNumberRaw = firstTx.reference_number || firstTx.referenceNumber || firstTx.voucherCode || '';
+                const docNumber = docNumberRaw.split('-').pop();
                 const txDate = firstTx.timestamp ? new Date(firstTx.timestamp) : new Date();
                 const formattedDate = txDate.toLocaleDateString('ar-SA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
                 const formattedTime = txDate.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
                 
                 const primaryName = (isInbound || isFunctionalIn) 
-                  ? (firstTx.supplier || firstTx.beneficiary || firstTx.recipient || firstTx.location || 'مورد غير محدد') 
+                  ? (firstTx.supplier || firstTx.beneficiary || firstTx.recipient || firstTx.location || 'بدون مورد') 
                   : (firstTx.beneficiary || firstTx.recipient || firstTx.supplier || firstTx.location || 'جهة غير محددة');
                 const secondaryName = (isOutbound || isReturn || isFunctionalOut) ? firstTx.rep : '';
 
-                const showDocNum = (isFunctionalIn || isFunctionalOut) ? true : (isInbound && docNumber) ? true : false;
-
                 return (
                   <>
-                    {/* Modern Header */}
-                    <div className={`px-8 py-6 ${themeBg} border-b border-slate-100 shrink-0`}>
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-4">
-                          <div className={`w-14 h-14 rounded-2xl ${themeBg} ${themeColor} border border-current/10 flex items-center justify-center shadow-sm`}>
-                            {themeIcon}
+                    {/* Header: Indigo Gradient Style */}
+                    <div className={`px-8 py-4 bg-${themeColor}-600 text-white flex items-center justify-between shrink-0 relative overflow-hidden`}>
+                       {/* Abstract BG Decor */}
+                       <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/3 blur-3xl pointer-events-none" />
+                       
+                       <div className="flex items-center gap-6 relative z-10">
+                          <div className="w-16 h-16 bg-white/20 backdrop-blur-lg rounded-2xl flex items-center justify-center text-white shadow-xl border border-white/20">
+                             {themeIcon}
                           </div>
                           <div>
-                            <div className="flex items-center gap-2 mb-1">
-                              <h3 className={`text-xl font-black ${themeColor} font-tajawal`}>{typeLabel}</h3>
-                              {showDocNum && docNumber && (
-                                <span className="text-[11px] font-black bg-white/80 px-2.5 py-1 rounded-lg border border-current/10 shadow-sm">
-                                  #{docNumber}
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-sm font-bold text-slate-800 font-tajawal">
-                              {primaryName}
-                              {secondaryName && <span className="text-slate-400 font-medium mr-2">- {secondaryName}</span>}
-                            </p>
+                             <div className="flex items-center gap-3 mb-1.5">
+                                <h3 className="text-2xl font-black font-tajawal">{typeLabel} - {primaryName}</h3>
+                                {docNumber && (
+                                  <span className="bg-white/20 text-[11px] font-black px-3 py-1 rounded-lg backdrop-blur-md border border-white/10">
+                                    رقم المستند: {docNumber}
+                                  </span>
+                                )}
+                             </div>
+                             <p className="text-sm font-bold text-white/80 font-readex opacity-90">
+                                {formattedDate}
+                             </p>
                           </div>
-                        </div>
-                        <div className="text-left">
-                          <p className="text-xs font-bold text-slate-500 font-readex">{formattedDate}</p>
-                          <p className="text-[11px] text-slate-400 font-medium mt-1">{formattedTime} • {firstTx.user || 'مدير النظام'}</p>
-                        </div>
-                      </div>
+                       </div>
+                       
+                       <button 
+                         onClick={() => setIsTransactionDetailOpen(false)}
+                         className="w-12 h-12 flex items-center justify-center bg-white/10 hover:bg-white/20 rounded-2xl transition-all relative z-10"
+                       >
+                          <X size={24} />
+                       </button>
                     </div>
                     
-                    {/* Items Section */}
-                    <div className="flex-1 overflow-y-auto custom-scrollbar px-8 py-6">
-                      <div className="flex items-center justify-between mb-4 px-2">
-                        <h4 className="text-sm font-black text-slate-800 font-tajawal flex items-center gap-2">
-                          <Layers size={16} className="text-slate-400" />
-                          الأصناف المسجلة
-                        </h4>
-                        <span className="text-[11px] font-bold text-slate-400 bg-slate-50 px-3 py-1 rounded-full">
-                          {selectedBatchTransactions.length} صنف
-                        </span>
-                      </div>
+                    {/* Summary Bar */}
+                    <div className={`px-10 py-3 bg-slate-50 border-b border-slate-100 grid grid-cols-2 gap-8 shrink-0`}>
+                       <div className="flex flex-col">
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                             {(isInbound || isFunctionalIn) ? 'المورد' : 'الجهة / المستفيد'}
+                          </span>
+                          <span className="text-sm font-black text-slate-800 truncate">
+                             {primaryName}
+                          </span>
+                       </div>
+                        <div className="flex flex-col">
+                           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">ملاحظات</span>
+                           <span className="text-sm font-black text-slate-800 truncate">
+                              {firstTx.notes || '—'}
+                           </span>
+                        </div>
+                    </div>
 
-                      <div className="border border-slate-100 rounded-[20px] overflow-hidden bg-white shadow-sm">
-                        <table className="w-full text-right text-xs">
-                          <thead className="bg-slate-50/50 border-b border-slate-100">
-                            <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                              <th className="px-5 py-3.5 text-center w-12">#</th>
-                              <th className="px-5 py-3.5">الصنف</th>
-                              <th className="px-5 py-3.5 text-center">القسم</th>
-                              <th className="px-5 py-3.5 text-center">الكمية</th>
-                              <th className="px-5 py-3.5 text-center w-24">الحالة</th>
-                            </tr>
+                    {/* Content Section */}
+                    <div className="flex-1 overflow-y-auto px-10 py-4 custom-scrollbar">
+                       <table className="w-full text-right border-separate border-spacing-y-2">
+                          <thead>
+                             <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">
+                                <th className="pb-2 pr-6 text-center w-12">م</th>
+                                <th className="pb-2">الصنف</th>
+                                <th className="pb-2 text-center">الشركة</th>
+                                <th className="pb-2 text-center">القسم</th>
+                                <th className="pb-2 text-center">الوحدة</th>
+                                <th className="pb-2 text-center rounded-l-2xl">الكمية</th>
+                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-slate-50">
-                            {selectedBatchTransactions.map((tx, idx) => {
-                              const rawName = tx.item || '';
-                              const itemFromId = tx.item_id ? items.find(i => i.id === tx.item_id) : null;
-                              const itemName = itemFromId ? `${itemFromId.name} - ${itemFromId.company}` : rawName || 'صنف غير معروف';
-                              const itemCat = tx.cat || itemFromId?.cat || '-';
-                              
-                              return (
-                                <tr key={idx} className="hover:bg-slate-50/50 transition-colors group">
-                                  <td className="px-5 py-4 text-[10px] font-bold text-slate-400 text-center">{idx + 1}</td>
-                                  <td className="px-5 py-4 font-bold text-slate-800">
-                                    <div className="flex flex-col">
-                                      <span>{itemName}</span>
-                                      {tx.unit && <span className="text-[9px] text-slate-400 font-medium">{tx.unit}</span>}
-                                    </div>
-                                  </td>
-                                  <td className="px-5 py-4 text-center">
-                                    <span className="px-2.5 py-1 bg-slate-100 text-slate-500 rounded-lg font-bold text-[10px] uppercase">
-                                      {itemCat}
-                                    </span>
-                                  </td>
-                                  <td className={`px-5 py-4 text-sm font-black text-center ${isInbound || type === 'return' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                    {isInbound || type === 'return' ? '+' : '-'}{tx.qty}
-                                  </td>
-                                  <td className="px-5 py-4 text-center">
-                                    <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black ${
-                                      tx.status === 'مكتمل' ? 'bg-emerald-50 text-emerald-600' : 
-                                      tx.status === 'مرتجع تالف' ? 'bg-rose-50 text-rose-600' : 
-                                      'bg-slate-50 text-slate-500'
-                                    }`}>
-                                      {tx.status || 'مكتمل'}
-                                    </span>
-                                  </td>
-                                </tr>
-                              );
-                            })}
+                          <tbody>
+                             {selectedBatchTransactions.filter(t => t.is_summary !== true).map((tx, idx) => {
+                                const itemFromId = tx.item_id ? items.find(i => i.id === tx.item_id) : null;
+                                const itemName = itemFromId ? itemFromId.name : (tx.item || tx.itemName || 'صنف غير معروف');
+                                const itemCompany = itemFromId ? itemFromId.company : (tx.company || '');
+                                const itemCat = tx.cat || itemFromId?.cat || '-';
+                                
+                                return (
+                                  <tr key={idx} className="bg-white border border-slate-100 hover:bg-slate-50 transition-colors group">
+                                     <td className="py-1.5 pr-6 rounded-r-xl text-center text-[10px] font-black text-slate-400">{idx + 1}</td>
+                                     <td className="py-1.5">
+                                        <div className="flex items-center gap-2">
+                                           <div className="w-7 h-7 bg-slate-50 rounded-lg flex items-center justify-center text-slate-400 group-hover:bg-white group-hover:shadow-sm transition-all">
+                                              <Package size={14} />
+                                           </div>
+                                           <span className="text-xs font-black text-slate-800">{itemName}</span>
+                                        </div>
+                                     </td>
+                                     <td className="py-2.5 text-center">
+                                        <span className="text-xs font-bold text-slate-600">{itemCompany || 'بدون شركة'}</span>
+                                     </td>
+                                     <td className="py-2.5 text-center">
+                                        <span className="inline-flex items-center px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md text-[9px] font-black border border-slate-200 uppercase">
+                                           {itemCat}
+                                        </span>
+                                     </td>
+                                     <td className="py-2.5 text-center">
+                                        <span className="text-xs font-bold text-slate-500">{tx.unit || 'وحدة'}</span>
+                                     </td>
+                                     <td className="py-2.5 text-center rounded-l-xl">
+                                        <div className="inline-flex items-center gap-1.5 bg-white border border-slate-100 px-2.5 py-0.5 rounded-lg shadow-sm">
+                                           <span className={`text-xs font-black tabular-nums ${isInbound || isFunctionalIn || type === 'return' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                              {isInbound || isFunctionalIn || type === 'return' ? `+${Math.abs(tx.qty)}` : `-${Math.abs(tx.qty)}`}
+                                           </span>
+                                        </div>
+                                     </td>
+                                  </tr>
+                                );
+                             })}
                           </tbody>
-                        </table>
-                      </div>
+                       </table>
                     </div>
-                    
-                    {/* Modern Footer */}
-                    <div className="px-8 py-6 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between shrink-0">
-                      <div className="flex flex-col">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">المجموع الكلي</span>
-                        <p className="text-sm font-black text-slate-800 font-tajawal">
-                          {selectedBatchTransactions.reduce((acc, curr) => acc + Number(curr.qty || 0), 0)} وحدة مخزنية
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setIsTransactionDetailOpen(false)}
-                        className={`px-10 py-3 rounded-2xl text-sm font-black text-white ${themeBg.replace('bg-', 'bg-').replace('-50', '-500')} hover:brightness-95 shadow-lg shadow-current/10 transition-all active:scale-95`}
-                      >
-                        إغلاق النافذة
-                      </button>
+
+                    {/* Footer Section */}
+                    <div className="px-10 py-5 bg-slate-50 border-t border-slate-100 flex items-center justify-between shrink-0">
+                       <div className="flex items-center gap-6">
+                          <div className="flex flex-col">
+                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">المجموع الكلي</span>
+                             <p className="text-lg font-black text-slate-800 font-tajawal tabular-nums">
+                                {selectedBatchTransactions.reduce((acc, curr) => acc + Number(curr.qty || 0), 0)} وحدة
+                             </p>
+                          </div>
+                       </div>
+                       
+                       <div className="flex items-center gap-3">
+                          <button 
+                            onClick={() => setIsTransactionDetailOpen(false)}
+                            className={`px-10 py-2.5 bg-${themeColor}-600 text-white rounded-2xl text-sm font-black hover:brightness-95 shadow-md shadow-${themeColor}-500/20 transition-all active:scale-95`}
+                          >
+                             إغلاق النافذة
+                          </button>
+                       </div>
                     </div>
                   </>
                 );
@@ -2279,7 +2426,7 @@ export default function Dashboard() {
                         {/* Right: Voucher Type + Date */}
                         <div className="flex flex-col items-start">
                           <h3 className={`text-xl font-extrabold ${isCompleted ? 'text-emerald-700' : isIn ? 'text-teal-700' : 'text-red-700'} font-tajawal`}>
-                            {isIn ? 'سند إدخال' : 'سند إخراج'}
+                            {isIn ? 'سند إدخال' : 'سند إخراج'} - {recipient}
                           </h3>
                           <p className="text-xs text-slate-500 font-readex mt-1">
                             تاريخ السند: <span className="font-bold text-slate-700">{formattedShortDate}</span>
@@ -2832,7 +2979,7 @@ export default function Dashboard() {
         </motion.div>
       )}
 
-      <ModalWrapper title={isVoucherInvoice ? "فاتورة من سند (مراجعة)" : "إنشاء فاتورة صادر (تلقيم احترافي)"} 
+            <ModalWrapper title={isVoucherInvoice ? "مراجعة فاتورة صادر" : "إنشاء فاتورة صادر (نظام بريميوم)"} 
         maxWidth="max-w-6xl" 
         isOpen={isSalesModalOpen} 
         onClose={handleCloseInvoiceModal} 
@@ -2840,211 +2987,215 @@ export default function Dashboard() {
         compact
         loading={loading}>
 
-          {/* Header Fields - Read-only recipient when from voucher */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-             <div>
-               <label className={LabelClass}>جهة العميل / المستلم <span className="text-red-500">*</span></label>
+          {/* Header Fields - Client, Representative, and Date */}
+          <div className="bg-slate-50/50 p-4 rounded-[1.5rem] border border-slate-100 mb-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+              
+             
+             <div className="flex flex-col">
+               <label className="text-[10px] font-black text-slate-400 mb-1 mr-1 uppercase">المندوب المسجل <span className="text-red-500">*</span></label>
                <input
                  type="text"
-                 className={`${InputClass} py-2.5 text-center ${isVoucherInvoice ? 'bg-slate-100 cursor-not-allowed' : ''} ${!invoiceForm.rep.trim() ? 'border-red-300 ring-2 ring-red-500/10' : ''}`}
+                 list="reps-datalist"
+                 className={`w-full h-[38px] bg-white border ${!invoiceForm.rep.trim() && invoiceErrors.rep ? 'border-red-200 ring-2 ring-red-500/5' : 'border-slate-200'} text-slate-800 text-[13px] font-black rounded-xl px-4 outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500/20 transition-all font-tajawal`}
                  value={invoiceForm.rep}
                  readOnly={isVoucherInvoice}
                  onChange={(e) => {
-                   setInvoiceForm({...invoiceForm, rep: e.target.value});
-                   if (e.target.value.trim()) setInvoiceErrors(prev => ({...prev, recipient: false}));
+                    setInvoiceForm({...invoiceForm, rep: e.target.value});
+                    if (e.target.value.trim()) setInvoiceErrors(prev => ({...prev, rep: false}));
                  }}
-                 placeholder="اسم العميل أو المستلم"
+                 id="invoiceRepInput" placeholder="اسم مندوب المبيعات"
                />
+               <datalist id="reps-datalist">
+                 {repsList.map(rep => <option key={rep} value={rep} />)}
+               </datalist>
              </div>
-             <div><label className={LabelClass}>تاريخ الفاتورة</label><input type="date" className={`${InputClass} py-2.5 text-center ${isVoucherInvoice ? 'bg-slate-100 cursor-not-allowed' : ''}`} value={invoiceForm.date} onChange={(e) => setInvoiceForm({...invoiceForm, date: e.target.value})} readOnly={isVoucherInvoice} /></div>
+
+             <div className="flex flex-col">
+                <label className="text-[10px] font-black text-slate-400 mb-1 mr-1 uppercase">تاريخ الفاتورة</label>
+                <div className="relative">
+                  <input 
+                    type="date" 
+                    className="w-full h-[38px] bg-white border border-slate-200 text-slate-800 text-[13px] font-black rounded-xl px-4 outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500/20 transition-all font-readex text-center" 
+                    value={invoiceForm.date} 
+                    onChange={(e) => setInvoiceForm({...invoiceForm, date: e.target.value})} 
+                    readOnly={isVoucherInvoice} 
+                  />
+                </div>
+             </div>
           </div>
 
-          {/* Item Entry Section - Hidden when from voucher */}
+          {/* Item Entry Section - Redesigned Card */}
           {!isVoucherInvoice && (
-          <div className="bg-blue-50 p-3 rounded-xl border border-blue-100 mb-3 shadow-sm">
-             <h4 className="text-xs font-bold text-blue-700 mb-2">إضافة صنف للفاتورة</h4>
+          <div className="bg-slate-50/50 p-2.5 rounded-[1.2rem] border border-slate-100 mb-2 shadow-sm">
+             <div className="flex items-center gap-2 mb-2 mr-1">
+                <div className="w-1.5 h-3 bg-indigo-500 rounded-full" />
+                <h4 className="text-[11px] font-black text-slate-700 font-tajawal">إضافة سريع للأصناف</h4>
+             </div>
              <div className="flex flex-wrap items-end gap-2.5">
-               {/* Search Field */}
-               <div className="flex-1 min-w-[200px] relative group/item">
-                 <label className="block text-[10px] font-bold text-slate-600 mb-1 text-center">البحث عن الصنف</label>
-                 <input
-                   ref={invoiceSearchInputRef}
-                   type="text"
-                   id="invoiceSearchInput"
-                   className="w-full bg-white border border-slate-200 text-slate-800 text-xs rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500/20 block px-2.5 py-2 outline-none transition-all duration-300 placeholder:text-slate-400 text-center"
-                   placeholder="اكتب للبحث أو إضافة صنف جديد..."
-                   value={currentInvoiceItem.name}
-                   onChange={(e) => {
-                     setCurrentInvoiceItem({...currentInvoiceItem, name: e.target.value, selectedItem: null, cat: '', unit: ''});
-                     setInvoiceSearchActiveIndex(-1);
-                     if (currentInvoiceItem.selectedItem) {
-                       setCurrentInvoiceItem(prev => ({...prev, selectedItem: null, cat: '', unit: ''}));
-                     }
-                   }}
-                   onBlur={() => {
-                     if (currentInvoiceItem.name.trim().length >= 2 && !currentInvoiceItem.selectedItem) {
-                       const matchFound = items.some(i =>
-                         i.name.includes(currentInvoiceItem.name) ||
-                         i.company.includes(currentInvoiceItem.name)
-                       );
-                       if (!matchFound) {
-                         triggerNewItemRegistration(currentInvoiceItem.name.trim(), 'invoice');
-                       }
-                     }
-                   }}
-                   onKeyDown={(e) => {
-                     const suggestions = items.filter(i => i.name.includes(currentInvoiceItem.name) || i.company.includes(currentInvoiceItem.name));
-                     if (e.key === 'ArrowDown') { e.preventDefault(); setInvoiceSearchActiveIndex(prev => prev < suggestions.length - 1 ? prev + 1 : prev); }
-                     else if (e.key === 'ArrowUp') { e.preventDefault(); setInvoiceSearchActiveIndex(prev => prev > 0 ? prev - 1 : 0); }
-                     else if (e.key === 'Enter') {
-                       e.preventDefault();
-                       if (invoiceSearchActiveIndex >= 0 && suggestions[invoiceSearchActiveIndex]) {
-                         const invItem = suggestions[invoiceSearchActiveIndex];
-                         setCurrentInvoiceItem({ ...currentInvoiceItem, name: `${invItem.name} - ${invItem.company}`, selectedItem: invItem, cat: invItem.cat || invItem.category || '', unit: invItem.unit || 'كرتونة' });
-                         setInvoiceSearchActiveIndex(-1);
-                       } else if (suggestions.length === 0 && currentInvoiceItem.name.trim().length >= 2) {
-                         triggerNewItemRegistration(currentInvoiceItem.name.trim(), 'invoice');
-                       } else if (currentInvoiceItem.selectedItem) {
-                         setTimeout(() => document.getElementById('invoiceQtyInput')?.focus(), 10);
-                       }
-                     } else if (e.key === 'Tab') {
-                       setTimeout(() => document.getElementById('invoiceQtyInput')?.focus(), 10);
-                     }
-                   }}
-                 />
-                 {currentInvoiceItem.name && !currentInvoiceItem.selectedItem && (
-                   <div className="hidden group-focus-within/item:block absolute top-[100%] right-0 w-full max-h-48 overflow-y-auto bg-white rounded-lg shadow-xl border border-slate-200 z-30 p-0.5">
-                     {items.filter(i => i.name.includes(currentInvoiceItem.name) || i.company.includes(currentInvoiceItem.name)).map((invItem, idx) => (
-                          <button key={invItem.id} type="button" className={`w-full text-right px-2.5 py-1.5 border-b border-slate-50 last:border-0 transition-colors ${invoiceSearchActiveIndex === idx ? 'bg-blue-50' : 'hover:bg-slate-50'}`} onMouseDown={(e) => {
-                            e.preventDefault();
-                            setCurrentInvoiceItem({
-                              ...currentInvoiceItem,
-                              name: `${invItem.name} - ${invItem.company}`,
-                              selectedItem: invItem,
-                              cat: invItem.cat || invItem.category || '',
-                              unit: invItem.unit || 'كرتونة'
-                            });
+                {/* Search Field */}
+                <div className="flex-1 min-w-[250px] relative group/item">
+                  <label className="block text-[10px] font-bold text-slate-400 mb-1.5 mr-1 uppercase h-[15px] leading-[15px]">البحث عن صنف</label>
+                  <div className="relative">
+                    <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      ref={invoiceSearchInputRef}
+                      type="text"
+                      className="w-full h-[38px] bg-white border border-slate-200 text-slate-800 text-[13px] font-black rounded-xl pr-9 pl-3 outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500/30 transition-all font-tajawal placeholder:text-slate-300 placeholder:font-semibold"
+                      placeholder="اكتب اسم الصنف هنا..."
+                      value={currentInvoiceItem.name}
+                      onChange={(e) => {
+                        setCurrentInvoiceItem({...currentInvoiceItem, name: e.target.value, selectedItem: null, cat: '', unit: ''});
+                        setInvoiceSearchActiveIndex(-1);
+                      }}
+                      onKeyDown={(e) => {
+                        const suggestions = items.filter(i => i.name.includes(currentInvoiceItem.name) || i.company.includes(currentInvoiceItem.name));
+                        if (e.key === 'ArrowDown') { e.preventDefault(); setInvoiceSearchActiveIndex(prev => prev < suggestions.length - 1 ? prev + 1 : prev); }
+                        else if (e.key === 'ArrowUp') { e.preventDefault(); setInvoiceSearchActiveIndex(prev => prev > 0 ? prev - 1 : 0); }
+                        else if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (invoiceSearchActiveIndex >= 0 && suggestions[invoiceSearchActiveIndex]) {
+                            const invItem = suggestions[invoiceSearchActiveIndex];
+                            setCurrentInvoiceItem({ ...currentInvoiceItem, name: `${invItem.name} - ${invItem.company}`, selectedItem: invItem, cat: invItem.cat || invItem.category || '', unit: invItem.unit || 'كرتونة' });
                             setInvoiceSearchActiveIndex(-1);
-                            setTimeout(() => { document.getElementById('invoiceQtyInput')?.focus(); }, 10);
-                          }}>
-                            <div className="flex justify-between items-center w-full">
-                              <span className="text-xs font-bold text-slate-800">{invItem.name}</span> <span className="text-[10px] text-slate-500">- {invItem.company}</span>
-                              <span className="text-[9px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">المتوفر: {invItem.stockQty}</span>
-                            </div>
-                          </button>
-                     ))}
-                   </div>
-                 )}
-               </div>
+                            setTimeout(() => document.getElementById('invoiceQtyInput')?.focus(), 10);
+                          } else if (currentInvoiceItem.selectedItem) {
+                            setTimeout(() => document.getElementById('invoiceQtyInput')?.focus(), 10);
+                          }
+                        }
+                      }}
+                    />
+                  </div>
+                  {currentInvoiceItem.name && !currentInvoiceItem.selectedItem && (
+                    <div className="hidden group-focus-within/item:block absolute top-[110%] right-0 w-full max-h-64 overflow-y-auto bg-white rounded-xl shadow-xl border border-slate-100 z-50 p-1.5 backdrop-blur-xl custom-scrollbar">
+                      {items.filter(i => i.name.includes(currentInvoiceItem.name) || i.company.includes(currentInvoiceItem.name)).map((invItem, idx) => (
+                           <button key={invItem.id} type="button" className={`w-full text-right px-3 py-2 rounded-lg transition-all ${invoiceSearchActiveIndex === idx ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-slate-50 text-slate-700'}`} onMouseDown={(e) => {
+                             e.preventDefault();
+                             setCurrentInvoiceItem({
+                               ...currentInvoiceItem,
+                               name: `${invItem.name} - ${invItem.company}`,
+                               selectedItem: invItem,
+                               cat: invItem.cat || invItem.category || '',
+                               unit: invItem.unit || 'كرتونة'
+                             });
+                             setInvoiceSearchActiveIndex(-1);
+                             setTimeout(() => { document.getElementById('invoiceQtyInput')?.focus(); }, 10);
+                           }}>
+                             <div className="flex justify-between items-center w-full">
+                               <div className="flex flex-col">
+                                  <span className="text-xs font-black">{invItem.name}</span>
+                                  <span className="text-[9px] font-bold opacity-60">{invItem.company}</span>
+                               </div>
+                               <span className="text-[9px] font-black bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-md">رصيد: {invItem.stockQty}</span>
+                             </div>
+                           </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
-               {/* Category Field */}
-               <div className="w-[100px] shrink-0">
-                 <label className="block text-[10px] font-bold text-slate-600 mb-1 text-center">القسم</label>
-                 {currentInvoiceItem.selectedItem ? (
-                   <input type="text" className="w-full bg-slate-100 border border-slate-200 text-slate-700 text-xs rounded-xl block px-2.5 py-2 outline-none cursor-default text-center" value={currentInvoiceItem.cat} readOnly placeholder="تلقائي" />
-                 ) : (
-                   <select className="w-full bg-white border border-slate-200 text-slate-800 text-xs rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500/20 block px-2 py-2 outline-none transition-all duration-300 text-center" value={currentInvoiceItem.cat} onChange={(e) => setCurrentInvoiceItem({...currentInvoiceItem, cat: e.target.value})}>
-                     <option value="">اختر...</option>
-                     {categories.map(cat => (<option key={cat} value={cat}>{cat}</option>))}
-                   </select>
-                 )}
-               </div>
+                {/* Quantity Field */}
+                <div className="w-[85px]">
+                  <label className="block text-[10px] font-bold text-slate-400 mb-1.5 text-center uppercase h-[15px] leading-[15px]">الكمية</label>
+                  <input
+                    type="number"
+                    id="invoiceQtyInput"
+                    className="w-full h-[38px] bg-white border-2 border-indigo-400/50 focus:border-indigo-500 text-indigo-700 text-sm rounded-xl px-2 outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all text-center font-black tabular-nums shadow-inner"
+                    placeholder="0"
+                    value={currentInvoiceItem.qty}
+                    onChange={(e) => { if (e.target.value.length <= 4) setCurrentInvoiceItem({...currentInvoiceItem, qty: e.target.value}); }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddInvoiceItemToTable(); } }}
+                  />
+                </div>
 
-               {/* Unit Field */}
-               <div className="w-[90px] shrink-0">
-                 <label className="block text-[10px] font-bold text-slate-600 mb-1 text-center">الوحدة</label>
-                 {currentInvoiceItem.selectedItem ? (
-                   <input type="text" className="w-full bg-slate-100 border border-slate-200 text-slate-700 text-xs rounded-xl block px-2.5 py-2 outline-none cursor-default text-center" value={currentInvoiceItem.unit} readOnly placeholder="تلقائي" />
-                 ) : (
-                   <input type="text" className="w-full bg-white border border-slate-200 text-slate-800 text-xs rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500/20 block px-2 py-2 outline-none transition-all duration-300 text-center" value={currentInvoiceItem.unit} onChange={(e) => setCurrentInvoiceItem({...currentInvoiceItem, unit: e.target.value})} placeholder="كرتونة" />
-                 )}
-               </div>
+                {/* Category & Unit - Unified Fields */}
+                <div className="w-[85px]">
+                  <label className="block text-[10px] font-bold text-slate-400 mb-1.5 text-center uppercase h-[15px] leading-[15px]">القسم</label>
+                  <input type="text" className="w-full h-[38px] bg-slate-100/50 border border-slate-200/60 text-slate-600 text-[12px] font-black rounded-xl px-2 outline-none cursor-default text-center transition-all" value={currentInvoiceItem.cat || '-'} readOnly />
+                </div>
 
-               {/* Quantity Field - Fixed Width */}
-               <div className="w-[75px] shrink-0">
-                 <label className="block text-[10px] font-bold text-slate-600 mb-1 text-center">الكمية <span className="text-red-500">*</span></label>
-                 <input
-                   type="number"
-                   id="invoiceQtyInput"
-                   className="w-full bg-white border border-slate-200 text-slate-800 text-xs rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500/20 block px-2 py-2 outline-none transition-all duration-300 placeholder:text-slate-400 text-center font-bold tabular-nums"
-                   placeholder="0"
-                   maxLength={4}
-                   value={currentInvoiceItem.qty}
-                   onChange={(e) => { if (e.target.value.length <= 4) setCurrentInvoiceItem({...currentInvoiceItem, qty: e.target.value}); }}
-                   onKeyDown={(e) => {
-                     if (e.key === 'Enter') { e.preventDefault(); handleAddInvoiceItemToTable(); }
-                   }}
-                 />
-               </div>
+                <div className="w-[85px]">
+                  <label className="block text-[10px] font-bold text-slate-400 mb-1.5 text-center uppercase h-[15px] leading-[15px]">الوحدة</label>
+                  <input type="text" className="w-full h-[38px] bg-white border border-slate-200 text-slate-800 text-[12px] font-black rounded-xl px-2 outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500/30 transition-all text-center" value={currentInvoiceItem.unit} onChange={(e) => setCurrentInvoiceItem({...currentInvoiceItem, unit: e.target.value})} placeholder="كرتونة" />
+                </div>
 
-               {/* Add Button */}
-               <div className="w-[44px] shrink-0">
-                 <label className="block text-[10px] font-bold text-slate-600 mb-1 text-center">إضافة</label>
-                 <button
-                   type="button"
-                   className="w-9 h-9 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-bold transition-all shadow-sm flex items-center justify-center hover:scale-105 active:scale-95"
-                   onClick={handleAddInvoiceItemToTable}
-                   title="إضافة للفاتورة"
-                 >
-                   <Plus size={18} strokeWidth={2.5} />
-                 </button>
-               </div>
+                {/* Add Button */}
+                <button
+                  type="button"
+                  className="w-[38px] h-[38px] bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-all shadow-md shadow-indigo-200 flex items-center justify-center hover:scale-105 active:scale-95 shrink-0"
+                  onClick={handleAddInvoiceItemToTable}
+                >
+                  <Plus size={20} strokeWidth={3} />
+                </button>
              </div>
           </div>
           )}
 
-          {/* Middle Section (The Table - Maximized Height) */}
-          <div className="card overflow-hidden flex flex-col flex-1 min-h-[45vh]">
-            <div className="bg-slate-50 px-3 py-2 flex items-center justify-between shrink-0 border-b border-slate-200">
-              <h4 className="text-xs font-bold text-slate-700">الأصناف الصادرة ({invoiceForm.items.length})</h4>
-              {!isVoucherInvoice && invoiceForm.items.length > 0 && (
-                <button type="button" onClick={() => { setInvoiceForm(prev => ({...prev, items: []})); toast.info("تم مسح القائمة"); }} className="text-[10px] text-red-500 hover:text-red-600 px-2 py-1 rounded-md hover:bg-red-50 transition-all font-bold">مسح القائمة</button>
-              )}
-            </div>
-            <div className="overflow-y-auto w-full overflow-x-auto flex-1 custom-scrollbar">
+          {/* Middle Section (The Table - Redesigned) */}
+          <div className="bg-white rounded-[2rem] border border-slate-100 overflow-hidden flex flex-col flex-1 min-h-[45vh] shadow-sm">
+            <div className="overflow-y-auto w-full overflow-x-auto flex-1 custom-scrollbar pt-2">
               <table className="w-full min-w-max text-right text-xs whitespace-nowrap">
-                <thead className="bg-white sticky top-0 z-10">
-                  <tr className="text-[10px] font-bold text-slate-600 border-b border-slate-200">
-                    <th className="px-3 py-2 font-bold w-10 text-center">#</th>
-                    <th className="px-3 py-2 font-bold min-w-[180px]">اسم الصنف</th>
-                    <th className="px-3 py-2 font-bold w-24">القسم</th>
-                    <th className="px-3 py-2 font-bold w-20">الوحدة</th>
-                    <th className="px-3 py-2 font-bold w-24 text-center">الكمية</th>
-                    {!isVoucherInvoice && <th className="px-3 py-2 font-bold w-14 text-center">إجراء</th>}
+                <thead className="bg-slate-50/30 sticky top-0 z-10 backdrop-blur-md">
+                  <tr className="text-[10px] font-black text-slate-500 border-b border-slate-100 uppercase tracking-wider">
+                    <th className="px-6 py-4 w-16 text-center">م</th>
+                    <th className="px-6 py-4 min-w-[250px]">اسم الصنف</th>
+                    <th className="px-6 py-4 w-32">التصنيف</th>
+                    <th className="px-6 py-4 w-24 text-center">الوحدة</th>
+                    <th className="px-6 py-4 w-32 text-center">الكمية</th>
+                    {!isVoucherInvoice && <th className="px-6 py-4 w-20 text-center">الإجراء</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {invoiceForm.items.length === 0 ? (
                     <tr>
-                      <td colSpan={isVoucherInvoice ? 5 : 6} className="text-center py-10 text-slate-400 text-[10px] font-bold">
-                        <div className="flex flex-col items-center justify-center opacity-50">
-                          <Package size={28} className="mb-1.5" />
-                          {isVoucherInvoice ? 'لا توجد أصناف منقولة من السند' : 'لم يتم إضافة أصناف للفاتورة بعد'}
+                      <td colSpan={isVoucherInvoice ? 5 : 6} className="text-center py-20">
+                        <div className="flex flex-col items-center justify-center">
+                          <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-4 border border-slate-100/50">
+                            <Package size={32} className="text-slate-300" />
+                          </div>
+                          <p className="text-sm font-bold text-slate-400 font-tajawal">{isVoucherInvoice ? 'لا توجد أصناف منقولة من السند' : 'ابدأ بإضافة الأصناف للفاتورة من الأعلى'}</p>
                         </div>
                       </td>
                     </tr>
                   ) : (
                     invoiceForm.items.map((item, idx) => (
-                      <tr key={idx} className="bg-white hover:bg-slate-50 transition-colors group">
-                        <td className="px-3 py-2 text-[10px] font-bold text-slate-500 text-center">{idx + 1}</td>
-                        <td className="px-3 py-2 text-xs font-bold text-slate-800">
-                          {item.name && item.company ? `${item.name} - ${item.company}` : (item.name || item.item || '-')}
+                      <tr key={idx} className="hover:bg-indigo-50/30 transition-all group border-b border-slate-50 last:border-0">
+                        <td className="px-6 py-4 text-[11px] font-black text-slate-300 text-center group-hover:text-indigo-400 transition-colors tabular-nums">{idx + 1}</td>
+                        <td className="px-6 py-4">
+                           <div className="flex flex-col">
+                              <span className="text-sm font-black text-slate-700">{item.name && item.company ? item.name : (item.name || item.item || '-')}</span>
+                           </div>
                         </td>
-                        <td className="px-3 py-2 text-[10px]">
-                          <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-md font-bold">{item.cat}</span>
+                        <td className="px-6 py-4">
+                           <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 text-[10px] font-black">{item.cat || 'بدون تصنيف'}</span>
                         </td>
-                        <td className="px-3 py-2 text-[10px] text-slate-600">{item.unit}</td>
-                        <td className="px-3 py-2 text-xs font-bold text-red-600 border-r border-slate-100 text-center">
-                          {isVoucherInvoice ? item.qty : `-${item.qty}`}
+                        <td className="px-6 py-4 text-center">
+                           <span className="text-[11px] font-bold text-slate-500 bg-slate-50 px-2 py-1 rounded-md">{item.unit || 'كرتونة'}</span>
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                           <div className="inline-flex items-center justify-center px-4 py-1.5 rounded-xl bg-red-50 text-red-600 border border-red-100/50 font-black text-sm tabular-nums">
+                              {isVoucherInvoice ? item.qty : `-${item.qty}`}
+                           </div>
                         </td>
                         {!isVoucherInvoice && (
-                        <td className="px-3 py-2 text-center">
-                          <button type="button" onClick={() => { setInvoiceForm({...invoiceForm, items: invoiceForm.items.filter((_, i) => i !== idx)}); }} className="p-1 text-red-500 hover:bg-red-50 rounded-md transition-colors opacity-50 group-hover:opacity-100"><Trash2 size={14} /></button>
-                        </td>
-                        )}
-                        {isVoucherInvoice && (
-                        <td className="px-3 py-2 text-center">
-                          <span className="text-[10px] text-slate-400">🔒</span>
+                        <td className="px-6 py-4 text-center">
+                          <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-all transform scale-90 group-hover:scale-100">
+                            <button 
+                              type="button" 
+                              onClick={() => handleEditInvoiceItem(idx)} 
+                              className="w-9 h-9 flex items-center justify-center text-blue-500 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
+                              title="تعديل"
+                            >
+                              <Pencil size={18} strokeWidth={2.5} />
+                            </button>
+                            <button 
+                              type="button" 
+                              onClick={() => setInvoiceForm({...invoiceForm, items: invoiceForm.items.filter((_, i) => i !== idx)})} 
+                              className="w-9 h-9 flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                              title="حذف"
+                            >
+                              <Trash2 size={18} strokeWidth={2.5} />
+                            </button>
+                          </div>
                         </td>
                         )}
                       </tr>
@@ -3057,214 +3208,204 @@ export default function Dashboard() {
 
       </ModalWrapper>
       
-      {/* Invoice Exit Confirmation Dialog */}
-      <AnimatePresence>
-        {showInvoiceExitConfirm && (
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-            dir="rtl"
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-              className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="px-6 py-5">
-                <div className="flex items-start gap-4">
-                  <div className="flex-shrink-0 w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center">
-                    <AlertTriangle size={24} className="text-amber-600" />
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="text-lg font-bold text-slate-800 font-tajawal mb-1">تنبيه: بيانات غير معتمدة</h4>
-                    <p className="text-sm text-slate-600 font-readex leading-relaxed">
-                      {invoiceForm.items.length > 0 
-                        ? `يوجد ${invoiceForm.items.length} صنف غير معتمد في الفاتورة. هل أنت متأكد من الإغلاق؟ سيتم فقدان البيانات.`
-                        : 'هل أنت متأكد من الإغلاق؟ سيتم فقدان البيانات.'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-3">
-                <button type="button" onClick={() => setShowInvoiceExitConfirm(false)} className="px-5 py-2.5 rounded-xl text-sm font-semibold text-slate-700 border border-slate-300 bg-white hover:bg-slate-50 transition-all font-readex">إلغاء والعودة</button>
-                <button type="button" onClick={performInvoiceReset} className="px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-red-500 hover:bg-red-600 shadow-md transition-all font-tajawal">تأكيد الإغلاق</button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+
 
       {/* 4. Add Return (Compact Layout with Hybrid Search & Intelligent Expiry) */}
       <ModalWrapper title="تسجيل مرتجع مخزني" maxWidth="max-w-6xl" isOpen={isReturnsModalOpen} onClose={handleCloseReturnModal} onSubmit={handleAddReturn} compact loading={loading}>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-             <div>
-               <label className={LabelClass}>اسم المرجع / العميل <span className="text-red-500">*</span></label>
-               <input 
-                 type="text" 
-                 className={`${InputClass} py-2.5 text-center ${!returnForm.returnee.trim() ? 'border-red-300 ring-2 ring-red-500/10' : ''}`} 
-                 value={returnForm.returnee} 
+          {/* Header Fields - Returnee, Representative, and Date */}
+          <div className="bg-slate-50/50 p-4 rounded-[1.5rem] border border-slate-100 mb-3 grid grid-cols-1 md:grid-cols-3 gap-3">
+             <div className="flex flex-col">
+               <label className="text-[10px] font-black text-slate-400 mb-1 mr-1 uppercase">اسم المرجع / العميل <span className="text-red-500">*</span></label>
+               <input
+                 type="text"
+                 className={`w-full bg-white border ${!returnForm.returnee.trim() ? 'border-red-200 ring-2 ring-red-500/5' : 'border-slate-200'} text-slate-800 text-[13px] font-black rounded-xl px-4 py-2 outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500/20 transition-all font-tajawal`}
+                 value={returnForm.returnee}
                  onChange={(e) => {
                    setReturnForm({...returnForm, returnee: e.target.value});
                    if (e.target.value.trim()) setReturnErrors(prev => ({...prev, returnee: false}));
-                 }} 
-                 placeholder="اسم الشخص أو الجهة المرجعة"
+                 }}
+                 placeholder="من قام بالإرجاع؟"
                />
              </div>
-             <div><label className={LabelClass}>تاريخ الإرجاع</label><input type="date" className={`${InputClass} py-2.5 text-center`} value={returnForm.date} onChange={(e) => setReturnForm({...returnForm, date: e.target.value})} /></div>
+             
+             <div className="flex flex-col">
+               <label className="text-[10px] font-black text-slate-400 mb-1 mr-1 uppercase">المندوب المستلم <span className="text-red-500">*</span></label>
+               <input
+                 type="text"
+                 list="reps-datalist"
+                 className={`w-full h-[38px] bg-white border ${!returnForm.rep.trim() && returnErrors.rep ? "border-red-200 ring-2 ring-red-500/5" : "border-slate-200"} text-slate-800 text-[13px] font-black rounded-xl px-4 outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500/20 transition-all font-tajawal`}
+                 value={returnForm.rep}
+                 onChange={(e) => { setReturnForm({...returnForm, rep: e.target.value}); if (e.target.value.trim()) setReturnErrors(prev => ({...prev, rep: false})); }}
+                 placeholder="اسم المندوب"
+               />
+             </div>
+
+             <div className="flex flex-col">
+                <label className="text-[10px] font-black text-slate-400 mb-1 mr-1 uppercase">تاريخ الإرجاع</label>
+                <input 
+                  type="date" 
+                  className="w-full bg-white border border-slate-200 text-slate-800 text-[13px] font-black rounded-xl px-4 py-2 outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500/20 transition-all font-readex text-center" 
+                  value={returnForm.date} 
+                  onChange={(e) => setReturnForm({...returnForm, date: e.target.value})} 
+                />
+             </div>
           </div>
 
           {/* Top Section (Fixed Entry - Compact Style) */}
-          <div className="bg-amber-50 p-3 rounded-xl border border-amber-100 mb-3 shadow-sm">
-             <h4 className="text-xs font-bold text-amber-700 mb-2">إضافة صنف مرتجع</h4>
+          <div className="bg-slate-50/50 p-2.5 rounded-[1.2rem] border border-slate-100 mb-2 shadow-sm">
+             <div className="flex items-center gap-2 mb-2 mr-1">
+                <div className="w-1.5 h-3 bg-amber-500 rounded-full" />
+                <h4 className="text-[11px] font-black text-slate-700 font-tajawal">إضافة سريع للمرتجعات</h4>
+             </div>
              <div className="flex flex-wrap items-end gap-2.5">
-               {/* Search Field */}
-               <div className="flex-1 min-w-[200px] relative group/ret">
-                 <label className="block text-[10px] font-bold text-slate-600 mb-1 text-center">البحث عن صنف</label>
-                 <input
-                   ref={returnSearchInputRef}
-                   type="text"
-                   id="returnSearchInput"
-                   className="w-full bg-white border border-slate-200 text-slate-800 text-xs rounded-xl focus:bg-white focus:ring-4 focus:ring-amber-500/5 focus:border-amber-500/20 block px-2.5 py-2 outline-none transition-all duration-300 placeholder:text-slate-400 text-center"
-                   placeholder="اكتب للبحث أو إضافة صنف جديد..."
-                   value={returnForm.query}
-                   onChange={(e) => {
-                     setReturnForm({...returnForm, query: e.target.value, selectedItem: null, cat: '', unit: ''});
-                     setReturnSearchActiveIndex(-1);
-                     if (returnForm.selectedItem) {
-                       setReturnForm(prev => ({...prev, selectedItem: null, cat: '', unit: ''}));
-                     }
-                   }}
-                   onBlur={() => {
-                     if (returnForm.query.trim().length >= 2 && !returnForm.selectedItem) {
-                       const matchFound = items.some(i => i.name.includes(returnForm.query) || i.company.includes(returnForm.query));
-                       if (!matchFound) {
-                         // Show toast confirmation instead of directly opening modal
-                         triggerNewItemRegistration(returnForm.query.trim(), 'return');
-                       }
-                     }
-                   }}
-                   onKeyDown={(e) => {
-                     const suggestions = items.filter(i => i.name.includes(returnForm.query) || i.company.includes(returnForm.query));
-                     if (e.key === 'ArrowDown') { e.preventDefault(); setReturnSearchActiveIndex(prev => prev < suggestions.length - 1 ? prev + 1 : prev); }
-                     else if (e.key === 'ArrowUp') { e.preventDefault(); setReturnSearchActiveIndex(prev => prev > 0 ? prev - 1 : 0); }
-                     else if (e.key === 'Enter') {
-                       e.preventDefault();
-                       if (returnSearchActiveIndex >= 0 && suggestions[returnSearchActiveIndex]) {
-                         const invItem = suggestions[returnSearchActiveIndex];
-                         const isReturnExpiryDisabled = invItem.cat === 'بلاستيك';
-                         setReturnForm({...returnForm, query: `${invItem.name} - ${invItem.company}`, selectedItem: invItem, cat: invItem.cat || invItem.category || '', unit: invItem.unit || 'كرتونة', expiryDate: isReturnExpiryDisabled ? '' : '' });
-                         setReturnSearchActiveIndex(-1);
-                       } else if (suggestions.length === 0 && returnForm.query.trim().length >= 2) {
-                         // Show toast confirmation instead of directly opening modal
-                         triggerNewItemRegistration(returnForm.query.trim(), 'return');
-                       } else if (returnForm.selectedItem) {
-                         setTimeout(() => document.getElementById('returnQtyInput')?.focus(), 10);
-                       }
-                     } else if (e.key === 'Tab') {
-                       setTimeout(() => document.getElementById('returnQtyInput')?.focus(), 10);
-                     }
-                   }}
-                 />
-                 {returnForm.query && !returnForm.selectedItem && (
-                   <div className="hidden group-focus-within/ret:block absolute top-[100%] right-0 w-full max-h-48 overflow-y-auto bg-white rounded-lg shadow-xl border border-slate-200 z-30 p-0.5">
-                     {items.filter(i => i.name.includes(returnForm.query) || i.company.includes(returnForm.query)).map((invItem, idx) => (
-                          <button key={invItem.id} type="button" className={`w-full text-right px-2.5 py-1.5 border-b border-slate-50 last:border-0 transition-colors ${returnSearchActiveIndex === idx ? 'bg-amber-50' : 'hover:bg-slate-50'}`} onMouseDown={(e) => {
-                            e.preventDefault();
+                {/* Search Field */}
+                <div className="flex-1 min-w-[200px] relative group/ret">
+                  <label className="block text-[10px] font-bold text-slate-400 mb-1.5 mr-1 uppercase h-[15px] leading-[15px]">البحث عن صنف</label>
+                  <div className="relative">
+                    <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      ref={returnSearchInputRef}
+                      type="text"
+                      id="returnSearchInput"
+                      className="w-full h-[38px] bg-white border border-slate-200 text-slate-800 text-[13px] font-black rounded-xl pr-9 pl-3 outline-none focus:ring-4 focus:ring-amber-500/5 focus:border-amber-500/30 transition-all font-tajawal placeholder:text-slate-300 placeholder:font-semibold"
+                      placeholder="اكتب للبحث أو إضافة صنف جديد..."
+                      value={returnForm.query}
+                      onChange={(e) => {
+                        setReturnForm({...returnForm, query: e.target.value, selectedItem: null, cat: '', unit: ''});
+                        setReturnSearchActiveIndex(-1);
+                      }}
+                      onBlur={() => {
+                        if (returnForm.query.trim().length >= 2 && !returnForm.selectedItem) {
+                          const matchFound = items.some(i => i.name.includes(returnForm.query) || i.company.includes(returnForm.query));
+                          if (!matchFound) {
+                            triggerNewItemRegistration(returnForm.query.trim(), 'return');
+                          }
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        const suggestions = items.filter(i => i.name.includes(returnForm.query) || i.company.includes(returnForm.query));
+                        if (e.key === 'ArrowDown') { e.preventDefault(); setReturnSearchActiveIndex(prev => prev < suggestions.length - 1 ? prev + 1 : prev); }
+                        else if (e.key === 'ArrowUp') { e.preventDefault(); setReturnSearchActiveIndex(prev => prev > 0 ? prev - 1 : 0); }
+                        else if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (returnSearchActiveIndex >= 0 && suggestions[returnSearchActiveIndex]) {
+                            const invItem = suggestions[returnSearchActiveIndex];
                             const isReturnExpiryDisabled = invItem.cat === 'بلاستيك';
-                            setReturnForm({...returnForm, query: `${invItem.name} - ${invItem.company}`, selectedItem: invItem, cat: invItem.cat || invItem.category || '', unit: invItem.unit || 'كرتونة', expiryDate: isReturnExpiryDisabled ? '' : '' });
+                            setReturnForm({...returnForm, query: `${invItem.name} - ${invItem.company}`, selectedItem: invItem, cat: invItem.cat || invItem.category || '', unit: invItem.unit || 'كرتونة', expiryDate: isReturnExpiryDisabled ? '' : '', returnStatus: returnForm.returnStatus || 'سليم' });
                             setReturnSearchActiveIndex(-1);
-                            setTimeout(() => { document.getElementById('returnQtyInput')?.focus(); }, 10);
-                          }}>
-                            <div className="flex justify-between items-center w-full">
-                              <span className="text-xs font-bold text-slate-800">{invItem.name}</span> <span className="text-[10px] text-slate-500">- {invItem.company}</span>
-                              <span className="text-[9px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">{invItem.cat}</span>
-                            </div>
-                          </button>
-                     ))}
-                   </div>
-                 )}
-               </div>
+                            setTimeout(() => document.getElementById('returnQtyInput')?.focus(), 10);
+                          } else if (suggestions.length === 0 && returnForm.query.trim().length >= 2) {
+                            triggerNewItemRegistration(returnForm.query.trim(), 'return');
+                          } else if (returnForm.selectedItem) {
+                            setTimeout(() => document.getElementById('returnQtyInput')?.focus(), 10);
+                          }
+                        } else if (e.key === 'Tab') {
+                          setTimeout(() => document.getElementById('returnQtyInput')?.focus(), 10);
+                        }
+                      }}
+                    />
+                  </div>
+                  {returnForm.query && !returnForm.selectedItem && (
+                    <div className="hidden group-focus-within/ret:block absolute top-[110%] right-0 w-full max-h-64 overflow-y-auto bg-white rounded-xl shadow-xl border border-slate-100 z-50 p-1.5 backdrop-blur-xl custom-scrollbar">
+                      {items.filter(i => i.name.includes(returnForm.query) || i.company.includes(returnForm.query)).map((invItem, idx) => (
+                           <button key={invItem.id} type="button" className={`w-full text-right px-3 py-2 rounded-lg transition-all ${returnSearchActiveIndex === idx ? 'bg-amber-50 text-amber-700' : 'hover:bg-slate-50 text-slate-700'}`} onMouseDown={(e) => {
+                             e.preventDefault();
+                             const isReturnExpiryDisabled = invItem.cat === 'بلاستيك';
+                             setReturnForm({...returnForm, query: `${invItem.name} - ${invItem.company}`, selectedItem: invItem, cat: invItem.cat || invItem.category || '', unit: invItem.unit || 'كرتونة', expiryDate: isReturnExpiryDisabled ? '' : '', returnStatus: returnForm.returnStatus || 'سليم' });
+                             setReturnSearchActiveIndex(-1);
+                             setTimeout(() => { document.getElementById('returnQtyInput')?.focus(); }, 10);
+                           }}>
+                             <div className="flex justify-between items-center w-full">
+                               <div className="flex flex-col">
+                                  <span className="text-xs font-black">{invItem.name}</span>
+                                  <span className="text-[9px] font-bold opacity-60">{invItem.company}</span>
+                               </div>
+                               <span className="text-[9px] font-black bg-amber-50 text-amber-600 px-2 py-0.5 rounded-md">رصيد: {invItem.stockQty}</span>
+                             </div>
+                           </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
-               {/* Category Field */}
-               <div className="w-[100px] shrink-0">
-                 <label className="block text-[10px] font-bold text-slate-600 mb-1 text-center">القسم</label>
-                 {returnForm.selectedItem ? (
-                   <input type="text" className="w-full bg-slate-100 border border-slate-200 text-slate-700 text-xs rounded-xl block px-2.5 py-2 outline-none cursor-default text-center" value={returnForm.cat} readOnly placeholder="تلقائي" />
-                 ) : (
-                   <select className="w-full bg-white border border-slate-200 text-slate-800 text-xs rounded-xl focus:bg-white focus:ring-4 focus:ring-amber-500/5 focus:border-amber-500/20 block px-2 py-2 outline-none transition-all duration-300 text-center" value={returnForm.cat} onChange={(e) => setReturnForm({...returnForm, cat: e.target.value})}>
-                     <option value="">اختر...</option>
-                     {categories.map(cat => (<option key={cat} value={cat}>{cat}</option>))}
-                   </select>
-                 )}
-               </div>
+                {/* Quantity Field */}
+                <div className="w-[85px] shrink-0">
+                  <label className="block text-[10px] font-black text-slate-400 mb-1.5 text-center uppercase h-[15px] leading-[15px]">الكمية</label>
+                  <input 
+                    type="number" 
+                    id="returnQtyInput" 
+                    className="w-full h-[38px] bg-white border-2 border-amber-400/50 focus:border-amber-500 text-amber-700 text-sm rounded-xl px-2 outline-none focus:ring-4 focus:ring-amber-500/10 transition-all text-center font-black tabular-nums shadow-inner" 
+                    placeholder="0" 
+                    maxLength={4}
+                    value={returnForm.qty} 
+                    onChange={(e) => { if (e.target.value.length <= 4) setReturnForm({...returnForm, qty: e.target.value}); }} 
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') { e.preventDefault(); handleAddReturnItemToTable(); }
+                    }} 
+                  />
+                </div>
 
-               {/* Unit Field */}
-               <div className="w-[90px] shrink-0">
-                 <label className="block text-[10px] font-bold text-slate-600 mb-1 text-center">الوحدة</label>
-                 {returnForm.selectedItem ? (
-                   <input type="text" className="w-full bg-slate-100 border border-slate-200 text-slate-700 text-xs rounded-xl block px-2.5 py-2 outline-none cursor-default text-center" value={returnForm.unit || 'كرتونة'} readOnly placeholder="تلقائي" />
-                 ) : (
-                   <input type="text" className="w-full bg-white border border-slate-200 text-slate-800 text-xs rounded-xl focus:bg-white focus:ring-4 focus:ring-amber-500/5 focus:border-amber-500/20 block px-2 py-2 outline-none transition-all duration-300 text-center" value={returnForm.unit || 'كرتونة'} onChange={(e) => setReturnForm({...returnForm, unit: e.target.value})} placeholder="كرتونة" />
-                 )}
-               </div>
+                {/* Category Field */}
+                <div className="w-[85px] shrink-0">
+                  <label className="block text-[10px] font-bold text-slate-400 mb-1.5 text-center uppercase h-[15px] leading-[15px]">القسم</label>
+                  <input type="text" className="w-full h-[38px] bg-slate-100/50 border border-slate-200/60 text-slate-600 text-[12px] font-black rounded-xl px-2 outline-none cursor-default text-center transition-all" value={returnForm.cat || '-'} readOnly placeholder="تلقائي" />
+                </div>
 
-               {/* Quantity Field - Fixed Width */}
-               <div className="w-[75px] shrink-0">
-                 <label className="block text-[10px] font-bold text-slate-600 mb-1 text-center">الكمية <span className="text-red-500">*</span></label>
-                 <input 
-                   type="number" 
-                   id="returnQtyInput" 
-                   className="w-full bg-white border border-slate-200 text-slate-800 text-xs rounded-xl focus:bg-white focus:ring-4 focus:ring-amber-500/5 focus:border-amber-500/20 block px-2 py-2 outline-none transition-all duration-300 placeholder:text-slate-400 text-center font-bold tabular-nums" 
-                   placeholder="0" 
-                   maxLength={4}
-                   value={returnForm.qty} 
-                   onChange={(e) => { if (e.target.value.length <= 4) setReturnForm({...returnForm, qty: e.target.value}); }} 
-                   onKeyDown={(e) => {
-                     if (e.key === 'Enter') { e.preventDefault(); handleAddReturnItemToTable(); }
-                   }} 
-                 />
-               </div>
+                {/* Unit Field */}
+                <div className="w-[85px] shrink-0">
+                  <label className="block text-[10px] font-bold text-slate-400 mb-1.5 text-center uppercase h-[15px] leading-[15px]">الوحدة</label>
+                  {returnForm.selectedItem ? (
+                    <input type="text" className="w-full h-[38px] bg-slate-100/50 border border-slate-200/60 text-slate-600 text-[12px] font-black rounded-xl px-2 outline-none cursor-default text-center transition-all font-tajawal" value={returnForm.unit || 'كرتونة'} readOnly placeholder="تلقائي" />
+                  ) : (
+                    <input type="text" className="w-full h-[38px] bg-white border border-slate-200 text-slate-800 text-[13px] font-black rounded-xl px-2 outline-none focus:ring-4 focus:ring-amber-500/5 focus:border-amber-500/30 transition-all text-center font-tajawal" value={returnForm.unit || 'كرتونة'} onChange={(e) => setReturnForm({...returnForm, unit: e.target.value})} placeholder="كرتونة" />
+                  )}
+                </div>
 
-               {/* Add Button */}
-               <div className="w-[44px] shrink-0">
-                 <label className="block text-[10px] font-bold text-slate-600 mb-1 text-center">إضافة</label>
-                 <button
-                   type="button"
-                   className="w-9 h-9 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold transition-all shadow-sm flex items-center justify-center hover:scale-105 active:scale-95"
-                   onClick={handleAddReturnItemToTable}
-                   title="إضافة للمرتجع"
-                 >
-                   <Plus size={18} strokeWidth={2.5} />
-                 </button>
-               </div>
+                {/* Return Status Field */}
+                <div className="w-[85px] shrink-0">
+                  <label className="block text-[10px] font-bold text-slate-400 mb-1.5 text-center uppercase h-[15px] leading-[15px]">الحالة</label>
+                  <select 
+                    className={`w-full h-[38px] border text-[12px] font-black rounded-xl px-1 outline-none focus:ring-4 transition-all text-center ${returnForm.returnStatus === 'تالف' ? 'bg-red-50 border-red-200 text-red-600 focus:ring-red-500/10 focus:border-red-500' : 'bg-emerald-50 border-emerald-200 text-emerald-700 focus:ring-emerald-500/10 focus:border-emerald-500'}`}
+                    value={returnForm.returnStatus || 'سليم'} 
+                    onChange={(e) => setReturnForm({...returnForm, returnStatus: e.target.value})}
+                  >
+                    <option value="سليم">سليم</option>
+                    <option value="تالف">تالف</option>
+                  </select>
+                </div>
+
+                {/* Add Button */}
+                <button
+                  type="button"
+                  className="w-[38px] h-[38px] bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold transition-all shadow-md shadow-amber-200 flex items-center justify-center hover:scale-105 active:scale-95 shrink-0"
+                  onClick={handleAddReturnItemToTable}
+                  title="إضافة للمرتجع"
+                >
+                  <Plus size={20} strokeWidth={3} />
+                </button>
              </div>
           </div>
 
           {/* Middle Section (The Table - Maximized Height) */}
           <div className="card overflow-hidden flex flex-col flex-1 min-h-[45vh]">
-            <div className="bg-slate-50 px-3 py-2 flex items-center justify-between shrink-0 border-b border-slate-200">
-              <h4 className="text-xs font-bold text-slate-700">الأصناف المرتجعة ({returnItems.length})</h4>
-              {returnItems.length > 0 && (
-                <button type="button" onClick={() => { setReturnItems([]); toast.info("تم مسح القائمة"); }} className="text-[10px] text-red-500 hover:text-red-600 px-2 py-1 rounded-md hover:bg-red-50 transition-all font-bold">مسح القائمة</button>
-              )}
-            </div>
+
             <div className="overflow-y-auto w-full overflow-x-auto flex-1 custom-scrollbar">
               <table className="w-full min-w-max text-right text-xs whitespace-nowrap">
                 <thead className="bg-white sticky top-0 z-10">
-                  <tr className="text-[10px] font-bold text-slate-600 border-b border-slate-200">
-                    <th className="px-3 py-2 font-bold w-10 text-center">#</th>
-                    <th className="px-3 py-2 font-bold min-w-[180px]">اسم الصنف</th>
-                    <th className="px-3 py-2 font-bold w-24">القسم</th>
-                    <th className="px-3 py-2 font-bold w-20">الوحدة</th>
-                    <th className="px-3 py-2 font-bold w-20 text-center">الكمية</th>
-                    <th className="px-3 py-2 font-bold w-14 text-center">إجراء</th>
+                  <tr className="text-[11px] font-black text-slate-600 border-b border-slate-200">
+                    <th className="px-3 py-2 font-black w-10 text-center">م</th>
+                    <th className="px-3 py-2 font-black min-w-[180px]">اسم الصنف</th>
+                    <th className="px-3 py-2 font-black w-24">القسم</th>
+                    <th className="px-3 py-2 font-black w-20">الوحدة</th>
+                    <th className="px-3 py-2 font-black w-20 text-center">الكمية</th>
+                    <th className="px-3 py-2 font-black w-20 text-center">الحالة</th>
+                    <th className="px-3 py-2 font-black w-14 text-center">إجراء</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {returnItems.length === 0 ? (
                     <tr>
-                      <td colSpan="6" className="text-center py-10 text-slate-400 text-[10px] font-bold">
+                      <td colSpan="7" className="text-center py-10 text-slate-400 text-[10px] font-bold">
                         <div className="flex flex-col items-center justify-center opacity-50">
                           <RotateCcw size={28} className="mb-1.5" />
                           لم يتم إضافة أصناف مرتجعة بعد
@@ -3273,18 +3414,42 @@ export default function Dashboard() {
                     </tr>
                   ) : (
                     returnItems.map((item, idx) => (
-                      <tr key={idx} className="bg-white hover:bg-slate-50 transition-colors group">
-                        <td className="px-3 py-2 text-[10px] font-bold text-slate-500 text-center">{idx + 1}</td>
-                        <td className="px-3 py-2 text-xs font-bold text-slate-800">
-                          {item.name && item.company ? `${item.name} - ${item.company}` : (item.name || '-')}
+                      <tr key={idx} className={`transition-colors group ${item.returnStatus === 'تالف' ? 'bg-red-50/30 hover:bg-red-50' : 'bg-white hover:bg-slate-50'} border-b border-slate-50`}>
+                        <td className="px-3 py-2 text-[10px] font-black text-slate-400 text-center tabular-nums">{idx + 1}</td>
+                        <td className="px-3 py-2 text-xs font-black text-slate-800">
+                          {item.name || '-'}
                         </td>
                         <td className="px-3 py-2 text-[10px]">
-                          <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-md font-bold">{item.cat}</span>
+                          <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-md font-black">{item.cat}</span>
                         </td>
-                        <td className="px-3 py-2 text-[10px] text-slate-600">{item.unit}</td>
-                        <td className="px-3 py-2 text-xs font-bold text-emerald-600 border-r border-slate-100 text-center">+{item.qty}</td>
+                        <td className="px-3 py-2 text-[10px] font-black text-slate-600">{item.unit}</td>
+                        <td className="px-3 py-2 text-xs font-black text-emerald-600 border-r border-slate-100 text-center">+{item.qty}</td>
+                        <td className="px-3 py-2 text-center text-[10px] font-black">
+                          {item.returnStatus === 'تالف' ? (
+                            <span className="text-red-600 bg-red-100 px-2 py-0.5 rounded">تالف (توالف)</span>
+                          ) : (
+                            <span className="text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded">سليم (للمخزن)</span>
+                          )}
+                        </td>
                         <td className="px-3 py-2 text-center">
-                          <button type="button" onClick={() => { setReturnItems(prev => prev.filter((_, i) => i !== idx)); }} className="p-1 text-red-500 hover:bg-red-50 rounded-md transition-colors opacity-50 group-hover:opacity-100"><Trash2 size={14} /></button>
+                          <div className="flex items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all">
+                            <button 
+                              type="button" 
+                              onClick={() => handleEditReturnItem(idx)} 
+                              className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-md transition-colors"
+                              title="تعديل"
+                            >
+                              <Pencil size={14} strokeWidth={2.5} />
+                            </button>
+                            <button 
+                              type="button" 
+                              onClick={() => { setReturnItems(prev => prev.filter((_, i) => i !== idx)); }} 
+                              className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                              title="حذف"
+                            >
+                              <Trash2 size={14} strokeWidth={2.5} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -3308,44 +3473,131 @@ export default function Dashboard() {
             )}
           </div>
       </ModalWrapper>
-      
-      {/* Return Exit Confirmation Dialog */}
+
+      {/* Invoice Exit Confirmation Dialog */}
       <AnimatePresence>
-        {showReturnExitConfirm && (
+        {showInvoiceExitConfirm && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/20 backdrop-blur-[2px]"
             dir="rtl"
           >
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-              className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden"
+              initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="w-full max-w-sm bg-white rounded-[3rem] shadow-[0_50px_100px_-20px_rgba(0,0,0,0.3)] p-12 text-center border border-white"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="px-6 py-5">
-                <div className="flex items-start gap-4">
-                  <div className="flex-shrink-0 w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center">
-                    <AlertTriangle size={24} className="text-amber-600" />
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="text-lg font-bold text-slate-800 font-tajawal mb-1">تنبيه: بيانات غير معتمدة</h4>
-                    <p className="text-sm text-slate-600 font-readex leading-relaxed">
-                      {returnItems.length > 0 
-                        ? `يوجد ${returnItems.length} صنف غير معتمد في المرتجع. هل أنت متأكد من الإغلاق؟ سيتم فقدان البيانات.`
-                        : 'هل أنت متأكد من الإغلاق؟ سيتم فقدان البيانات.'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-3">
-                <button type="button" onClick={() => setShowReturnExitConfirm(false)} className="px-5 py-2.5 rounded-xl text-sm font-semibold text-slate-700 border border-slate-300 bg-white hover:bg-slate-50 transition-all font-readex">إلغاء والعودة</button>
-                <button type="button" onClick={performReturnReset} className="px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-red-500 hover:bg-red-600 shadow-md transition-all font-tajawal">تأكيد الإغلاق</button>
-              </div>
+               <div className="w-24 h-24 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-8 text-rose-500">
+                  <AlertTriangle size={48} strokeWidth={2.5} />
+               </div>
+               <h4 className="text-3xl font-black text-slate-800 mb-3 font-tajawal tracking-tight">خروج وتجاهل؟</h4>
+               <p className="text-sm text-slate-500 mb-12 font-readex leading-relaxed">الفاتورة الحالية تحتوي على أصناف أو بيانات. هل أنت متأكد من الخروج دون حفظ؟</p>
+               
+               <div className="flex flex-col gap-3">
+                  <button 
+                    onClick={performInvoiceReset} 
+                    className="w-full py-4.5 rounded-2xl bg-rose-500 text-white text-lg font-black shadow-xl shadow-rose-500/25 hover:bg-rose-600 transition-all active:scale-95 font-tajawal"
+                  >
+                    نعم، تجاهل البيانات
+                  </button>
+                  <button 
+                    onClick={() => setShowInvoiceExitConfirm(false)} 
+                    className="w-full py-4 rounded-2xl bg-slate-100 text-slate-400 font-bold hover:bg-slate-200 transition-all font-tajawal"
+                  >
+                    تراجع والعودة
+                  </button>
+               </div>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
+
+{/* Return Exit Confirmation Dialog */}
+      <AnimatePresence>
+        {showReturnExitConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/20 backdrop-blur-[2px]"
+            dir="rtl"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="w-full max-w-sm bg-white rounded-[3rem] shadow-[0_50px_100px_-20px_rgba(0,0,0,0.3)] p-12 text-center border border-white"
+              onClick={(e) => e.stopPropagation()}
+            >
+               <div className="w-24 h-24 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-8 text-rose-500">
+                  <AlertTriangle size={48} strokeWidth={2.5} />
+               </div>
+               <h4 className="text-3xl font-black text-slate-800 mb-3 font-tajawal tracking-tight">خروج وتجاهل؟</h4>
+               <p className="text-sm text-slate-500 mb-12 font-readex leading-relaxed">لديك بيانات مرتجع لم يتم حفظها. هل أنت متأكد من الخروج وفقدان هذه البيانات؟</p>
+               
+               <div className="flex flex-col gap-3">
+                  <button 
+                    onClick={performReturnReset} 
+                    className="w-full py-4.5 rounded-2xl bg-rose-500 text-white text-lg font-black shadow-xl shadow-rose-500/25 hover:bg-rose-600 transition-all active:scale-95 font-tajawal"
+                  >
+                    نعم، تجاهل البيانات
+                  </button>
+                  <button 
+                    onClick={() => setShowReturnExitConfirm(false)} 
+                    className="w-full py-4 rounded-2xl bg-slate-100 text-slate-400 font-bold hover:bg-slate-200 transition-all font-tajawal"
+                  >
+                    تراجع والعودة
+                  </button>
+               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+{/* Save Confirmation Dialogs */}
+      <AnimatePresence>
+        {(showInvoiceSaveConfirm || showReturnSaveConfirm) && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/20 backdrop-blur-[2px]"
+            dir="rtl"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="w-full max-w-sm bg-white rounded-[3rem] shadow-[0_50px_100px_-20px_rgba(0,0,0,0.3)] p-12 text-center border border-white"
+              onClick={(e) => e.stopPropagation()}
+            >
+               <div className="w-24 h-24 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-8 text-emerald-600">
+                  <CheckCircle2 size={48} strokeWidth={2.5} />
+               </div>
+               <h4 className="text-3xl font-black text-slate-800 mb-3 font-tajawal tracking-tight">تأكيد الحفظ</h4>
+               <p className="text-sm text-slate-500 mb-12 font-readex leading-relaxed">
+                  {showInvoiceSaveConfirm 
+                    ? `هل أنت متأكد من حفظ الفاتورة لـ ${invoiceForm.client}؟ سيتم تحديث أرصدة المخزن فوراً.` 
+                    : `هل أنت متأكد من اعتماد المرتجع من ${returnForm.returnee}؟`}
+               </p>
+               
+               <div className="flex flex-col gap-3">
+                  <button 
+                    onClick={showInvoiceSaveConfirm ? performInvoiceSave : performReturnSave} 
+                    disabled={loading}
+                    className="w-full py-4.5 rounded-2xl bg-emerald-600 text-white text-lg font-black shadow-xl shadow-emerald-500/25 hover:bg-emerald-700 transition-all active:scale-95 flex items-center justify-center gap-2 font-tajawal disabled:opacity-50"
+                  >
+                    {loading ? <span className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full" /> : <><Save size={20} /> تأكيد وحفظ</>}
+                  </button>
+                  <button 
+                    onClick={() => { setShowInvoiceSaveConfirm(false); setShowReturnSaveConfirm(false); }} 
+                    disabled={loading}
+                    className="w-full py-4 rounded-2xl bg-slate-50 text-slate-400 font-bold hover:bg-slate-100 transition-all font-tajawal"
+                  >
+                    تراجع
+                  </button>
+               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      
+
+      
+
+      
 
       {/* MORNING BRIEF MODAL */}
       <AnimatePresence>
@@ -3399,16 +3651,15 @@ export default function Dashboard() {
         )}
       </AnimatePresence>
 
-
-
+      {/* Batch Registration Modals (Item Registration) */}
       <AnimatePresence>
         {showSaveConfirm && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-[200] flex items-center justify-center bg-white/80 backdrop-blur-sm">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[9999] flex items-center justify-center bg-white/80 backdrop-blur-sm">
             <div className="bg-white rounded-[3rem] shadow-2xl p-12 max-w-sm w-full text-center border border-slate-100">
                <CheckCircle2 size={40} className="text-emerald-600 mx-auto mb-6" />
                <h4 className="text-2xl font-black mb-3">تأكيد الحفظ</h4>
                <p className="text-sm text-slate-500 mb-10">حفظ {sessionItems.length} صنف؟</p>
-               <button onClick={handleBatchSaveItems} className="w-full py-4 rounded-2xl bg-emerald-600 text-white font-black shadow-lg mb-3">تأكيد</button>
+               <button onClick={confirmRegisterBatchSave} className="w-full py-4 rounded-2xl bg-emerald-600 text-white font-black shadow-lg mb-3">تأكيد</button>
                <button onClick={() => setShowSaveConfirm(false)} className="w-full py-4 rounded-2xl bg-slate-100 text-slate-400 font-bold">تراجع</button>
             </div>
           </motion.div>
@@ -3417,19 +3668,17 @@ export default function Dashboard() {
 
       <AnimatePresence>
         {showExitConfirm && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-[200] flex items-center justify-center bg-white/80 backdrop-blur-sm">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[9999] flex items-center justify-center bg-white/80 backdrop-blur-sm">
             <div className="bg-white rounded-[3rem] shadow-2xl p-12 max-w-sm w-full text-center border border-slate-100">
                <AlertTriangle size={40} className="text-rose-500 mx-auto mb-6" />
                <h4 className="text-2xl font-black mb-3">خروج بدون حفظ؟</h4>
-               <button onClick={() => { setIsItemModalOpen(false); setShowExitConfirm(false); setSessionItems([]); }} className="w-full py-4 rounded-2xl bg-rose-500 text-white font-black shadow-lg mb-3">نعم، خروج</button>
+               <button onClick={performModalReset} className="w-full py-4 rounded-2xl bg-rose-500 text-white font-black shadow-lg mb-3">نعم، خروج</button>
                <button onClick={() => setShowExitConfirm(false)} className="w-full py-4 rounded-2xl bg-slate-100 text-slate-400 font-bold">تراجع</button>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
+
     </div>
   );
 }
-
-
-

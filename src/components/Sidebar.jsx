@@ -74,6 +74,7 @@ const menuGroups = [
     subItems: [
       { id: 'archive', label: 'أرشيف العمليات', view: 'archive' },
       { id: 'inbound-records', label: 'أذونات الواردات', view: 'inbound-records' },
+      { id: 'stock-card', label: 'الرصيد التراكمي', view: 'stock-card' },
       { id: 'inventory-check', label: 'جرد المستودع', view: 'inventory' },
       { id: 'reports', label: 'التقارير', view: 'reports' },
       { id: 'reps', label: 'إدارة المناديب', view: 'reps' },
@@ -242,10 +243,10 @@ export default function Sidebar({ isSidebarOpen, setIsSidebarOpen, activeView, s
               <div className="flex items-center gap-1.5">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_6px_rgba(16,185,129,0.6)]"></div>
                 <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">
-                  Active
+                  متصل الآن
                 </span>
               </div>
-              <span className="text-[8px] font-medium text-slate-300">v2.4.0</span>
+              <span className="text-[8px] font-medium text-slate-300">الإصدار 2.4.0</span>
             </div>
           </div>
         </motion.aside>

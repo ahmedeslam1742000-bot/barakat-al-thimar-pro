@@ -52,7 +52,7 @@ export default function WarehouseInsights() {
   // ── SUPABASE Reads (zero writes) ──
   useEffect(() => {
     const fetchInitialData = async () => {
-      const { data: transData } = await supabase.from('transactions').select('id, date, timestamp, type, item, company, qty, unit, line_note, note, voucher_supply_notes').order('timestamp', { ascending: false });
+      const { data: transData } = await supabase.from('transactions').select('id, date, timestamp, type, item, company, qty, unit, line_note, note, voucher_supply_notes, is_summary').order('timestamp', { ascending: false });
       if (transData) setTransactions(transData);
 
       const { data: itemsData } = await supabase.from('products').select('id, name, company, cat, unit, stock_qty');
@@ -151,6 +151,7 @@ function DailyLog({ transactions }) {
 
   const rows = useMemo(() => {
     return transactions.filter((tx) => {
+      if (tx.is_summary === true) return false;
       const txDate =
         tx.date ||
         (tx.timestamp

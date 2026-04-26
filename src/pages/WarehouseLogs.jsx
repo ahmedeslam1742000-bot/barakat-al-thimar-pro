@@ -52,7 +52,7 @@ export default function WarehouseLogs() {
 
   useEffect(() => {
     const fetchInitialData = async () => {
-      const { data: transData } = await supabase.from('transactions').select('id, type, timestamp, item, company, qty, unit, lineNote, note, supplyNotes, date, balance_after, item_id').order('timestamp', { ascending: false });
+      const { data: transData } = await supabase.from('transactions').select('id, type, timestamp, item, company, qty, unit, lineNote, note, supplyNotes, date, balance_after, item_id, is_summary').order('timestamp', { ascending: false });
       if (transData) setTransactions(transData);
 
       const { data: itemsData } = await supabase.from('products').select('id, name, company, cat, unit, stock_qty');
@@ -149,6 +149,7 @@ function DailyActivity({ transactions }) {
 
   const filtered = useMemo(() => {
     return transactions.filter((tx) => {
+      if (tx.is_summary === true) return false;
       const txDate = tx.date || (tx.timestamp ? new Date(tx.timestamp).toISOString().split('T')[0] : '');
       if (dateFilter && txDate !== dateFilter) return false;
       if (typeFilter !== 'all' && tx.type !== typeFilter) return false;
@@ -165,6 +166,7 @@ function DailyActivity({ transactions }) {
 
   // Stats for today
   const todayTxs = useMemo(() => transactions.filter((tx) => {
+    if (tx.is_summary === true) return false;
     const txDate = tx.date || (tx.timestamp ? new Date(tx.timestamp).toISOString().split('T')[0] : '');
     return txDate === todayStr();
   }), [transactions]);

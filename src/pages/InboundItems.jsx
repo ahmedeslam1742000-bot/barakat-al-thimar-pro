@@ -34,7 +34,7 @@ export default function InboundItems({ setActiveView }) {
     try {
       const { data, error } = await supabase
         .from('transactions')
-        .select('id, item, qty, company, cat, unit, date, beneficiary, timestamp, reference_number')
+        .select('id, item, qty, company, cat, unit, date, beneficiary, timestamp, reference_number, is_summary')
         .eq('type', 'in')
         .order('timestamp', { ascending: false });
 

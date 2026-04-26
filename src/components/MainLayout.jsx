@@ -151,64 +151,8 @@ export default function MainLayout({ children, activeView, setActiveView }) {
             )}
           </div>
           
-          {/* Middle: Global Search - More prominent and rounded */}
-          <div className="flex-1 max-w-2xl mx-4 sm:mx-10">
-            <div className="relative group">
-               <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-primary transition-colors">
-                  <Search size={14} />
-               </div>
-               <input 
-                  type="text" 
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onFocus={() => setIsSearchFocused(true)}
-                  onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)}
-                  placeholder="ابحث عن أصناف، شركات، أو أكواد..." 
-                  title="البحث السريع"
-                  className={`w-full bg-slate-100/50 border border-transparent focus:bg-white text-slate-800 text-xs rounded-full pr-10 pl-4 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30 transition-all duration-300 ${isSearchFocused ? 'scale-[1.02]' : ''}`}
-               />
-               
-               {/* Search Dropdown */}
-               <AnimatePresence>
-                 {searchQuery && isSearchFocused && (
-                   <motion.div 
-                     initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
-                     className="absolute top-full mt-2 w-full bg-white border border-slate-100 shadow-2xl rounded-2xl overflow-hidden z-50 max-h-80 overflow-y-auto custom-scrollbar"
-                   >
-                     <div className="p-2 border-b border-slate-100 bg-slate-50/50">
-                       <span className="text-[10px] font-bold text-slate-400 uppercase px-2">نتائج البحث</span>
-                     </div>
-                     {allItems.filter(i => {
-                       const combinedText = normalizeArabic(i.name + (i.company || '') + (i.cat || ''));
-                       const query = normalizeArabic(searchQuery);
-                       return combinedText.includes(query);
-                     }).length > 0 ? (
-                       allItems.filter(i => {
-                         const combinedText = normalizeArabic(i.name + (i.company || '') + (i.cat || ''));
-                         const query = normalizeArabic(searchQuery);
-                         return combinedText.includes(query);
-                       }).slice(0, 8).map((item, idx) => (
-                         <div key={idx} onMouseDown={() => {}} className="p-3 hover:bg-slate-50 cursor-pointer transition-colors border-b border-slate-100 last:border-0 flex justify-between items-center group/item text-right">
-                           <div className="flex flex-col">
-                             <span className="text-sm font-bold text-slate-800 group-hover/item:text-primary transition-colors">{item.name}</span>
-                             <span className="text-[10px] text-slate-400">{item.company || 'بدون شركة'} • {item.cat}</span>
-                           </div>
-                           <div className="bg-slate-100 px-2.5 py-1 rounded-full text-[10px] font-bold text-slate-500 border border-slate-100">
-                             {item.stock_qty} {item.unit}
-                           </div>
-                         </div>
-                       ))
-                     ) : (
-                       <div className="p-6 text-center">
-                         <Search size={24} className="mx-auto text-slate-200 mb-2" />
-                         <span className="text-xs font-bold text-slate-400">لا توجد نتائج مطابقة لـ "{searchQuery}"</span>
-                       </div>
-                     )}
-                   </motion.div>
-                 )}
-               </AnimatePresence>
-            </div>
-          </div>
+          {/* Middle: Spacer */}
+          <div className="flex-1"></div>
           
           <div className="flex items-center gap-1 sm:gap-2">
             {/* Quick Actions Group */}

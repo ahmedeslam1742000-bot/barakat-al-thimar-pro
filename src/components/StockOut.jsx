@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Search, Plus, X, Pencil, Trash2, FileText, Image, 
   Snowflake, Package, Archive, Box, AlertTriangle, 
-  Download, ChevronDown, CheckCircle, ArrowUpRight, Flame, User, Printer, Calendar
+  Download, ChevronDown, CheckCircle, ArrowUpRight, Flame, User, Printer, Calendar, Layers, LogOut
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { toast } from 'sonner';
@@ -62,149 +62,94 @@ const ModalWrapper = ({ title, isOpen, onClose, children, onSubmit, maxWidth = "
 const InputClass = "w-full bg-slate-50 border border-slate-200 text-slate-800 text-sm font-bold rounded-xl focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 block px-4 h-[38px] outline-none transition-all";
 const LabelClass = "block text-xs font-black text-slate-700 mb-1.5";
 
-export default function StockOut() {
+export default function StockOut({ setActiveView }) {
   const { playSuccess, playWarning } = useAudio();
   const { currentUser, isViewer } = useAuth();
 
   const [items, setItems] = useState([]);
   const [transactions, setTransactions] = useState([]);
-
-  // Filters
   const [searchQuery, setSearchQuery] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('الكل');
-  const [companyFilter, setCompanyFilter] = useState('الكل');
-  const [showHotOnly, setShowHotOnly] = useState(false);
-
-  // Modals
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
-  const [selectedTx, setSelectedTx] = useState(null);
-  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-
-  // Edit form
-  const [editForm, setEditForm] = useState({ qty: '', date: '', recipient: '' });
-
-  // Bulk Modal State
-  const itemNameRef = useRef(null);
-  const [bulkRecipient, setBulkRecipient] = useState('');
-  const [bulkDate, setBulkDate] = useState(formatDate(new Date()));
-  const [modalDrafts, setModalDrafts] = useState([]);
-  const [searchNameText, setSearchNameText] = useState('');
-  const [selectedItemModel, setSelectedItemModel] = useState(null);
-  const [draftQty, setDraftQty] = useState('');
-  const [itemSearchActiveIndex, setItemSearchActiveIndex] = useState(-1);
-
-  // --- SUPABASE SYNC ---
-  // Auto-focus on item search when modal opens
-  useEffect(() => {
-    if (isAddModalOpen) {
-      setTimeout(() => itemNameRef.current?.focus(), 150);
-    }
-  }, [isAddModalOpen]);
-
-  // Global Keyboard Shortcuts for Modals
-  useEffect(() => {
-    const handleGlobalKeys = (e) => {
-      if (e.key === 'Escape') {
-        if (isAddModalOpen) setIsAddModalOpen(false);
-        if (isEditModalOpen) setIsEditModalOpen(false);
-        if (isDeleteModalOpen) setIsDeleteModalOpen(false);
-      }
-    };
-    window.addEventListener('keydown', handleGlobalKeys);
-    return () => window.removeEventListener('keydown', handleGlobalKeys);
-  }, [isAddModalOpen, isEditModalOpen, isDeleteModalOpen]);
 
   useEffect(() => {
     const fetchInitialData = async () => {
+      setLoading(true);
       const { data: itemsData } = await supabase.from('products').select('id, name, company, cat, unit, stock_qty');
       if (itemsData) {
         setItems(itemsData.map(d => ({ ...d, stockQty: d.stock_qty })));
       }
       
-      const { data: transData } = await supabase.from('transactions').select('id, type, item_id, balance_after, timestamp, item, company, qty, unit, cat, recipient, beneficiary, date, status, batch_id, is_summary, total_qty, items_summary').order('timestamp', { ascending: false });
+      const { data: transData } = await supabase.from('transactions').select('id, type, item_id, balance_after, timestamp, item, company, qty, unit, cat, recipient, beneficiary, rep, date, status, batch_id, is_summary, total_qty, items_summary').order('timestamp', { ascending: false });
       if (transData) {
         setTransactions(transData.map(d => ({ ...d, itemId: d.item_id, balanceAfter: d.balance_after })));
       }
+      setLoading(false);
     };
     
     fetchInitialData();
 
-    const itemsChannel = supabase.channel('public:products:stockout')
+    const channel = supabase.channel('stock-out-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, fetchInitialData)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, fetchInitialData)
       .subscribe();
 
-    const transChannel = supabase.channel('public:transactions:stockout')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, fetchInitialData)
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(itemsChannel);
-      supabase.removeChannel(transChannel);
-    };
+    return () => supabase.removeChannel(channel);
   }, []);
+
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
+
+  // Close modal on ESC key
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setIsDetailsModalOpen(false);
+    };
+    if (isDetailsModalOpen) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isDetailsModalOpen]);
 
   const stockOutTransactions = useMemo(() => transactions.filter(t => t.type === 'out'), [transactions]);
 
-  // Autocomplete suggestions (name + company pairing)
-  const itemSuggestions = useMemo(() => {
-    if (!searchNameText || selectedItemModel) return [];
-    const query = normalizeArabic(searchNameText);
-    return items.filter(i => {
-      const name = normalizeArabic(i.name);
-      const company = normalizeArabic(i.company || '');
-      return name.includes(query) || company.includes(query) || `${name} - ${company}`.includes(query);
-    }).slice(0, 10);
-  }, [items, searchNameText, selectedItemModel]);
-
-  const dynamicCompanies = ['الكل', ...new Set(items.map(i => i.company || 'بدون شركة'))].filter(Boolean);
-
-  // Hot items map (high velocity in last 7 days from BOTH in/out)
-  const hotItemsMap = useMemo(() => {
-    const map = {};
-    const now = new Date();
-    transactions.forEach(tx => {
-      const txDate = tx.date ? new Date(tx.date) : (tx.timestamp?.toDate ? tx.timestamp.toDate() : new Date());
-      const diffDays = Math.ceil(Math.abs(now - txDate) / (1000 * 60 * 60 * 24));
-      if (diffDays <= 7) {
-        if (!map[tx.itemId]) map[tx.itemId] = 0;
-        map[tx.itemId] += Number(tx.qty);
+  // Group transactions by batch_id to show "Invoices" instead of individual items
+  const groupedInvoices = useMemo(() => {
+    const groups = {};
+    stockOutTransactions.forEach(tx => {
+      const bid = tx.batch_id || tx.id;
+      if (!groups[bid]) {
+        groups[bid] = {
+          id: bid,
+          batch_id: tx.batch_id,
+          rep: tx.rep || tx.recipient || tx.beneficiary || 'غير محدد',
+          date: tx.date || (tx.timestamp ? formatDate(new Date(tx.timestamp)) : '-'),
+          timestamp: tx.timestamp,
+          items: tx.items_summary && Array.isArray(tx.items_summary) ? tx.items_summary : [
+            { item: tx.item, company: tx.company, qty: tx.qty, unit: tx.unit, cat: tx.cat }
+          ]
+        };
       }
     });
-    return map;
-  }, [transactions]);
 
-  const filteredTransactions = useMemo(() => {
-    return stockOutTransactions.filter(tx => {
-      const itemsList = tx.items_summary || [];
-      const itemsText = itemsList.map(i => `${i.item} ${i.company}`).join(' ');
-      const searchKey = normalizeArabic(`${tx.item || ''} ${tx.recipient || ''} ${itemsText}`);
-      const matchSearch = searchKey.includes(normalizeArabic(searchQuery));
+    const list = Object.values(groups);
+
+    return list.filter(inv => {
+      const q = normalizeArabic(searchQuery);
+      const searchStr = normalizeArabic(`${inv.rep} ${inv.id}`);
+      const matchSearch = searchStr.includes(q);
       
-      const cats = new Set(itemsList.map(i => i.cat));
-      const matchCat = categoryFilter === 'الكل' || cats.has(categoryFilter);
-      
-      const comps = new Set(itemsList.map(i => i.company || 'بدون شركة'));
-      const matchComp = companyFilter === 'الكل' || comps.has(companyFilter);
-      
-      return matchSearch && matchCat && matchComp;
+      return matchSearch;
+    }).sort((a, b) => {
+      const dateA = new Date(a.timestamp || a.date);
+      const dateB = new Date(b.timestamp || b.date);
+      return dateB - dateA;
     });
-  }, [stockOutTransactions, searchQuery, categoryFilter, companyFilter]);
+  }, [stockOutTransactions, searchQuery]);
 
-  const groupedTransactions = useMemo(() => {
-    return { 'سجلات الصادر': filteredTransactions };
-  }, [filteredTransactions]);
-
-  const todayTotal = useMemo(() => {
-    const todayStr = formatDate(new Date());
-    return stockOutTransactions.reduce((acc, tx) => {
-      const txDate = tx.date || (tx.timestamp?.toDate ? formatDate(tx.timestamp.toDate()) : '');
-      return txDate === todayStr ? acc + Number(tx.qty || 0) : acc;
-    }, 0);
-  }, [stockOutTransactions]);
+  const openInvoiceDetails = (inv) => {
+    setSelectedInvoice(inv);
+    setIsDetailsModalOpen(true);
+  };
 
   // --- BULK MODAL ACTIONS ---
   const handleSelectSuggestion = (itemObj) => {
@@ -663,436 +608,224 @@ export default function StockOut() {
     }
   };
 
-  // --- ANIMATIONS ---
-  const containerVariants = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.05 } } };
-  const cardVariants = { hidden: { opacity: 0, y: 15, scale: 0.95 }, show: { opacity: 1, y: 0, scale: 1, transition: { type: 'spring', stiffness: 400, damping: 25 } } };
-
   return (
-    <div className="flex-1 min-h-0 w-full flex flex-col font-readex text-slate-800 overflow-hidden" dir="rtl">
+    <div className="flex-1 min-h-0 w-full flex flex-col font-readex text-slate-800 bg-slate-50/30 overflow-hidden" dir="rtl">
+      
+      {/* ─── PREMIUM HEADER ─── */}
+      <div className="mx-6 mt-6 shrink-0 z-20">
+        <div className="bg-white border border-slate-200 rounded-[1.5rem] p-3 flex flex-col lg:flex-row items-center justify-between shadow-sm gap-4 lg:gap-0">
+          
+          <div className="flex items-center gap-3 w-full lg:w-auto justify-between lg:justify-start lg:pl-4 lg:border-l border-slate-200 shrink-0">
+             <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-orange-500/20">
+                   <ArrowUpRight size={20} />
+                </div>
+                <div className="flex flex-col">
+                   <h2 className="text-xl font-black text-[#0f2747] tracking-tight leading-none">أذونات الصادر</h2>
+                   <p className="text-[10px] text-slate-400 font-bold mt-1">سجل حركة خروج البضاعة</p>
+                </div>
+             </div>
+          </div>
 
-      {/* ─── HEADER ─── */}
-      <div className="bg-white border-b border-slate-200 p-4 sm:p-6 shrink-0 z-20 transition-all">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-
-          <div className="flex items-center space-x-4 space-x-reverse flex-1">
-            <div className="w-14 h-14 bg-gradient-to-br from-orange-500 to-rose-600 rounded-[1.25rem] flex items-center justify-center text-white shadow-xl shadow-orange-500/20 shrink-0">
-              <ArrowUpRight size={28} />
-            </div>
-            <div>
-              <h2 className="text-2xl font-black tracking-tight">أذونات الصادر</h2>
-              <p className="text-sm font-bold text-slate-400 mt-1">إدارة عمليات صرف وتوزيع البضاعة من المستودع بدقة</p>
+          <div className="flex-1 w-full lg:w-auto lg:px-4 relative group flex items-center gap-3">
+            <div className="relative flex-1">
+              <Search size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-orange-500 transition-colors" />
+              <input 
+                type="text" 
+                placeholder="ابحث عن مندوب أو رقم إذن..." 
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="w-full bg-[#fcfdfc] border border-slate-100 text-[13px] font-bold rounded-[14px] pr-12 pl-4 h-11 outline-none transition-all placeholder:text-slate-400 text-slate-800 focus:bg-white focus:border-orange-500/20 shadow-inner" 
+              />
             </div>
           </div>
 
-          <div className="flex items-center space-x-3 space-x-reverse self-end lg:self-auto relative pr-2">
-            
-            <div className="flex items-center space-x-2 space-x-reverse px-5 py-2.5 bg-orange-50 border border-orange-100 rounded-2xl mr-2">
-              <span className="text-xs font-black text-orange-500 uppercase tracking-wider">صادر اليوم:</span>
-              <span className="text-xl font-black text-orange-600 leading-none">{todayTotal} <span className="text-[11px] font-bold opacity-60">كرتونة</span></span>
-            </div>
-
-            {/* Export dropdown */}
-            <div className="relative">
-              <button onClick={() => setIsExportMenuOpen(!isExportMenuOpen)} className="flex items-center space-x-2 space-x-reverse px-5 py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-2xl font-bold text-sm transition-all shadow-sm">
-                <Download size={18} />
-                <span>تصدير </span>
-                <ChevronDown size={14} className={`transition-transform duration-300 ${isExportMenuOpen ? 'rotate-180 text-orange-500' : ''}`} />
-              </button>
-              <AnimatePresence>
-                {isExportMenuOpen && (
-                  <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 12 }}
-                    className="absolute top-full mt-3 right-0 w-56 bg-white border border-slate-100 shadow-2xl rounded-2xl overflow-hidden z-50 text-sm font-bold">
-                    <button onClick={handleExportPDF} className="w-full flex items-center justify-between px-5 py-4 text-slate-600 hover:bg-slate-50 hover:text-orange-600 transition-colors border-b border-slate-50">
-                      <span className="flex items-center space-x-3 space-x-reverse"><FileText size={18} /><span>تحميل PDF</span></span>
-                    </button>
-                    <button onClick={() => { toast.info('جاري تجهيز الصفحة للطباعة...'); window.print(); setIsExportMenuOpen(false); }} className="w-full flex items-center justify-between px-5 py-4 text-slate-600 hover:bg-slate-50 hover:text-emerald-600 transition-colors">
-                      <span className="flex items-center space-x-3 space-x-reverse"><Image size={18} /><span>تحميل صورة PNG</span></span>
-                    </button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            <div className="w-px h-10 bg-slate-200 mx-2"></div>
-
-            {/* Blank Template Button — Professional */}
-            <button
-              onClick={handleBlankTemplate}
-              className="flex items-center space-x-2 space-x-reverse px-5 py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-2xl font-bold text-sm transition-all shadow-sm"
-              title="طباعة سند إخراج فارغ للكتابة اليدوية"
-            >
-              <Printer size={18} />
-              <span>طباعة سند فارغ</span>
-            </button>
-
-            {!isViewer && (
-              <button
-                onClick={() => { setModalDrafts([]); setBulkRecipient(''); setBulkDate(formatDate(new Date())); setIsAddModalOpen(true); setTimeout(() => itemNameRef.current?.focus(), 150); }}
-                className="flex items-center space-x-2 space-x-reverse px-6 py-3 bg-gradient-to-br from-orange-500 to-rose-600 text-white rounded-2xl font-black text-sm hover:shadow-2xl hover:shadow-orange-500/30 active:scale-95 transition-all shadow-xl shadow-orange-500/20">
-                <Plus size={20} /><span>إضافة صادر جديد</span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Filter Bar */}
-        <div className="mt-8 flex flex-wrap items-center gap-4">
-          <div className="relative group flex-1 min-w-[300px]">
-            <Search size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-orange-500 transition-colors" />
-            <input type="text" placeholder="البحث بالصنف، الشركة، أو المستلم..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full bg-slate-100/50 border border-transparent focus:bg-white focus:border-orange-500/20 focus:ring-4 focus:ring-orange-500/5 text-slate-800 text-sm font-bold rounded-2xl pr-11 pl-4 py-3 outline-none transition-all" />
-          </div>
           <div className="flex items-center gap-3">
-            <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} className="bg-slate-100/50 border border-transparent text-slate-700 text-sm font-bold rounded-2xl px-5 py-3 cursor-pointer focus:bg-white focus:border-orange-500/20 outline-none transition-all appearance-none">
-              <option>التصنيف: الكل</option><option>مجمدات</option><option>بلاستيك</option><option>تبريد</option>
-            </select>
-            <select value={companyFilter} onChange={e => setCompanyFilter(e.target.value)} className="bg-slate-100/50 border border-transparent text-slate-700 text-sm font-bold rounded-2xl px-5 py-3 cursor-pointer focus:bg-white focus:border-orange-500/20 outline-none transition-all appearance-none">
-              {dynamicCompanies.map(c => <option key={c}>{c === 'الكل' ? 'الشركة: الكل' : c}</option>)}
-            </select>
-            <button onClick={() => setShowHotOnly(!showHotOnly)}
-              className={`flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-bold transition-all border ${showHotOnly ? 'bg-orange-50 border-orange-200 text-orange-600 shadow-lg shadow-orange-500/10' : 'bg-slate-100/50 border-transparent text-slate-600 hover:bg-slate-100'}`}>
-              <Flame size={18} className={showHotOnly ? 'animate-pulse text-orange-500' : ''} /><span>نشاط عالي</span>
-            </button>
+             <button 
+               onClick={() => setActiveView('dashboard')}
+               className="w-11 h-11 bg-rose-50 text-rose-500 hover:bg-rose-100 hover:text-rose-600 rounded-[14px] flex items-center justify-center transition-all border border-rose-100 group shadow-sm shadow-rose-500/10"
+               title="العودة للرئيسية"
+             >
+                <LogOut size={22} className="group-hover:-translate-x-1 transition-transform rotate-180" />
+             </button>
           </div>
         </div>
       </div>
 
-      {/* ─── SECTIONED GRID ─── */}
-      <div className="flex-1 overflow-y-auto px-6 pb-12 custom-scrollbar w-full bg-slate-50/30">
-        {Object.keys(groupedTransactions).length === 0 ? (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-            className="flex flex-col items-center justify-center p-16 text-center bg-white rounded-[2.5rem] border-2 border-dashed border-slate-200 mt-8 min-h-[50vh] shadow-sm">
-            <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center mb-8 border border-slate-100 shadow-inner">
-              <ArrowUpRight size={48} className="text-slate-300 animate-bounce" />
-            </div>
-            <h3 className="text-2xl font-black text-slate-800 mb-3">لا توجد حركات صادر مطابقة</h3>
-            <p className="text-slate-400 font-bold mb-10 max-w-sm">أضف أذونات الصرف والتوزيع من المستودع لتظهر هنا مصنفة بالأقسام.</p>
-            {!isViewer && (
-              <button onClick={() => setIsAddModalOpen(true)} className="px-8 py-3.5 bg-gradient-to-br from-orange-500 to-rose-600 text-white rounded-2xl font-black shadow-lg shadow-orange-500/30">إضافة أول حركة صادر</button>
-            )}
-          </motion.div>
-        ) : (
-          <motion.div variants={containerVariants} initial="hidden" animate="show" className="space-y-10 mt-8">
-            {Object.keys(groupedTransactions).sort().map(cat => (
-              <div key={cat} className="space-y-6">
-                
-                {/* Category Header */}
-                <div className="flex items-center space-x-4 space-x-reverse px-2 sticky top-0 z-10 bg-slate-50/80 backdrop-blur-md py-3 transition-colors">
-                  <div className="w-10 h-10 rounded-xl bg-white shadow-md border border-slate-100 flex items-center justify-center text-orange-500">
-                    {getCatIcon(cat)}
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-black text-slate-800 tracking-tight">صادر {cat}</h3>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">تصنيف المنتجات</p>
-                  </div>
-                  <div className="flex-1 h-px bg-gradient-to-l from-transparent via-slate-200 to-transparent mx-4"></div>
-                  <span className="text-xs font-black text-orange-600 bg-orange-50 px-4 py-1.5 rounded-full border border-orange-100 shadow-sm">{groupedTransactions[cat].length} سند</span>
+      {/* ─── MAIN TABLE AREA ─── */}
+      <div className="flex-1 overflow-hidden p-6 pt-4">
+        <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden h-full flex flex-col">
+          <div className="flex-1 overflow-auto custom-scrollbar">
+            {loading ? (
+              <div className="flex flex-col items-center justify-center h-full gap-4 text-slate-400">
+                <div className="w-12 h-12 border-4 border-slate-100 border-t-orange-500 rounded-full animate-spin" />
+                <p className="font-bold">جاري تحميل سجلات الصادر...</p>
+              </div>
+            ) : groupedInvoices.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full gap-6 text-slate-400 opacity-60">
+                <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center border border-slate-100 shadow-inner">
+                   <ArrowUpRight size={40} className="text-slate-300" />
                 </div>
-
-                {/* Cards Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-                  {groupedTransactions[cat].map(tx => (
-                    <motion.div key={tx.id} variants={cardVariants}
-                      onClick={() => { setSelectedTx(tx); setIsDetailsOpen(true); }}
-                      className="group relative flex flex-col justify-between p-6 rounded-[2rem] bg-white border border-slate-100 shadow-sm hover:shadow-2xl hover:border-orange-200 transition-all duration-500 cursor-pointer">
-                      <div className="flex flex-col h-full">
-                        <div className="flex items-start justify-between w-full mb-4">
-                          <div className="flex flex-col w-full overflow-hidden">
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase truncate">{tx.recipient || 'بدون مستلم'}</span>
-                              <span className="text-[10px] font-bold text-slate-400">{tx.date}</span>
-                            </div>
-                            <div className="flex items-center gap-2 w-full">
-                              <h4 className="text-lg font-black text-slate-800 leading-tight group-hover:text-orange-600 transition-colors truncate tracking-tight">
-                                {tx.items_summary?.length || 0} أصناف منصرفة
-                              </h4>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex items-end justify-between mt-auto pt-4 border-t border-slate-50">
-                          <div className="flex flex-col space-y-2">
-                            <span className="inline-flex items-center px-4 py-1.5 rounded-xl text-sm font-black bg-orange-50 text-orange-600 border border-orange-100 w-max shadow-sm">
-                              -{tx.total_qty || tx.qty} <span className="text-[10px] font-bold mr-1 opacity-70">إجمالي</span>
-                            </span>
-                          </div>
-
-                          <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all duration-300">
-                            <button onClick={(e) => { e.stopPropagation(); handleRowExportPDF(tx); }} title="تصدير PDF" className="p-2.5 rounded-xl bg-white border border-slate-200 text-slate-400 hover:text-orange-500 hover:border-orange-200 hover:shadow-lg transition-all active:scale-90"><FileText size={14} /></button>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="absolute bottom-0 right-10 left-10 h-1 bg-gradient-to-r from-orange-500 to-rose-500 scale-x-0 group-hover:scale-x-100 transition-transform duration-500 ease-out rounded-t-full"></div>
-                    </motion.div>
-                  ))}
-                </div>
+                <p className="text-lg font-black">لا توجد سجلات مطابقة</p>
               </div>
-            ))}
-          </motion.div>
-        )}
-      </div>
-
-      {/* ─── BULK DISPATCH MODAL ─── */}
-      <ModalWrapper
-        title="إنشاء إذن صرف مجمع"
-        isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        onSubmit={handleBulkSubmit}
-        loading={loading}
-        submitLabel={`تأكيد خروج البضاعة (عدد: ${modalDrafts.length})`}
-        submitColor="orange"
-        maxWidth="max-w-4xl"
-        disableSubmit={modalDrafts.length === 0}
-      >
-        <div className="flex flex-col gap-6">
-
-          {/* Row 1: Date + Recipient */}
-          <div className="grid grid-cols-2 gap-4 pb-4 border-b border-slate-100">
-            <div>
-              <label className={LabelClass}>تاريخ الإذن</label>
-              <input type="date" className={InputClass} value={bulkDate} onChange={e => setBulkDate(e.target.value)} required />
-            </div>
-            <div>
-              <label className={LabelClass}>اسم المستلم / المندوب <span className="text-rose-500">*</span></label>
-              <div className="relative">
-                <User size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 z-10" />
-                <input type="text" className={`${InputClass} pr-10`} placeholder="مثال: أحمد محمد..." value={bulkRecipient} onChange={e => setBulkRecipient(e.target.value)} required />
-              </div>
-            </div>
-          </div>
-
-          {/* Row 2: Standardized Entry Row */}
-          <div className="bg-orange-50/50 border border-orange-200/60 rounded-2xl p-4 shadow-sm">
-            <div className="flex flex-wrap items-end gap-3 relative z-30">
-              
-              {/* Unified Search (flex-grow) */}
-              <div className="flex-1 min-w-[300px] relative group/finder">
-                 <label className={LabelClass}>البحث عن صنف أو شركة</label>
-                 <div className="relative">
-                    <Search size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 z-10" />
-                    <input 
-                      ref={itemNameRef} type="text" 
-                      className={`${InputClass} pr-11 text-center`}
-                      placeholder="ابحث عن صنف أو شركة..." 
-                      value={searchNameText} 
-                      onChange={e => { setSearchNameText(e.target.value); setSelectedItemModel(null); if (e.target.value.length >= 2) setItemSearchActiveIndex(-1); }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'ArrowDown') { e.preventDefault(); setItemSearchActiveIndex(prev => prev < itemSuggestions.length - 1 ? prev + 1 : prev); }
-                        else if (e.key === 'ArrowUp') { e.preventDefault(); setItemSearchActiveIndex(prev => prev > 0 ? prev - 1 : 0); }
-                        else if (e.key === 'Enter') {
-                           e.preventDefault();
-                           if (itemSearchActiveIndex >= 0 && itemSuggestions[itemSearchActiveIndex]) handleSelectSuggestion(itemSuggestions[itemSearchActiveIndex]);
-                           else if (selectedItemModel) {
-                             document.getElementById('stock-out-qty-input')?.focus();
-                           }
-                        }
-                      }}
-                    />
-                    <AnimatePresence>
-                      {itemSuggestions.length > 0 && !selectedItemModel && (
-                        <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 5 }} className="absolute top-full mt-2 left-0 right-0 bg-white border border-slate-100 shadow-2xl rounded-2xl overflow-hidden z-[100] py-2">
-                           {itemSuggestions.map((item, idx) => (
-                             <button key={item.id} type="button" onMouseEnter={() => setItemSearchActiveIndex(idx)} onClick={() => handleSelectSuggestion(item)} className={`w-full px-5 py-2 cursor-pointer flex items-center justify-between transition-colors ${idx === itemSearchActiveIndex ? 'bg-orange-50 text-orange-700' : 'hover:bg-slate-50'}`}>
-                                <div className="text-right">
-                                  <div className="text-sm font-bold text-slate-800">{item.name} - {item.company || 'بدون شركة'}</div>
-                                  <div className="text-[10px] text-slate-400 font-bold">{item.cat}</div>
-                                </div>
-                                <div className="text-[10px] font-black bg-orange-100/50 text-orange-600 px-2 py-1 rounded-lg tabular-nums">رصيد: {item.stockQty} {item.unit}</div>
-                             </button>
-                           ))}
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                 </div>
-              </div>
-
-              {/* Quantity */}
-              <div className="w-[120px]">
-                 <label className={LabelClass}>الكمية</label>
-                 <input 
-                   id="stock-out-qty-input" 
-                   type="number" 
-                   className={`${InputClass} text-center font-black !border-orange-500/40 focus:!ring-orange-500/20`}
-                   placeholder="0" 
-                   value={draftQty} 
-                   onChange={e => setDraftQty(e.target.value)} 
-                   onKeyDown={e => e.key === 'Enter' && handlePushToDraft()} 
-                 />
-              </div>
-
-              {/* Add Button */}
-              <button 
-                type="button" 
-                onClick={handlePushToDraft} 
-                className="h-[42px] px-6 bg-orange-500 text-white rounded-xl font-black text-sm hover:shadow-lg hover:shadow-orange-500/30 transition-all flex items-center gap-2"
-              >
-                <Plus size={18} />
-                <span>إضافة</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Row 3: Review Table */}
-          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden flex flex-col shadow-inner">
-            <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between shrink-0">
-              <h4 className="text-sm font-black text-slate-700">مراجعة الأسطر</h4>
-              <span className="text-xs font-bold bg-white px-3 py-1 rounded-full text-orange-600 border border-slate-200 shadow-sm">{modalDrafts.length} أصناف مُعدّة للصرف</span>
-            </div>
-            <div className="max-h-[260px] overflow-y-auto px-2 custom-scrollbar">
-              {modalDrafts.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-10 text-slate-400 opacity-60">
-                  <CheckCircle size={32} className="mb-2" />
-                  <span className="font-bold text-sm">ابحث عن صنف بالأعلى ثم أدخل الكمية المراد صرفها.</span>
-                </div>
-              ) : (
-                <div className="w-full overflow-x-auto rounded-lg border border-slate-200 mt-2">
-                  <table className="w-full min-w-[640px] text-right border-separate border-spacing-y-2">
-                    <thead>
-                    <tr className="text-slate-400 font-black text-xs text-center">
-                      <th className="px-2 py-1">م</th><th className="px-3 py-1 text-right">الصنف</th><th className="px-3 py-1 text-right">الشركة</th>
-                      <th className="px-2 py-1">القسم</th><th className="px-2 py-1 text-orange-500">الكمية</th><th className="px-2 py-1">الوحدة</th><th className="px-2 py-1 text-center">حذف</th>
+            ) : (
+              <table className="w-full text-right border-separate border-spacing-0">
+                <thead className="sticky top-0 z-10 bg-white">
+                  <tr className="bg-slate-50 text-[#8ba3b5] font-black text-[9px] uppercase tracking-widest border-b border-slate-200">
+                    <th className="px-6 py-5 text-center w-20">م</th>
+                    <th className="px-6 py-5 text-center">اسم المندوب / المستلم</th>
+                    <th className="px-6 py-5 text-center w-48">عدد الأصناف</th>
+                    <th className="px-6 py-5 text-center w-64">التاريخ</th>
+                    <th className="px-6 py-5 text-center w-20"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {groupedInvoices.map((inv, idx) => (
+                    <tr 
+                      key={inv.id} 
+                      onClick={() => openInvoiceDetails(inv)}
+                      className="group hover:bg-orange-50/30 transition-all border-b border-slate-100 cursor-pointer"
+                    >
+                      <td className="px-6 py-4 text-center align-middle">
+                         <span className="text-xs font-black text-slate-300 group-hover:text-orange-500 transition-colors tabular-nums">{idx + 1}</span>
+                      </td>
+                      <td className="px-6 py-4 text-center align-middle">
+                         <div className="inline-flex items-center gap-3 px-4 py-2 bg-slate-100 group-hover:bg-white text-slate-700 rounded-xl border border-slate-200/50 shadow-sm transition-all">
+                            <User size={14} className="text-orange-500" />
+                            <span className="text-sm font-black tracking-tight">{inv.rep}</span>
+                         </div>
+                      </td>
+                      <td className="px-6 py-4 text-center align-middle">
+                         <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-600 rounded-lg border border-blue-100 text-xs font-black">
+                            <Layers size={12} />
+                            <span>{inv.items.length} صنف</span>
+                         </div>
+                      </td>
+                      <td className="px-6 py-4 text-center align-middle">
+                         <div className="flex flex-col items-center">
+                            <span className="text-[13px] font-black text-slate-600 tabular-nums">{inv.date}</span>
+                         </div>
+                      </td>
+                      <td className="px-6 py-4 text-center align-middle">
+                         <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-300 group-hover:bg-orange-500 group-hover:text-white transition-all shadow-sm">
+                            <ChevronDown size={18} className="-rotate-90" />
+                         </div>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    <AnimatePresence>
-                      {modalDrafts.map((dr, index) => (
-                        <motion.tr key={dr.draftId} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, scale: 0.95 }}
-                          className="bg-slate-50 text-sm font-bold hover:bg-white transition-all">
-                          <td className="px-2 py-3 text-center text-slate-400 rounded-r-xl border-y border-r border-slate-200">{index + 1}</td>
-                          <td className="px-3 py-3 text-slate-800 border-y border-slate-200">{dr.item}</td>
-                          <td className="px-3 py-3 text-slate-600 text-xs border-y border-slate-200">{dr.company}</td>
-                          <td className="px-2 py-3 text-center text-orange-500 text-xs border-y border-slate-200">{dr.cat}</td>
-                          <td className="px-2 py-3 text-center border-y border-slate-200"><span className="bg-orange-100 text-orange-700 px-3 py-1 rounded inline-block">-{dr.qty}</span></td>
-                          <td className="px-2 py-3 text-center text-slate-500 text-xs border-y border-slate-200">{dr.unit}</td>
-                          <td className="px-2 py-3 text-center rounded-l-xl border-y border-l border-slate-200">
-                            <button onClick={() => setModalDrafts(prev => prev.filter(d => d.draftId !== dr.draftId))} className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors mx-auto block">
-                              <X size={16} className="stroke-[3]" />
-                            </button>
-                          </td>
-                        </motion.tr>
-                      ))}
-                    </AnimatePresence>
-                  </tbody>
-                </table>
-              </div>
-              )}
-            </div>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
-         </div>
-        </ModalWrapper>
-
-      {/* ─── EDIT MODAL ─── */}
-      <ModalWrapper title="تعديل سند الصرف" isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} onSubmit={handleEditSubmit} loading={loading}>
-        <div className="space-y-4">
-          <div>
-            <label className={LabelClass}>الكمية</label>
-            <input type="number" min="1" className={InputClass} value={editForm.qty} onChange={e => setEditForm({ ...editForm, qty: e.target.value })} required />
-          </div>
-          <div>
-            <label className={LabelClass}>اسم المستلم</label>
-            <input type="text" className={InputClass} value={editForm.recipient} onChange={e => setEditForm({ ...editForm, recipient: e.target.value })} />
-          </div>
-          <div>
-            <label className={LabelClass}>التاريخ</label>
-            <input type="date" className={InputClass} value={editForm.date} onChange={e => setEditForm({ ...editForm, date: e.target.value })} required />
+          
+          <div className="px-8 py-3 bg-slate-50/50 border-t border-slate-100 flex justify-center items-center shrink-0">
+             <p className="text-[10px] font-bold text-slate-300 italic">نظام بركة الثمار PRO - سجل الصادر الملخص</p>
           </div>
         </div>
-      </ModalWrapper>
-
-      {/* ─── DELETE MODAL ─── */}
-      <ModalWrapper title="إلغاء سند صرف" isOpen={isDeleteModalOpen} onClose={() => setIsDeleteModalOpen(false)} onSubmit={handleDeleteSubmit} loading={loading} submitLabel="نعم، إلغاء الصرف" submitColor="rose">
-        <div className="flex flex-col items-center text-center p-2">
-          <div className="w-16 h-16 bg-rose-50 dark:bg-rose-500/10 rounded-full flex items-center justify-center text-rose-500 mb-4 animate-pulse">
-            <AlertTriangle size={32} />
-          </div>
-          <h4 className="text-lg font-black text-slate-800 dark:text-white mb-2">تأكيد إلغاء سند الصرف</h4>
-          <p className="text-sm font-bold text-slate-500 dark:text-slate-400">سيتم إعادة الكمية المصروفة إلى رصيد المخزن تلقائياً.</p>
-        </div>
-      </ModalWrapper>
+      </div>
 
       {/* ─── DETAILS MODAL ─── */}
       <AnimatePresence>
-        {isDetailsOpen && selectedTx && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md" dir="rtl">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 30 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 30 }}
-              className="bg-white dark:bg-slate-800 w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-700 flex flex-col max-h-[85vh]"
+        {isDetailsModalOpen && selectedInvoice && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm"
+            dir="rtl" onClick={() => setIsDetailsModalOpen(false)}
+          >
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 30 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 30 }}
+              className="w-full max-w-4xl bg-white rounded-[2.5rem] shadow-[0_32px_64px_-16px_rgba(0,0,0,0.2)] overflow-hidden flex flex-col max-h-[95vh] border border-slate-100"
+              onClick={e => e.stopPropagation()}
             >
-              <div className="p-8 border-b border-slate-50 dark:border-slate-700 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/50">
-                 <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-orange-500 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-orange-500/20">
-                       <ArrowUpRight size={24} />
+              {/* --- Modal Header --- */}
+              <div className="p-10 pb-6 border-b border-slate-100 bg-white relative shrink-0">
+                 <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+                    <div className="flex items-center gap-5">
+                       <div className="w-14 h-14 bg-orange-50 rounded-2xl flex items-center justify-center text-orange-500 shadow-sm border border-orange-100">
+                          <User size={28} />
+                       </div>
+                       <div className="flex flex-col text-right">
+                          <h3 className="text-2xl font-black text-slate-800 tracking-tight">{selectedInvoice.rep}</h3>
+                       </div>
                     </div>
-                    <div>
-                       <h3 className="text-xl font-black text-slate-800 dark:text-white leading-none">تفاصيل إذن الصرف</h3>
-                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2">مراجعة بيانات الصادر</p>
+                    
+                    <div className="flex items-center gap-6">
+                       <div className="px-5 py-2.5 bg-slate-50 rounded-xl border border-slate-100 flex flex-col items-center min-w-[120px]">
+                          <span className="text-[9px] font-black text-slate-400 mb-0.5">تاريخ الفاتورة</span>
+                          <span className="text-sm font-black text-slate-700 tabular-nums">{selectedInvoice.date}</span>
+                       </div>
+                       
+                       <button 
+                         onClick={() => setIsDetailsModalOpen(false)}
+                         className="p-3 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-2xl transition-all border border-transparent hover:border-rose-100"
+                       >
+                          <X size={24} strokeWidth={3} />
+                       </button>
                     </div>
                  </div>
-                 <button onClick={() => setIsDetailsOpen(false)} className="p-3 bg-white dark:bg-slate-700 text-slate-400 hover:text-rose-500 rounded-2xl shadow-sm transition-colors active:scale-90">
-                    <X size={20} />
-                 </button>
               </div>
 
-              <div className="p-8 overflow-y-auto custom-scrollbar flex-1 space-y-8">
-                 <div className="grid grid-cols-2 gap-6">
-                    <div className="bg-slate-50 dark:bg-slate-900/40 p-5 rounded-2xl border border-slate-100 dark:border-slate-800">
-                       <span className="text-[10px] font-black text-slate-400 uppercase block mb-2">المستلم / المندوب</span>
-                       <div className="flex items-center gap-2 text-slate-800 dark:text-white font-black">
-                          <User size={16} className="text-orange-500" />
-                          {selectedTx.recipient}
-                       </div>
-                    </div>
-                    <div className="bg-slate-50 dark:bg-slate-900/40 p-5 rounded-2xl border border-slate-100 dark:border-slate-800">
-                       <span className="text-[10px] font-black text-slate-400 uppercase block mb-2">تاريخ الحركة</span>
-                       <div className="flex items-center gap-2 text-slate-800 dark:text-white font-black">
-                          <Calendar size={16} className="text-orange-500" />
-                          {selectedTx.date}
-                       </div>
-                    </div>
-                 </div>
-
-                 <div className="space-y-4">
-                    <h4 className="text-xs font-black text-slate-800 dark:text-white flex items-center gap-2">
-                       <Package size={14} className="text-orange-500" />
-                       قائمة الأصناف المنصرفة
-                    </h4>
-                    <div className="rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden shadow-sm">
-                       <table className="w-full text-right text-xs">
-                          <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-400 font-black uppercase tracking-wider border-b border-slate-100 dark:border-slate-700">
-                             <tr>
-                                <th className="px-5 py-3">الصنف والشركة</th>
-                                <th className="px-5 py-3 text-center">القسم</th>
-                                <th className="px-5 py-3 text-center">الكمية</th>
+              {/* --- Modal Body --- */}
+              <div className="p-8 flex-1 overflow-auto custom-scrollbar bg-white">
+                 <div className="border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
+                    <table className="w-full text-right border-separate border-spacing-0">
+                       <thead>
+                          <tr className="bg-slate-50/50 text-slate-400 font-black text-[10px] uppercase tracking-widest border-b border-slate-100">
+                             <th className="px-6 py-4 text-center w-16">م</th>
+                             <th className="px-6 py-4">بيان الصنف</th>
+                             <th className="px-6 py-4 text-center w-32">القسم</th>
+                             <th className="px-6 py-4 text-center w-32">وحدة القياس</th>
+                             <th className="px-6 py-4 text-center w-32">الكمية</th>
+                          </tr>
+                       </thead>
+                       <tbody className="divide-y divide-slate-50">
+                          {selectedInvoice.items.map((it, i) => (
+                             <tr key={i} className="hover:bg-slate-50/30 transition-colors group">
+                                <td className="px-6 py-4 text-center text-xs font-black text-slate-300 tabular-nums">{i + 1}</td>
+                                <td className="px-6 py-4">
+                                   <div className="flex flex-col">
+                                      <span className="text-sm font-black text-slate-700">{it.item}</span>
+                                      <span className="text-[10px] font-bold text-slate-400 mt-0.5">{it.company || 'بدون شركة'}</span>
+                                   </div>
+                                </td>
+                                <td className="px-6 py-4 text-center">
+                                   <span className="px-2 py-1 bg-slate-100 text-slate-500 rounded-lg text-[9px] font-black border border-slate-200/50">
+                                      {it.cat}
+                                   </span>
+                                </td>
+                                <td className="px-6 py-4 text-center">
+                                   <span className="text-xs font-bold text-slate-400 uppercase">{it.unit}</span>
+                                </td>
+                                <td className="px-6 py-4 text-center">
+                                   <span className="text-sm font-black text-slate-700 tabular-nums">{it.qty}</span>
+                                </td>
                              </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
-                             {(selectedTx.items_summary || []).map((it, idx) => (
-                                <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
-                                   <td className="px-5 py-3 font-bold text-slate-700 dark:text-slate-300 border-x border-slate-100 dark:border-slate-700">{it.item}</td>
-                                   <td className="px-5 py-3 text-center border-x border-slate-100 dark:border-slate-700">
-                                      <span className="px-2 py-0.5 bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 rounded-md text-[9px] font-black">{it.cat}</span>
-                                   </td>
-                                   <td className="px-5 py-3 text-center font-black text-orange-600 tabular-nums border-x border-slate-100 dark:border-slate-700">
-                                      -{it.qty} {it.unit}
-                                   </td>
-                                </tr>
-                             ))}
-                          </tbody>
-                       </table>
-                    </div>
+                          ))}
+                       </tbody>
+                    </table>
                  </div>
               </div>
 
-              <div className="p-8 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-100 dark:border-slate-700 flex justify-end gap-3">
-                 <button onClick={() => handleRowExportPDF(selectedTx)} className="flex items-center gap-2 px-6 py-3 bg-orange-500 text-white rounded-xl font-black text-sm shadow-lg shadow-orange-500/20 active:scale-95 transition-all">
-                    <Printer size={18} />
-                    <span>طباعة السند</span>
-                 </button>
-                 <button onClick={() => setIsDetailsOpen(false)} className="px-8 py-3 bg-white dark:bg-slate-700 text-slate-500 dark:text-slate-300 rounded-xl font-bold text-sm border border-slate-200 dark:border-slate-600 active:scale-95 transition-all">إغلاق</button>
+              {/* --- Modal Footer --- */}
+              <div className="px-8 py-6 border-t border-slate-100 bg-slate-50/50 flex justify-between items-center shrink-0">
+                 <div className="flex items-center gap-4 text-slate-500">
+                    <div className="flex flex-col items-start leading-none">
+                       <span className="text-[10px] font-black uppercase opacity-60">إجمالي الأصناف</span>
+                       <span className="text-sm font-black text-slate-700 mt-1">{selectedInvoice.items.length} صنف</span>
+                    </div>
+                 </div>
+                 
+                 <div className="flex gap-3">
+                    <button 
+                      onClick={() => setIsDetailsModalOpen(false)}
+                      className="px-12 py-2.5 bg-slate-800 text-white rounded-xl font-black text-xs shadow-lg shadow-slate-200 hover:bg-slate-900 transition-all"
+                    >
+                       إغلاق
+                    </button>
+                 </div>
               </div>
             </motion.div>
-          </div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

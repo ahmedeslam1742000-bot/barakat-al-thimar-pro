@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, Plus, X, Pencil, Trash2, Package, Box,
   AlertTriangle, CheckCircle, User, Truck, ChevronDown, Printer,
-  Image as ImageIcon, FilterX, CalendarRange,
+  Image as ImageIcon, FilterX, CalendarRange, Download, Upload, FileText, LogOut, Paperclip, Hash,
+  UploadCloud, Settings, Info, RefreshCw
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { getItemName, getCompany, getCategory, getUnit } from '../../lib/itemFields';
@@ -26,27 +27,27 @@ const formatDate = (date) => {
 
 const KIND_CONFIG = {
   in: {
-    txType: 'سند إدخال',
-    codePrefix: 'IN',
+    txType: 'in',
+    codePrefix: '',
     counterKey: 'in',
-    pageTitle: 'سند إدخال',
-    pageSubtitle: 'اعتماد وارد رسمي ينعكس مباشرة على دورة السندات والحركات المخزنية.',
-    modalTitle: 'سند إدخال',
+    pageTitle: 'سند إدخال بضاعة',
+    pageSubtitle: 'إثبات دخول بضاعة للمستودع بدون فاتورة رسمية.',
+    modalTitle: 'سند إدخال بضاعة',
     accent: 'emerald',
-    Icon: Package,
+    Icon: Download,
     sessionFields: [{ key: 'supplier', label: 'اسم المورد', required: true, placeholder: 'مثال: شركة التوريدات' }],
     pdfTitle: 'إيصال رسمي — سند إدخال',
   },
   outward: {
-    txType: 'سند إخراج',
-    codePrefix: 'OUT',
+    txType: 'outward',
+    codePrefix: '',
     counterKey: 'out',
-    pageTitle: 'عهدة المندوب (سند إخراج)',
-    pageSubtitle: 'إثبات تسليم أصناف بعهدة مندوب مع اعتماد فعلي داخل دورة السندات والفواتير.',
-    modalTitle: 'سند إخراج (عهدة مندوب)',
+    pageTitle: 'سند إخراج بضاعة',
+    pageSubtitle: 'إثبات خروج بضاعة (عهدة مندوب) بدون فاتورة مبيعات.',
+    modalTitle: 'سند إخراج بضاعة',
     accent: 'blue',
-    Icon: Truck,
-    sessionFields: [{ key: 'rep', label: 'اسم المندوب', required: true, placeholder: 'مثال: أحمد محمد' }],
+    Icon: Upload,
+    sessionFields: [{ key: 'rep', label: 'اسم المستفيد', required: true, placeholder: 'مثال: أحمد محمد' }],
     pdfTitle: 'إيصال عهدة — سند إخراج',
   },
 };
@@ -94,15 +95,15 @@ function accentTheme(accent) {
 }
 
 const baseInput =
-  'w-full bg-slate-50 border border-slate-200 text-slate-800 text-sm font-bold rounded-xl block px-4 py-2.5 outline-none transition-all';
-const LabelClass = 'block text-xs font-black text-slate-700 mb-1.5';
+  'w-full bg-slate-50/50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-white text-sm font-bold rounded-xl block px-4 py-2 outline-none transition-all focus:bg-white dark:focus:bg-slate-800 focus:ring-4 focus:ring-primary/5 focus:border-primary/30';
+const LabelClass = 'block text-[10px] font-black text-slate-400 dark:text-slate-500 mb-1.5 mr-1 uppercase tracking-wide';
 
 const actionBtnBase =
   'inline-flex items-center justify-center rounded-xl border font-bold text-xs transition-all duration-200';
 
 /** Memoized voucher group row for table (desktop) */
 const VoucherGroupRow = React.memo(function VoucherGroupRow({
-  group, kind, expandedGroupId, isExporting, isViewer, theme, headerPartyLabel,
+  group, idx, kind, expandedGroupId, isExporting, isViewer, theme, headerPartyLabel,
   triggerExport, openEditGroup, openDeleteGroup, setExpandedGroupId, openEdit, openDelete,
 }) {
   const isExpanded = expandedGroupId === group.groupId;
@@ -110,60 +111,40 @@ const VoucherGroupRow = React.memo(function VoucherGroupRow({
   return (
     <React.Fragment key={group.groupId}>
       <tr
-        className="group hover:bg-slate-50/50 transition-colors hover-stable no-select-click"
+        onClick={() => setExpandedGroupId((id) => (id === group.groupId ? null : group.groupId))}
+        className="group hover:bg-slate-50/50 cursor-pointer transition-colors hover-stable no-select-click h-[56px]"
         style={{ willChange: 'transform, opacity', backfaceVisibility: 'hidden', transform: 'translate3d(0, 0, 0)' }}
       >
-        <td className="px-6 py-5 font-black text-primary">{group.voucherCode || '—'}</td>
-        <td className="px-6 py-5 font-bold text-slate-500">{group.date || '—'}</td>
-        <td className="px-6 py-5">
-          <div className="font-black text-slate-800 max-w-[300px] truncate">
+        <td className="px-4 text-center border-x border-slate-50/50 dark:border-slate-700/30">
+          <span className="text-[11px] font-black text-slate-400 group-hover:text-primary transition-colors">{idx + 1}</span>
+        </td>
+        <td className="px-6 text-center border-x border-slate-50/50 dark:border-slate-700/30">
+          <span className="text-xs font-black text-primary dark:text-primary-light bg-primary/5 dark:bg-primary/10 px-3 py-1 rounded-lg border border-primary/10">
+            {group.voucherCode || '—'}
+          </span>
+        </td>
+        <td className="px-6 text-center border-x border-slate-50/50 dark:border-slate-700/30">
+          <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 tabular-nums bg-slate-50 dark:bg-slate-900 px-2 py-0.5 rounded-md border border-slate-100 dark:border-slate-700">
+            {group.date || '—'}
+          </span>
+        </td>
+        <td className="px-6 text-right border-x border-slate-50/50 dark:border-slate-700/30">
+          <div className="font-black text-slate-800 dark:text-white truncate">
             {kind === 'in' ? group.supplier || '—' : group.rep || '—'}
           </div>
         </td>
-        <td className="px-6 py-5 text-center">
-          <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-slate-100 text-slate-600 font-black text-sm border border-slate-200">
+        <td className="px-6 text-center border-x border-slate-50/50 dark:border-slate-700/30">
+          <span className="inline-flex items-center justify-center min-w-[2.5rem] h-8 rounded-xl bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 font-black text-xs border border-slate-200 dark:border-slate-700">
             {group.lineCount}
           </span>
         </td>
-        <td className="px-6 py-5">
-          <div className="flex items-center justify-center gap-2">
-            <button
-              type="button"
-              disabled={isExporting}
-              onClick={() => triggerExport(group, 'png')}
-              className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-100 transition-all shadow-sm"
-              title="حفظ كصورة"
-            >
-              <ImageIcon size={16} className="stroke-[2.5]" />
-            </button>
-            {!isViewer && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => openEditGroup(group)}
-                  className="p-2.5 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-100 transition-all shadow-sm"
-                  title="تعديل السند"
-                >
-                  <Pencil size={16} className="stroke-[2.5]" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openDeleteGroup(group)}
-                  className="p-2.5 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-100 transition-all shadow-sm"
-                  title="حذف السند"
-                >
-                  <Trash2 size={16} className="stroke-[2.5]" />
-                </button>
-              </>
+        <td className="px-6 text-center border-x border-slate-50/50 dark:border-slate-700/30">
+          <div className="flex items-center justify-center gap-1.5" onClick={e => e.stopPropagation()}>
+            {group.lines.some(l => l.receipt_image) && (
+              <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100">
+                <Paperclip size={14} />
+              </div>
             )}
-            <button
-              type="button"
-              onClick={() => setExpandedGroupId((id) => (id === group.groupId ? null : group.groupId))}
-              className={`p-2.5 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 border border-slate-200 transition-all shadow-sm ${isExpanded ? 'rotate-180' : ''}`}
-              title="تفاصيل السند"
-            >
-              <ChevronDown size={16} className="stroke-[2.5]" />
-            </button>
           </div>
         </td>
       </tr>
@@ -175,7 +156,8 @@ const VoucherGroupRow = React.memo(function VoucherGroupRow({
   prev.isExporting === next.isExporting &&
   prev.isViewer === next.isViewer &&
   prev.kind === next.kind &&
-  prev.headerPartyLabel === next.headerPartyLabel
+  prev.headerPartyLabel === next.headerPartyLabel &&
+  prev.idx === next.idx
 ));
 
 /** Memoized expanded details section */
@@ -184,45 +166,49 @@ const VoucherGroupDetails = React.memo(function VoucherGroupDetails({
 }) {
   return (
     <tr>
-      <td colSpan="5" className="px-6 py-0">
+      <td colSpan="6" className="px-6 py-0">
         <motion.div
           initial={{ height: 0, opacity: 0 }}
           animate={{ height: 'auto', opacity: 1 }}
           exit={{ height: 0, opacity: 0 }}
           transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
-          className="overflow-hidden bg-slate-50/50 rounded-[1.5rem] mb-6 border border-slate-100 shadow-inner hover-stable"
-          style={{ willChange: 'transform, opacity', backfaceVisibility: 'hidden', transform: 'translate3d(0, 0, 0)' }}
+          className="overflow-hidden bg-slate-50/50 dark:bg-slate-900/30 rounded-[2rem] mb-6 mt-2 border border-slate-100 dark:border-slate-800 shadow-inner"
         >
-          <div className="p-5">
-            <table className="w-full text-right text-xs border-separate border-spacing-y-1">
+          <div className="p-6">
+            <table className="w-full text-right text-xs border-separate border-spacing-y-2">
               <thead>
-                <tr className="text-slate-400 font-black uppercase tracking-widest text-[10px]">
-                  <th className="px-4 py-2">الصنف والمواصفات</th>
+                <tr className="text-slate-400 dark:text-slate-500 font-black uppercase tracking-widest text-[9px]">
+                  <th className="px-4 py-2 w-12 text-center">م</th>
+                  <th className="px-4 py-2">الصنف والشركة</th>
                   <th className="px-4 py-2 text-center">الكمية</th>
                   <th className="px-4 py-2 text-center">تاريخ الصلاحية</th>
-                  <th className="px-4 py-2">ملاحظات السطر</th>
+                  <th className="px-4 py-2">ملاحظات</th>
                   {!isViewer && <th className="px-4 py-2 text-center">إجراء</th>}
                 </tr>
               </thead>
               <tbody>
-                {group.lines.map((l) => (
-                  <tr key={l.id} className="bg-white hover:bg-slate-50 transition-all rounded-xl shadow-sm no-select-click"
-                      style={{ transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)' }}>
-                    <td className="px-4 py-3 font-black text-slate-800 rounded-r-xl border-y border-r border-slate-50">
-                      {l.item} <span className="text-[10px] font-bold text-slate-400 mr-1">({l.company})</span>
+                {group.lines.map((l, lIdx) => (
+                  <tr key={l.id} className="bg-white dark:bg-slate-800/80 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all rounded-xl shadow-sm">
+                    <td className="px-4 py-1.5 text-center text-[10px] font-black text-slate-400 rounded-r-xl border-y border-r border-slate-50 dark:border-slate-700/50">{lIdx + 1}</td>
+                    <td className="px-4 py-1.5 font-black text-slate-800 dark:text-slate-200 border-y border-slate-50 dark:border-slate-700/50">
+                      <div className="flex items-center gap-2">
+                        <Package size={14} className="text-slate-300" />
+                        <span>{l.item}</span>
+                        {l.company && <span className="text-[10px] font-bold text-slate-400">({l.company})</span>}
+                      </div>
                     </td>
-                    <td className="px-4 py-3 text-center border-y border-slate-50">
-                      <span className={`px-3 py-1 rounded-lg font-black ${theme.qtyBadge}`}>
+                    <td className="px-4 py-1.5 text-center border-y border-slate-50 dark:border-slate-700/50">
+                      <span className={`px-3 py-1 rounded-lg font-black text-xs ${theme.qtyBadge}`}>
                         {l.qty} {l.unit}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-center font-bold text-slate-500 border-y border-slate-50">{l.expiryDate || '—'}</td>
-                    <td className="px-4 py-3 text-slate-400 font-bold max-w-[200px] truncate border-y border-slate-50">{l.lineNote || '—'}</td>
+                    <td className="px-4 py-1.5 text-center font-bold text-slate-500 dark:text-slate-400 border-y border-slate-50 dark:border-slate-700/50 tabular-nums">{l.expiryDate || '—'}</td>
+                    <td className="px-4 py-1.5 text-slate-400 dark:text-slate-500 font-bold border-y border-slate-50 dark:border-slate-700/50">{l.lineNote || '—'}</td>
                     {!isViewer && (
-                      <td className="px-4 py-3 text-center rounded-l-xl border-y border-l border-slate-50">
+                      <td className="px-4 py-1.5 text-center rounded-l-xl border-y border-l border-slate-50 dark:border-slate-700/50">
                         <div className="flex items-center justify-center gap-2">
-                          <button onClick={(e) => { e.stopPropagation(); openEdit(l); }} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"><Pencil size={14} className="stroke-[2.5]" /></button>
-                          <button onClick={(e) => { e.stopPropagation(); openDelete(l); }} className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"><Trash2 size={14} className="stroke-[2.5]" /></button>
+                          <button onClick={(e) => { e.stopPropagation(); openEdit(l); }} className="p-1.5 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors"><Pencil size={14} strokeWidth={2.5} /></button>
+                          <button onClick={(e) => { e.stopPropagation(); openDelete(l); }} className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors"><Trash2 size={14} strokeWidth={2.5} /></button>
                         </div>
                       </td>
                     )}
@@ -243,7 +229,7 @@ const VoucherGroupDetails = React.memo(function VoucherGroupDetails({
 ));
 
 function ModalWrapper({
-  title, isOpen, onClose, children, onSubmit, maxWidth, submitLabel, loading, disableSubmit, accent,
+  title, isOpen, onClose, children, onSubmit, maxWidth, submitLabel, loading, disableSubmit, accent, height = 'h-[92vh]', hideFooter = false,
 }) {
   const theme = accentTheme(accent);
   return (
@@ -262,38 +248,45 @@ function ModalWrapper({
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className={`relative w-full ${maxWidth} bg-white rounded-[2.5rem] shadow-2xl border border-slate-100 flex flex-col overflow-hidden max-h-[90vh]`}
+            className={`relative w-full ${maxWidth} bg-white rounded-[2.5rem] shadow-2xl border border-slate-100 flex flex-col overflow-hidden ${height} max-h-[95vh]`}
             dir="rtl"
           >
-            <div className="flex items-center justify-between p-6 border-b border-slate-100 bg-slate-50/50 shrink-0">
-              <h3 className="text-xl font-black text-slate-800">{title}</h3>
+            <div className={`flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800 bg-gradient-to-r ${theme.gradient} shrink-0`}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-white">
+                  <Box size={22} />
+                </div>
+                <h3 className="text-xl font-black text-white">{title}</h3>
+              </div>
               <button
                 type="button"
                 onClick={onClose}
-                className="p-2 text-slate-400 hover:bg-slate-100 rounded-full transition-colors"
+                className="w-10 h-10 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors"
               >
                 <X size={24} />
               </button>
             </div>
-            <form onSubmit={onSubmit} className="flex flex-col flex-1 overflow-hidden">
-              <div className="p-6 overflow-y-auto custom-scrollbar flex-1">{children}</div>
-              <div className="p-6 border-t border-slate-100 bg-slate-50/50 flex flex-row-reverse gap-3 shrink-0">
-                <button
-                  type="submit"
-                  disabled={loading || disableSubmit}
-                  className={`px-8 py-2.5 rounded-xl font-bold text-white flex items-center gap-2 shadow-lg transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-br ${theme.gradient} ${theme.shadow}`}
-                >
-                  {loading && <Box className="animate-spin" size={18} />}
-                  {submitLabel}
-                </button>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-8 py-2.5 rounded-xl font-bold text-slate-600 border border-slate-200 hover:bg-slate-100 transition-colors"
-                >
-                  إلغاء
-                </button>
-              </div>
+            <form onSubmit={onSubmit} className="flex flex-col flex-1 overflow-hidden bg-white dark:bg-slate-900">
+              <div className="p-4 overflow-y-auto custom-scrollbar flex-1">{children}</div>
+              {!hideFooter && (
+                <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 flex flex-row-reverse gap-3 shrink-0">
+                  <button
+                    type="submit"
+                    disabled={loading || disableSubmit}
+                    className={`px-10 py-3 rounded-[1.25rem] font-black text-white flex items-center gap-2 shadow-lg transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-br ${theme.gradient} ${theme.shadow}`}
+                  >
+                    {loading && <Box className="animate-spin" size={18} />}
+                    {submitLabel}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="px-8 py-3 rounded-[1.25rem] font-black text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  >
+                    إلغاء
+                  </button>
+                </div>
+              )}
             </form>
           </motion.div>
         </div>
@@ -303,7 +296,7 @@ function ModalWrapper({
 }
 
 function emptySession(kind) {
-  const base = { date: formatDate(new Date()) };
+  const base = { date: formatDate(new Date()), voucher_no: '', attachment: null };
   if (kind === 'in') return { ...base, supplier: '', supplyNotes: '' };
   return { ...base, rep: '' };
 }
@@ -321,7 +314,7 @@ async function allocateVoucherCode(kind) {
   if (error) {
     console.error('Voucher code allocation error:', error);
     // Fallback to a random code if RPC fails
-    return `${cfg.codePrefix}-${year}-${Math.floor(Math.random() * 900) + 100}`;
+    return `${Math.floor(Math.random() * 900) + 100}`;
   }
   return data;
 }
@@ -371,10 +364,15 @@ export default function VoucherWorkspace({ kind }) {
   const [groupToDelete, setGroupToDelete] = useState(null);
   const [selectedTx, setSelectedTx] = useState(null);
   const [editForm, setEditForm] = useState({ qty: '', date: '', lineNote: '' });
+  const [editingDraftId, setEditingDraftId] = useState(null);
+  const [draftUnit, setDraftUnit] = useState('');
+  const [isConfirmCloseOpen, setIsConfirmCloseOpen] = useState(false);
+  const [isConfirmSaveOpen, setIsConfirmSaveOpen] = useState(false);
 
   // Export state: { group, mode: 'pdf' | 'png' | 'blank-pdf' }
   const [exportJob, setExportJob] = useState(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [isDateFilterOpen, setIsDateFilterOpen] = useState(false);
 
   const triggerExport = (group, mode) => setExportJob({ group, mode });
 
@@ -385,17 +383,16 @@ export default function VoucherWorkspace({ kind }) {
         if (itemsError) throw itemsError;
         if (itemsData) setItems(itemsData.map(d => ({ ...d, stockQty: d.stock_qty })));
 
-        const { data: transData, error: transError } = await supabase.from('transactions').select('id, type, timestamp, item_id, voucher_group_id, voucher_code, is_functional, voucher_kind, voucher_supply_notes, line_note, item, company, qty, unit, expiry_date, date, supplier, rep, documentary, balance_after').order('timestamp', { ascending: false });
+        const { data: transData, error: transError } = await supabase.from('transactions').select('id, type, timestamp, item_id, batch_id, reference_number, beneficiary, item, company, qty, unit, cat, notes, date, balance_after, receipt_image, is_summary').order('timestamp', { ascending: false });
         if (transError) throw transError;
         if (transData) setTransactions(transData.map(d => ({ 
           ...d, 
           itemId: d.item_id,
-          voucherGroupId: d.voucher_group_id,
-          voucherCode: d.voucher_code,
-          isFunctional: d.is_functional,
-          voucherKind: d.voucher_kind,
-          voucherSupplyNotes: d.voucher_supply_notes,
-          lineNote: d.line_note
+          voucherGroupId: d.batch_id,
+          voucherCode: d.reference_number,
+          lineNote: d.notes,
+          supplier: d.beneficiary,
+          rep: d.beneficiary
         })));
       } catch (err) {
         console.error("❌ VoucherWorkspace: Error fetching data:", err);
@@ -412,56 +409,49 @@ export default function VoucherWorkspace({ kind }) {
     return () => { channels.forEach(c => supabase.removeChannel(c)); };
   }, [kind]);
 
+  // Handle ESC key to exit or close modals
+  useEffect(() => {
+    const handleESC = (e) => {
+      if (e.key === 'Escape') {
+        if (isConfirmCloseOpen) setIsConfirmCloseOpen(false);
+        else if (isConfirmSaveOpen) setIsConfirmSaveOpen(false);
+        else if (isAddModalOpen) triggerCloseAddModal();
+        else if (isEditOpen) setIsEditOpen(false);
+        else if (isDeleteOpen) setIsDeleteOpen(false);
+        else if (isDeleteGroupOpen) setIsDeleteGroupOpen(false);
+        else if (expandedGroupId) setExpandedGroupId(null);
+        else window.location.hash = '#dashboard';
+      } else if (e.key === 'Enter') {
+        if (isConfirmCloseOpen) {
+          e.preventDefault();
+          closeAddModal();
+        } else if (isConfirmSaveOpen) {
+          e.preventDefault();
+          executeSave();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleESC);
+    return () => window.removeEventListener('keydown', handleESC);
+  }); // Run on every render to capture fresh closures for closeAddModal/executeSave
+
   // ─── EMERGENCY AUTO-SAVE ───
   const DRAFT_KEY = `barakat_voucher_draft_${kind}`;
-  const [hasUnsavedDraft, setHasUnsavedDraft] = useState(false);
 
-  useEffect(() => {
-    const saved = sessionStorage.getItem(DRAFT_KEY);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (parsed.drafts && parsed.drafts.length > 0) setHasUnsavedDraft(true);
-      } catch {}
-    }
-  }, [DRAFT_KEY]);
 
-  useEffect(() => {
-    if (modalDrafts.length > 0 || session.supplier !== '' || session.rep !== '') {
-      sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ session, drafts: modalDrafts }));
-    } else {
-      sessionStorage.removeItem(DRAFT_KEY);
-      setHasUnsavedDraft(false);
-    }
-  }, [session, modalDrafts, DRAFT_KEY]);
 
-  const restoreDraft = () => {
-    try {
-      const saved = JSON.parse(sessionStorage.getItem(DRAFT_KEY));
-      if (saved && saved.drafts) {
-        setSession(saved.session || emptySession(kind));
-        setModalDrafts(saved.drafts);
-        setIsAddModalOpen(true);
-      }
-    } catch {}
-    setHasUnsavedDraft(false);
-  };
-
-  const discardDraft = () => {
-    sessionStorage.removeItem(DRAFT_KEY);
-    setHasUnsavedDraft(false);
-  };
 
 
   const voucherTxs = useMemo(
-    () => transactions.filter((t) => t.type === cfg.txType && t.documentary === true && t.isFunctional === true),
+    () => transactions.filter((t) => t.type === cfg.txType),
     [transactions, cfg.txType]
   );
 
   const voucherGroups = useMemo(() => {
     const map = new Map();
     voucherTxs.forEach((t) => {
-      const gid = t.voucherGroupId || `legacy_${t.id}`;
+      // Prioritize batch_id, fallback to reference_number for legacy, finally to ID
+      const gid = t.batch_id || t.reference_number || `legacy_${t.id}`;
       if (!map.has(gid)) map.set(gid, { groupId: gid, lines: [] });
       map.get(gid).lines.push(t);
     });
@@ -478,7 +468,7 @@ export default function VoucherWorkspace({ kind }) {
         supplier: first?.supplier,
         rep: first?.rep,
         supplyNotes: first?.voucherSupplyNotes || '',
-        voucherCode: first?.voucherCode || '',
+        voucherCode: (first?.voucherCode || '').replace(/^[A-Z]+-\d+-/g, '').replace(/^[A-Z]+-/g, ''),
         lineCount: g.lines.length,
         lastTs,
       };
@@ -522,6 +512,7 @@ export default function VoucherWorkspace({ kind }) {
   const handleSelect = (item) => {
     setSelectedItem(item);
     setSearchNameText(`${getItemName(item)} — ${getCompany(item)}`);
+    setDraftUnit(getUnit(item) || 'كرتونة');
     setSearchIdx(-1);
     setTimeout(() => document.getElementById(`voucher-qty-${kind}`)?.focus(), 50);
   };
@@ -532,11 +523,21 @@ export default function VoucherWorkspace({ kind }) {
     setDraftQty('');
     setDraftExpiryDate('');
     setDraftLineNote('');
+    setDraftUnit('');
     setTimeout(() => itemNameRef.current?.focus(), 50);
   }, []);
 
+  const triggerCloseAddModal = () => {
+    if (modalDrafts.length > 0) {
+      setIsConfirmCloseOpen(true);
+    } else {
+      closeAddModal();
+    }
+  };
+
   const closeAddModal = () => {
     setIsAddModalOpen(false);
+    setIsConfirmCloseOpen(false);
     setEditingGroupId(null);
     setEditingLineIds([]);
     setPreservedVoucherCode('');
@@ -546,25 +547,55 @@ export default function VoucherWorkspace({ kind }) {
   };
 
   const pushDraft = () => {
-    if (!selectedItem || !draftQty || Number(draftQty) <= 0 || (kind === 'in' && !draftExpiryDate)) {
-      toast.error(kind === 'in' ? 'يرجى اختيار صنف، الكمية، وتحديد تاريخ الصلاحية.' : 'يرجى اختيار صنف وإدخال كمية صحيحة.');
+    if (!selectedItem || !draftQty || Number(draftQty) <= 0) {
+      toast.error('يرجى اختيار صنف وإدخال كمية صحيحة.');
       playWarning();
       return;
     }
+
+    if (kind === 'outward') {
+      const availableStock = Number(selectedItem.stock_qty || 0);
+      const requestedQty = Number(draftQty);
+      if (requestedQty > availableStock) {
+        toast.error(`الكمية لا تسمح! الرصيد المتاح: ${availableStock}`);
+        playWarning();
+        return;
+      }
+    }
+
     const row = {
-      draftId: crypto.randomUUID(),
+      draftId: editingDraftId || crypto.randomUUID(),
       itemId: selectedItem.id,
       item: getItemName(selectedItem),
       company: getCompany(selectedItem),
       cat: getCategory(selectedItem),
-      unit: getUnit(selectedItem),
+      unit: draftUnit || getUnit(selectedItem),
       qty: Number(draftQty),
-      expiryDate: draftExpiryDate || '',
       lineNote: String(draftLineNote || '').trim(),
     };
-    setModalDrafts((p) => [row, ...p]);
+
+    if (editingDraftId) {
+      setModalDrafts((p) => p.map((x) => (x.draftId === editingDraftId ? row : x)));
+      setEditingDraftId(null);
+      toast.success('تم تحديث السطر في المسودة');
+    } else {
+      setModalDrafts((p) => [row, ...p]);
+    }
+
     playSuccess();
     clearRow();
+  };
+
+  const handleEditDraft = (d) => {
+    setEditingDraftId(d.draftId);
+    const item = items.find((i) => i.id === d.itemId);
+    if (item) {
+      setSelectedItem(item);
+      setDraftQty(String(d.qty));
+      setDraftLineNote(d.lineNote || '');
+      setDraftUnit(d.unit || getUnit(item) || 'كرتونة');
+      setTimeout(() => document.getElementById(`voucher-qty-${kind}`)?.focus(), 150);
+    }
   };
 
   const validateSession = () => {
@@ -577,6 +608,11 @@ export default function VoucherWorkspace({ kind }) {
     }
     if (!session.date) {
       toast.error('يرجى اختيار التاريخ.');
+      playWarning();
+      return false;
+    }
+    if (!String(session.voucher_no || '').trim()) {
+      toast.error('يرجى إدخال رقم السند.');
       playWarning();
       return false;
     }
@@ -616,8 +652,21 @@ export default function VoucherWorkspace({ kind }) {
     setTimeout(() => itemNameRef.current?.focus(), 150);
   };
 
+  const triggerSave = (e) => {
+    if (e) e.preventDefault();
+    if (!modalDrafts.length) return;
+    if (!validateSession()) return;
+    setIsConfirmSaveOpen(true);
+  };
+
+  const executeSave = (e) => {
+    if (e) e.preventDefault();
+    setIsConfirmSaveOpen(false);
+    handleBulkSubmit();
+  };
+
   const handleBulkSubmit = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     if (!modalDrafts.length) return;
     if (!validateSession()) return;
 
@@ -625,11 +674,59 @@ export default function VoucherWorkspace({ kind }) {
     setLoading(true);
 
     try {
+      // ═══ OUTWARD: Final stock validation before saving ═══
+      // This is the critical gate — re-fetch live stock from DB to prevent negatives
+      if (kind === 'outward') {
+        const outItemIds = [...new Set(modalDrafts.map(d => d.itemId))].filter(Boolean);
+        const { data: liveProducts, error: liveErr } = await supabase
+          .from('products')
+          .select('id, name, stock_qty')
+          .in('id', outItemIds);
+
+        if (liveErr) throw liveErr;
+
+        // Group draft totals per item
+        const draftTotals = {};
+        for (const d of modalDrafts) {
+          draftTotals[d.itemId] = (draftTotals[d.itemId] || 0) + Number(d.qty || 0);
+        }
+
+        for (const p of liveProducts || []) {
+          const liveStock = Number(p.stock_qty || 0);
+          const requested = draftTotals[p.id] || 0;
+          if (requested > liveStock) {
+            setLoading(false);
+            toast.error(
+              `❌ الكمية المطلوبة للصنف "${p.name}" (${requested}) تتجاوز المخزون المتاح (${liveStock}). تم إلغاء الحفظ.`,
+              { duration: 6000 }
+            );
+            playWarning();
+            return;
+          }
+        }
+      }
+      // ═══════════════════════════════════════════════════════
+
       let voucherGroupId = editingGroupId || crypto.randomUUID();
-      let voucherCode = preservedVoucherCode;
+      let rawVoucherCode = preservedVoucherCode || String(session.voucher_no || '').trim();
+      let voucherCode = rawVoucherCode.replace(/^[A-Z]+-\d+-/g, '').replace(/^[A-Z]+-/g, '');
 
       if (!voucherCode) {
         voucherCode = await allocateVoucherCode(kind);
+      } else if (!editingGroupId) {
+        // Prevent duplicates for new vouchers within the same category (In vs Out)
+        const checkTypes = kind === 'in' ? ['سند إدخال', 'in'] : ['سند إخراج', 'outward'];
+        const { data: dup } = await supabase
+          .from('transactions')
+          .select('id')
+          .eq('reference_number', voucherCode)
+          .in('type', checkTypes)
+          .limit(1);
+        
+        if (dup && dup.length > 0) {
+          setLoading(false);
+          return toast.error(`عفواً، رقم السند (${voucherCode}) مسجل مسبقاً في ${kind === 'in' ? 'سندات الإدخال' : 'سندات الإخراج'}!`);
+        }
       }
 
       // 1. Delete old lines if editing
@@ -638,28 +735,20 @@ export default function VoucherWorkspace({ kind }) {
         if (delError) throw delError;
       }
 
-      const common = {
-        type: cfg.txType,
-        documentary: true,
-        is_functional: true,
-        invoiced: false,
-        deducted: false,
-        voucher_kind: kind,
-        date: session.date,
-        voucher_group_id: voucherGroupId,
-        batch_id: voucherGroupId,
-        voucher_code: voucherCode,
-      };
-
       const beneficiary = kind === 'in' 
-        ? String(session.supplier).trim() 
-        : String(session.rep).trim();
+        ? String(session.supplier || '').trim() 
+        : String(session.rep || '').trim();
 
-      common.beneficiary = beneficiary;
+      const common = {
+        type: kind === 'in' ? 'سند إدخال' : 'سند إخراج',
+        date: session.date,
+        batch_id: voucherGroupId,
+        reference_number: voucherCode,
+        beneficiary: beneficiary,
+      };
 
       if (kind === 'in') {
         common.supplier = beneficiary;
-        common.voucher_supply_notes = voucherSupplyNotes;
       } else {
         common.rep = beneficiary;
       }
@@ -672,8 +761,6 @@ export default function VoucherWorkspace({ kind }) {
         qty: entry.qty,
         unit: entry.unit,
         cat: entry.cat,
-        expiry_date: entry.expiryDate || '',
-        line_note: entry.lineNote || '',
         is_summary: false
       }));
 
@@ -688,8 +775,39 @@ export default function VoucherWorkspace({ kind }) {
         notes: `مستند رقم ${voucherCode}`
       });
 
+      console.log('🚀 Final Transaction Payload:', rows);
+
       const { error: insError } = await supabase.from('transactions').insert(rows);
-      if (insError) throw insError;
+      if (insError) {
+        console.error('❌ Supabase Insert Error:', insError);
+        throw insError;
+      }
+
+      // --- Real-time Stock Update Logic ---
+      const itemIds = [...new Set(modalDrafts.map(d => d.itemId))].filter(Boolean);
+      if (itemIds.length > 0 && !editingGroupId) {
+        const { data: currentProducts, error: fetchError } = await supabase
+          .from('products')
+          .select('id, stock_qty')
+          .in('id', itemIds);
+
+        if (!fetchError && currentProducts) {
+          for (const entry of modalDrafts) {
+            const p = currentProducts.find(x => x.id === entry.itemId);
+            if (p) {
+              const currentStock = Number(p.stock_qty || 0);
+              const change = Number(entry.qty || 0);
+              const newStock = kind === 'in' ? currentStock + change : currentStock - change;
+              
+              await supabase
+                .from('products')
+                .update({ stock_qty: Math.max(0, newStock) }) // Never go below zero
+                .eq('id', entry.itemId);
+            }
+          }
+        }
+      }
+      // ------------------------------------
 
       toast.success(
         editingGroupId
@@ -874,7 +992,7 @@ export default function VoucherWorkspace({ kind }) {
   const partyValue  = exportJob?.group ? (kind === 'in' ? exportJob.group.supplier : exportJob.group.rep) : '—';
 
   // Pad lines array so the table always shows at least 30 rows
-  const receiptLines = exportJob?.group?.lines || [];
+  const receiptLines = (exportJob?.group?.lines || []).filter(l => !l.is_summary);
   const BLANK_ROWS = 30;
   const paddedLines = receiptLines.length >= BLANK_ROWS
     ? receiptLines
@@ -968,156 +1086,154 @@ export default function VoucherWorkspace({ kind }) {
             <h1 className="text-2xl font-black text-slate-800">
               {settings?.labels?.[kind === 'in' ? 'voucherIn' : 'voucherOut'] || cfg.pageTitle}
             </h1>
-            <p className="text-slate-400 mt-1 font-bold">{cfg.pageSubtitle}</p>
+            <p className="text-slate-400 mt-1 font-bold text-[11px]">{cfg.pageSubtitle}</p>
+          </div>
+        </div>
+
+        {/* ── Search & Filter Bar ── */}
+        <div className="flex-1 flex flex-col md:flex-row items-center gap-4 px-4">
+          <div className="relative flex-1 w-full group">
+            <Search size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors" />
+            <input 
+              type="text" 
+              placeholder={`ابحث برقم السند أو ${kind === 'in' ? 'المورد' : 'المستفيد'}...`}
+              value={filterSearch}
+              onChange={(e) => setFilterSearch(e.target.value)}
+              className="w-full bg-slate-50/50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 text-[13px] font-bold rounded-2xl pr-12 pl-4 h-12 outline-none transition-all placeholder:text-slate-400 text-slate-800 dark:text-white focus:bg-white dark:focus:bg-slate-900 focus:border-primary/20 shadow-inner" 
+            />
+          </div>
+          
+          <div className="flex items-center gap-2 w-full md:w-auto relative">
+            <button 
+              onClick={() => setIsDateFilterOpen(!isDateFilterOpen)}
+              className={`h-12 px-5 rounded-2xl border transition-all flex items-center gap-3 font-black text-[12px] shadow-sm ${
+                isDateFilterOpen || filterDateFrom || filterDateTo 
+                  ? `bg-${cfg.accent}-50 border-${cfg.accent}-200 text-${cfg.accent}-600` 
+                  : 'bg-slate-50 dark:bg-slate-900 border-slate-100 dark:border-slate-800 text-slate-400'
+              }`}
+            >
+              <CalendarRange size={18} />
+              <span>{filterDateFrom || filterDateTo ? 'تصفية مفعلة' : 'فلتر التاريخ'}</span>
+            </button>
+
+            {isDateFilterOpen && (
+              <div className="absolute top-full left-0 mt-3 w-72 bg-white dark:bg-slate-800 rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.15)] border border-slate-100 dark:border-slate-700 p-6 z-[100] animate-in fade-in slide-in-from-top-2">
+                <div className="flex flex-col gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase mr-2 tracking-widest">من تاريخ</label>
+                    <input 
+                      type="date" 
+                      className="w-full h-10 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-xl px-4 text-xs font-black outline-none focus:border-primary/30"
+                      value={filterDateFrom}
+                      onChange={(e) => setFilterDateFrom(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase mr-2 tracking-widest">إلى تاريخ</label>
+                    <input 
+                      type="date" 
+                      className="w-full h-10 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-xl px-4 text-xs font-black outline-none focus:border-primary/30"
+                      value={filterDateTo}
+                      onChange={(e) => setFilterDateTo(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex gap-2 mt-2">
+                    <button 
+                      onClick={() => { resetFilters(); setIsDateFilterOpen(false); }}
+                      className="flex-1 py-2.5 bg-rose-50 text-rose-500 rounded-xl text-[10px] font-black hover:bg-rose-100 transition-colors"
+                    >
+                      إعادة تعيين
+                    </button>
+                    <button 
+                      onClick={() => setIsDateFilterOpen(false)}
+                      className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-[10px] font-black hover:bg-slate-200"
+                    >
+                      إغلاق
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {(filterSearch) && (
+              <button 
+                onClick={resetFilters}
+                className="w-12 h-12 flex items-center justify-center rounded-2xl bg-rose-50 text-rose-500 hover:bg-rose-100 transition-all shadow-sm shadow-rose-500/10"
+                title="إعادة تعيين البحث"
+              >
+                <FilterX size={20} strokeWidth={3} />
+              </button>
+            )}
           </div>
         </div>
 
         <div className="flex items-center gap-3">
-          <button
-            type="button"
-            disabled={isExporting}
-            onClick={() => triggerExport(null, 'blank-png')}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-slate-600 border border-slate-200 hover:bg-slate-50 transition-all"
-          >
-            <ImageIcon size={18} />
-            <span>سند فارغ صورة</span>
-          </button>
-
           {!isViewer && (
             <button
               type="button"
               onClick={openModal}
-              className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-white bg-gradient-to-br ${theme.gradient} ${theme.shadow} shadow-lg transition-all active:scale-95`}
+              className={`flex items-center gap-2 px-6 py-2.5 h-11 rounded-xl font-bold text-white bg-gradient-to-br ${theme.gradient} ${theme.shadow} shadow-lg transition-all active:scale-95`}
             >
               <Plus size={20} />
               <span>سند جديد</span>
             </button>
           )}
+
+          <button 
+            type="button"
+            onClick={() => window.location.hash = '#dashboard'}
+            className="w-11 h-11 bg-rose-50 dark:bg-rose-500/10 text-rose-500 dark:text-rose-400 rounded-xl flex items-center justify-center transition-all border border-rose-100 dark:border-rose-500/20 group shadow-sm shadow-rose-500/10"
+            title="العودة للرئيسية"
+          >
+             <LogOut size={22} className="group-hover:-translate-x-1 transition-transform rotate-180" />
+          </button>
         </div>
       </div>
 
-      {/* Emergency Auto-Save Recovery Banner */}
-      <AnimatePresence>
-        {hasUnsavedDraft && !isViewer && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
-            className="bg-orange-50 border-r-4 border-orange-500 rounded-xl p-4 flex items-center justify-between text-orange-600 overflow-hidden shadow-sm">
-            <div className="flex items-center gap-3">
-              <AlertTriangle size={20} className="shrink-0" />
-              <span className="text-sm font-bold">توجد مسودة غير محفوظة (تم استردادها تلقائياً). هل تريد المتابعة؟</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <button type="button" onClick={restoreDraft} className="px-5 py-1.5 rounded-xl font-bold text-white bg-orange-500 hover:bg-orange-600 shadow-md transition-all text-xs">استعادة التحرير</button>
-              <button type="button" onClick={discardDraft} className="px-5 py-1.5 rounded-xl font-bold text-orange-600 border border-orange-200 hover:bg-orange-100 transition-all text-xs">إلغاء</button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
-      {/* Filter bar */}
-      <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col md:flex-row md:items-end gap-4">
-        <div className="flex-1 min-w-[200px]">
-          <label className={LabelClass}>بحث شامل</label>
-          <div className="relative">
-            <Search size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              className={`${baseInput} pr-11`}
-              placeholder="مورد، مندوب، صنف، أو رقم السند..."
-              value={filterSearch}
-              onChange={(e) => setFilterSearch(e.target.value)}
-            />
-          </div>
-        </div>
-        <div className="w-full sm:w-48">
-          <label className={LabelClass}>من تاريخ</label>
-          <input
-            type="date"
-            className={baseInput}
-            value={filterDateFrom}
-            onChange={(e) => setFilterDateFrom(e.target.value)}
-          />
-        </div>
-        <div className="w-full sm:w-48">
-          <label className={LabelClass}>إلى تاريخ</label>
-          <input
-            type="date"
-            className={baseInput}
-            value={filterDateTo}
-            onChange={(e) => setFilterDateTo(e.target.value)}
-          />
-        </div>
-        <button
-          type="button"
-          onClick={resetFilters}
-          className="flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-slate-600 border border-slate-200 hover:bg-slate-50 transition-all"
-        >
-          <FilterX size={18} />
-          إعادة ضبط
-        </button>
-      </div>
 
-      <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden flex flex-col">
-        <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-          <h3 className="text-lg font-black text-slate-800">سجل السندات</h3>
-          <span className={`text-xs font-black px-4 py-1.5 rounded-full border ${theme.badge} shadow-sm`}>
-            {filteredGroups.length} من أصل {voucherGroups.length} سند
-          </span>
-        </div>
-
-          {voucherGroups.length === 0 ? (
-            <div className="p-20 text-center">
-              <div className="w-20 h-20 bg-slate-50 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-slate-100 shadow-inner">
-                <Box size={40} className="text-slate-200" />
-              </div>
-              <p className="text-slate-400 font-bold">لا توجد سندات بعد. أنشئ سنداً جديداً من الزر أعلاه.</p>
+      {/* ═══ TABLE AREA ═══ */}
+      <div className="flex-1 overflow-hidden flex flex-col bg-slate-50/30 dark:bg-slate-900/50 p-6 pt-2">
+        <div className="flex-1 overflow-y-auto custom-scrollbar bg-white dark:bg-slate-800 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center h-full gap-4 text-slate-400">
+               <div className={`w-10 h-10 border-4 border-${cfg.accent}-100 border-t-${cfg.accent}-600 rounded-full animate-spin`}></div>
+               <span className="text-slate-400 font-bold text-sm">جاري تحميل السجلات...</span>
             </div>
           ) : filteredGroups.length === 0 ? (
-            <div className="p-20 text-center">
-              <p className="text-slate-400 font-bold">لا توجد نتائج مطابقة للتصفية. جرّب تغيير البحث أو التواريخ.</p>
+            <div className="flex flex-col items-center justify-center h-full gap-6 text-slate-400 opacity-60">
+               <div className="w-20 h-20 bg-slate-50 dark:bg-slate-900 rounded-full flex items-center justify-center border border-slate-100 dark:border-slate-800 shadow-inner">
+                  <FileText size={40} className="text-slate-300" />
+               </div>
+               <p className="text-lg font-black">لا توجد سجلات مطابقة</p>
             </div>
           ) : (
             <>
-              <div className="overflow-x-auto">
-                <table className="w-full text-right border-collapse whitespace-nowrap">
-              <thead>
-                <tr className="bg-slate-50/80 text-slate-500 font-black border-b border-slate-100 uppercase tracking-widest text-[11px]">
-                  <th className="px-6 py-5 w-40">رقم السند</th>
-                  <th className="px-6 py-5 w-40">التاريخ</th>
-                  <th className="px-6 py-5">{headerPartyLabel}</th>
-                  <th className="px-6 py-5 w-24 text-center">عدد الأصناف</th>
-                  <th className="px-6 py-5 w-60 text-center">الإجراءات</th>
+            <div className="hidden md:block">
+            <table className="w-full border-collapse">
+              <thead className="sticky top-0 z-20 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+                <tr className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">
+                  <th className="px-4 py-4 text-center w-12 border-x border-slate-100 dark:border-slate-700">م</th>
+                  <th className="px-6 py-4 text-center w-40 border-x border-slate-100 dark:border-slate-700">رقم السند</th>
+                  <th className="px-6 py-4 text-center w-48 border-x border-slate-100 dark:border-slate-700">التاريخ</th>
+                  <th className="px-6 py-4 text-right border-x border-slate-100 dark:border-slate-700">{headerPartyLabel}</th>
+                  <th className="px-6 py-4 text-center w-32 border-x border-slate-100 dark:border-slate-700">الأصناف</th>
+                  <th className="px-6 py-4 text-center w-48 border-x border-slate-100 dark:border-slate-700">الإجراءات</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50">
-                {filteredGroups.map((group) => (
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
+                {filteredGroups.map((group, idx) => (
                   <React.Fragment key={group.groupId}>
                     <VoucherGroupRow
                       group={group}
+                      idx={idx}
                       kind={kind}
-                      expandedGroupId={expandedGroupId}
-                      isExporting={isExporting}
                       isViewer={isViewer}
                       theme={theme}
+                      isExporting={isExporting}
                       headerPartyLabel={headerPartyLabel}
-                      triggerExport={triggerExport}
-                      openEditGroup={openEditGroup}
-                      openDeleteGroup={openDeleteGroup}
                       setExpandedGroupId={setExpandedGroupId}
-                      openEdit={openEdit}
-                      openDelete={openDelete}
                     />
-                    <AnimatePresence>
-                      {expandedGroupId === group.groupId && (
-                        <VoucherGroupDetails
-                          group={group}
-                          kind={kind}
-                          isViewer={isViewer}
-                          theme={theme}
-                          openEdit={openEdit}
-                          openDelete={openDelete}
-                        />
-                      )}
-                    </AnimatePresence>
                   </React.Fragment>
                 ))}
               </tbody>
@@ -1263,226 +1379,376 @@ export default function VoucherWorkspace({ kind }) {
             </>
           )}
         </div>
+      </div>
 
       {/* ═══ ADD/EDIT VOUCHER MODAL ═══ */}
       <ModalWrapper
         title={editingGroupId ? `تعديل السند ${preservedVoucherCode || ''}` : cfg.modalTitle}
         isOpen={isAddModalOpen}
-        onClose={closeAddModal}
-        onSubmit={handleBulkSubmit}
-        maxWidth="max-w-5xl"
+        onClose={triggerCloseAddModal}
+        onSubmit={triggerSave}
+        maxWidth="max-w-6xl"
         submitLabel={editingGroupId ? `حفظ التعديلات (${modalDrafts.length} سطر)` : `حفظ السند (${modalDrafts.length} سطر)`}
         loading={loading}
         disableSubmit={modalDrafts.length === 0}
         accent={cfg.accent}
       >
-        <div className="space-y-8">
-          {/* Header Info */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-6 bg-slate-50/50 dark:bg-slate-800/50 rounded-3xl border border-slate-100 dark:border-slate-800">
-            {cfg.sessionFields.map((f) => (
-              <div key={f.key}>
-                <label className={LabelClass}>
-                  {f.label}
-                  {f.required && <span className="text-rose-500"> *</span>}
-                </label>
-                <div className="relative">
-                  <User size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 z-10 pointer-events-none" />
-                  <input
-                    type="text"
-                    className="InputClass pr-10"
-                    placeholder={f.placeholder}
-                    value={session[f.key] || ''}
-                    onChange={(e) => setSession((s) => ({ ...s, [f.key]: e.target.value }))}
-                  />
-                </div>
-              </div>
-            ))}
-            <div>
-              <label className={LabelClass}>التاريخ</label>
+        <div className="flex flex-col gap-4">
+          {/* ─── ULTRA-COMPACT SESSION HEADER (Grid 12) ─── */}
+          <div className="relative grid grid-cols-1 md:grid-cols-12 gap-3 p-4 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-inner">
+            
+            {/* Supplier / Rep Name */}
+            <div className="md:col-span-3 space-y-1">
+              <label className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mr-2 flex items-center gap-1">
+                <User size={10} className="text-primary" /> {cfg.sessionFields[0].label} <span className="text-rose-500">*</span>
+              </label>
               <input
-                type="date"
-                className="InputClass"
-                value={session.date}
-                onChange={(e) => setSession((s) => ({ ...s, date: e.target.value }))}
-                required
+                type="text"
+                className="w-full bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 text-[11px] font-black rounded-full px-4 py-2 outline-none focus:border-primary/50 transition-all text-slate-700 dark:text-white shadow-sm"
+                placeholder={cfg.sessionFields[0].placeholder}
+                value={session[cfg.sessionFields[0].key] || ''}
+                onChange={(e) => setSession((s) => ({ ...s, [cfg.sessionFields[0].key]: e.target.value }))}
               />
             </div>
-            {kind === 'in' && (
-              <div className="md:col-span-3">
-                <label className={LabelClass}>ملاحظات التوريد العامة</label>
-                <input
-                  type="text"
-                  className="InputClass"
-                  placeholder="رقم الفاتورة الأصلية، ملاحظات المورد..."
-                  value={session.supplyNotes || ''}
-                  onChange={(e) => setSession((s) => ({ ...s, supplyNotes: e.target.value }))}
-                />
+
+            {/* Voucher Date */}
+            <div className="md:col-span-2 space-y-1">
+              <label className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mr-2 flex items-center gap-1">
+                <CalendarRange size={10} className="text-primary" /> تاريخ السند <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="date"
+                className="w-full bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 text-[11px] font-black rounded-full px-4 py-2 outline-none focus:border-primary/50 transition-all text-slate-700 dark:text-white shadow-sm"
+                value={session.date}
+                onChange={(e) => setSession((s) => ({ ...s, date: e.target.value }))}
+              />
+            </div>
+
+            {/* Voucher Number */}
+            <div className="md:col-span-2 space-y-1">
+              <label className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mr-2 flex items-center gap-1">
+                رقم السند <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                className="w-full bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 text-[11px] font-black rounded-full px-4 py-2 outline-none focus:border-primary/50 transition-all text-slate-700 dark:text-white shadow-sm"
+                placeholder="رقم السند..."
+                value={session.voucher_no || ''}
+                onChange={(e) => setSession((s) => ({ ...s, voucher_no: e.target.value }))}
+              />
+            </div>
+
+            {/* Notes / Customer / Rep */}
+            <div className="md:col-span-4 space-y-1">
+              <label className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mr-2 flex items-center gap-1">
+                <Info size={10} className="text-primary" /> ملاحظات إضافية للسند
+              </label>
+              <input
+                type="text"
+                className="w-full bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 text-[11px] font-black rounded-full px-4 py-2 outline-none focus:border-primary/50 transition-all text-slate-700 dark:text-white shadow-sm"
+                placeholder="تفاصيل إضافية..."
+                value={session.supplyNotes || ''}
+                onChange={(e) => setSession((s) => ({ ...s, supplyNotes: e.target.value }))}
+              />
+            </div>
+
+            {/* Attachment Button (Colorful & Animated) */}
+            <div className="md:col-span-1 flex flex-col justify-end">
+              <div className="flex justify-start pb-0.5">
+                <motion.label
+                  whileHover={{ scale: 1.1, rotate: 5 }}
+                  whileTap={{ scale: 0.9 }}
+                  className={`relative w-8 h-8 rounded-lg flex items-center justify-center cursor-pointer transition-all shadow-lg ${
+                    session.attachment 
+                      ? 'bg-gradient-to-br from-emerald-400 to-teal-500 text-white shadow-emerald-500/30' 
+                      : 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-blue-500/30'
+                  }`}
+                  title="المرفق"
+                >
+                  {session.attachment ? <CheckCircle size={16} strokeWidth={3} /> : <UploadCloud size={16} strokeWidth={3} />}
+                  <input
+                    type="file"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files[0];
+                      if (file) {
+                        setSession((s) => ({ ...s, attachment: file }));
+                        toast.success('تم إرفاق الملف بنجاح');
+                      }
+                    }}
+                  />
+                  {session.attachment && (
+                    <div className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-rose-500 text-white rounded-full flex items-center justify-center shadow-md cursor-pointer hover:bg-rose-600 transition-colors"
+                         onClick={(e) => { e.preventDefault(); setSession(s => ({ ...s, attachment: null })); }}>
+                      <X size={8} strokeWidth={4} />
+                    </div>
+                  )}
+                </motion.label>
               </div>
-            )}
+            </div>
           </div>
 
-          {/* Item Selector Section */}
-          <div className="space-y-4">
-            <h4 className="text-lg font-black text-primary flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Plus size={18} />
-              </div>
-              إضافة أصناف للسند
-            </h4>
-            
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-end p-4 bg-white dark:bg-slate-900 border-2 border-primary/10 rounded-3xl shadow-sm relative z-30">
-              <div className="lg:col-span-4 relative group/fi">
-                <label className={LabelClass}>اسم الصنف</label>
+          {/* ─── SINGLE ROW ITEM ENTRY ─── */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-3 rounded-[2rem] shadow-sm relative">
+            {/* Subtle background glow when item is selected */}
+            <AnimatePresence>
+              {selectedItem && (
+                <motion.div 
+                  initial={{ opacity: 0 }} 
+                  animate={{ opacity: 0.5 }} 
+                  exit={{ opacity: 0 }}
+                  className={`absolute inset-0 bg-gradient-to-r from-transparent via-${cfg.accent}-500/5 to-transparent pointer-events-none rounded-[2rem]`}
+                />
+              )}
+            </AnimatePresence>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 items-center relative z-10">
+              {/* Item Search */}
+              <div className="lg:col-span-5 relative">
                 {selectedItem ? (
-                  <div className="flex items-center justify-between w-full text-sm font-bold rounded-xl px-3 py-2.5 border border-primary/20 bg-primary/5 text-primary">
-                    <span className="truncate text-xs">{getItemName(selectedItem)} — {getCompany(selectedItem)}</span>
-                    <button type="button" onClick={clearRow} className="shrink-0 opacity-70 hover:opacity-100"><X size={13} /></button>
+                  <div className="flex items-center justify-between w-full h-[44px] rounded-full px-5 border-2 border-slate-200 bg-slate-50 text-slate-900 shadow-sm">
+                    <div className="truncate text-[13px] font-black flex items-center gap-2">
+                      <Package size={18} className="text-emerald-600 shrink-0" />
+                      <span>{getItemName(selectedItem)}</span>
+                      <span className="text-slate-400 font-bold">-</span>
+                      <span className="text-slate-700">{getCompany(selectedItem)}</span>
+                    </div>
+                    <button type="button" onClick={clearRow} className="shrink-0 p-1.5 hover:bg-rose-500/10 hover:text-rose-500 rounded-full transition-all">
+                      <X size={16} strokeWidth={3} />
+                    </button>
                   </div>
                 ) : (
-                  <div className="relative">
-                    <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 z-10" />
+                  <div className="relative group">
+                    <Search size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors" />
                     <input
                       ref={itemNameRef}
                       type="text"
-                      className="InputClass pr-9 text-sm"
-                      placeholder="ابحث في الأصناف..."
+                      className="w-full h-[44px] bg-slate-50 dark:bg-slate-800/50 border-2 border-slate-100 dark:border-slate-700 text-[12px] font-black rounded-full px-12 outline-none focus:border-primary/50 focus:bg-white dark:focus:bg-slate-900 transition-all placeholder-slate-400 shadow-sm"
+                      placeholder="ابحث عن صنف للتكملة التلقائية..."
                       value={searchNameText}
                       onChange={(e) => { setSearchNameText(e.target.value); setSearchIdx(-1); }}
                       onKeyDown={(e) => {
                         if (e.key === 'ArrowDown') { e.preventDefault(); setSearchIdx((p) => (p < itemSuggestions.length - 1 ? p + 1 : p)); }
                         else if (e.key === 'ArrowUp') { e.preventDefault(); setSearchIdx((p) => (p > 0 ? p - 1 : 0)); }
-                        else if (e.key === 'Enter' && searchIdx >= 0 && itemSuggestions[searchIdx]) { e.preventDefault(); handleSelect(itemSuggestions[searchIdx]); }
+                        else if (e.key === 'Enter') {
+                          if (searchIdx >= 0 && itemSuggestions[searchIdx]) {
+                            e.preventDefault(); handleSelect(itemSuggestions[searchIdx]);
+                          } else if (selectedItem && draftQty > 0) {
+                            e.preventDefault(); pushDraft();
+                          }
+                        }
                       }}
                     />
-                  </div>
-                )}
-                {!selectedItem && searchNameText && itemSuggestions.length > 0 && (
-                  <div className="absolute top-full right-0 w-full max-h-48 overflow-y-auto bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-100 dark:border-slate-700 z-50 p-1 mt-1">
-                    {itemSuggestions.map((s, idx) => (
-                      <button key={s.id} type="button"
-                        className={`w-full text-right px-3 py-2 border-b border-slate-50 dark:border-slate-700/60 last:border-0 text-sm flex flex-col transition-colors ${
-                          searchIdx === idx ? 'bg-primary/10 text-primary' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50'
-                        }`}
-                        onMouseDown={(e) => { e.preventDefault(); handleSelect(s); }}>
-                        <span className="font-black text-xs">{getItemName(s)}</span>
-                        <span className="text-[10px] opacity-70 font-bold">{getCompany(s)} • {getCategory(s)}</span>
-                      </button>
-                    ))}
+                    
+                    {/* ─── SUGGESTIONS DROPDOWN ─── */}
+                    <AnimatePresence>
+                      {itemSuggestions.length > 0 && (
+                        <motion.div 
+                          initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                          className="absolute top-full left-0 right-0 mt-3 bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] z-[100] overflow-hidden max-h-[300px] overflow-y-auto"
+                        >
+                          {itemSuggestions.slice(0, 15).map((item, idx) => (
+                            <div
+                              key={item.id}
+                              className={`p-4 cursor-pointer flex items-center justify-between transition-all border-b border-slate-50 dark:border-slate-700/50 last:border-0 ${idx === searchIdx ? 'bg-primary/10 text-primary' : 'hover:bg-slate-50 dark:hover:bg-slate-700/50'}`}
+                              onClick={() => handleSelect(item)}
+                            >
+                              <div className="flex flex-col gap-0.5">
+                                <span className="text-[12px] font-black">{getItemName(item)}</span>
+                                <span className="text-[10px] text-slate-400 font-bold">{getCompany(item)}</span>
+                              </div>
+                              <div className="text-[10px] font-black px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500">
+                                {getCategory(item)}
+                              </div>
+                            </div>
+                          ))}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
                 )}
               </div>
 
+              {/* Quantity */}
               <div className="lg:col-span-2">
-                <label className={LabelClass}>الكمية</label>
                 <input
                   id={`voucher-qty-${kind}`}
                   type="number" min="1"
                   disabled={!selectedItem}
-                  className="InputClass font-bold text-center"
-                  placeholder="0"
+                  className={`w-full h-[44px] bg-slate-50 dark:bg-slate-800/50 border-2 border-slate-100 dark:border-slate-700 text-center text-[14px] font-black rounded-full outline-none transition-all ${selectedItem ? 'focus:border-primary/50 focus:bg-white focus:ring-4 focus:ring-primary/10' : 'opacity-50 cursor-not-allowed'}`}
+                  placeholder="كمية"
                   value={draftQty}
                   onChange={(e) => setDraftQty(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); pushDraft(); } }}
+                  onKeyDown={(e) => { 
+                    if (e.key === 'Enter') { 
+                      e.preventDefault(); 
+                      if (selectedItem && draftQty > 0) pushDraft(); 
+                    } 
+                  }}
                 />
               </div>
 
-              <div className="lg:col-span-2">
-                <label className={LabelClass}>تاريخ الصلاحية {kind === 'in' && <span className="text-rose-500">*</span>}</label>
-                <input
-                  type="date"
-                  className="InputClass text-xs"
-                  disabled={!selectedItem}
-                  value={draftExpiryDate}
-                  onChange={(e) => setDraftExpiryDate(e.target.value)}
-                />
+              {/* Category & Unit */}
+              <div className="lg:col-span-4 flex gap-2">
+                <div className={`flex-1 h-[44px] bg-slate-50 dark:bg-slate-800/50 border-2 border-slate-100 dark:border-slate-800 rounded-full flex items-center justify-center text-[11px] font-black text-slate-500 truncate px-3 transition-opacity ${!selectedItem ? 'opacity-50' : ''}`} title="القسم">
+                  {selectedItem ? getCategory(selectedItem) : 'القسم'}
+                </div>
+                <div className={`flex-1 relative group h-[44px] bg-slate-50 dark:bg-slate-800/50 border-2 border-slate-100 dark:border-slate-800 rounded-full flex items-center justify-center px-3 transition-all ${!selectedItem ? 'opacity-70' : 'hover:border-primary/40'}`} title="الوحدة">
+                    {/* Floating Colorful + Button - Always Visible but Dimmed when Idle */}
+                    <button 
+                      type="button"
+                      id={`unit-plus-btn-${kind}`}
+                      className={`absolute -top-2.5 -right-1 w-6 h-6 rounded-full flex items-center justify-center shadow-lg transition-all z-20 ${
+                        !selectedItem 
+                          ? 'bg-slate-200 text-slate-400 cursor-not-allowed opacity-50' 
+                          : 'bg-gradient-to-br from-indigo-500 via-purple-600 to-pink-500 text-white hover:scale-110'
+                      }`}
+                      onClick={() => {
+                        if (!selectedItem) {
+                           toast.info('يرجى اختيار صنف أولاً لتعديل وحدته');
+                           return;
+                        }
+                        const input = document.getElementById(`unit-input-${kind}`);
+                        if (input) {
+                          input.focus();
+                          input.select();
+                        }
+                      }}
+                    >
+                      <Plus size={14} strokeWidth={3} />
+                    </button>
+
+                    {selectedItem ? (
+                      <input 
+                        id={`unit-input-${kind}`}
+                        type="text"
+                        className="w-full h-full text-center bg-transparent outline-none text-[11px] font-black text-slate-700 dark:text-slate-200 placeholder-slate-400"
+                        value={draftUnit}
+                        onChange={(e) => setDraftUnit(e.target.value)}
+                        placeholder={getUnit(selectedItem) || 'الوحدة'}
+                        onKeyDown={(e) => { 
+                          if (e.key === 'Enter') { 
+                            e.preventDefault(); 
+                            if (draftQty > 0) pushDraft(); 
+                          } 
+                        }}
+                      />
+                    ) : (
+                      <span className="text-[11px] font-black text-slate-400">الوحدة</span>
+                    )}
+                </div>
               </div>
 
-              <div className="lg:col-span-3">
-                <label className={LabelClass}>ملاحظة السطر</label>
-                <input
-                  type="text"
-                  className="InputClass"
-                  placeholder="اختياري..."
-                  value={draftLineNote}
-                  onChange={(e) => setDraftLineNote(e.target.value)}
-                />
-              </div>
-
+              {/* Action Button (Add/Update) */}
               <div className="lg:col-span-1">
-                <button
+                <motion.button
+                  whileHover={selectedItem ? { scale: 1.05 } : {}}
+                  whileTap={selectedItem ? { scale: 0.95 } : {}}
                   type="button"
-                  onClick={pushDraft}
-                  className="w-full btn-primary py-2.5 flex items-center justify-center shadow-lg"
-                  title="إضافة السطر"
+                  onClick={(e) => { 
+                    e.preventDefault(); 
+                    if (!selectedItem) {
+                      toast.error('يرجى اختيار صنف أولاً من قائمة البحث');
+                      itemNameRef.current?.focus();
+                      return;
+                    }
+                    pushDraft(); 
+                  }}
+                  className={`w-11 h-11 flex items-center justify-center rounded-full text-white transition-all shadow-lg relative overflow-hidden ${
+                    editingDraftId 
+                      ? 'bg-amber-500 hover:bg-amber-600' 
+                      : 'bg-emerald-600 hover:bg-emerald-700 cursor-pointer active:scale-95'
+                  }`}
+                  title={editingDraftId ? 'تحديث السطر (Enter)' : 'إضافة للجدول (Enter)'}
                 >
-                  <Plus size={24} />
-                </button>
+                  <motion.div 
+                    layoutId="ping"
+                    className="absolute inset-0 bg-white/20 rounded-full"
+                    animate={{ scale: [1, 1.5], opacity: [0.5, 0] }}
+                    transition={{ duration: 1, repeat: Infinity }}
+                  />
+                  {editingDraftId ? (
+                    <RefreshCw size={22} strokeWidth={3} className="animate-spin-slow" />
+                  ) : (
+                    <Plus size={28} strokeWidth={3} className="relative z-10" />
+                  )}
+                </motion.button>
               </div>
             </div>
           </div>
 
-          {/* Draft List */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between px-2">
-              <h4 className="text-lg font-black text-slate-800 dark:text-white">قائمة الأصناف المختارة</h4>
-              <span className={`text-xs font-black px-3 py-1 rounded-full border ${theme.badge}`}>
-                {modalDrafts.length} سطر
-              </span>
+          {/* ─── PREMIUM TABLE AREA ─── */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between px-4">
+               <h4 className="text-sm font-black text-slate-800 dark:text-white flex items-center gap-2">
+                  <Package size={16} className="text-primary" />
+                  قائمة المحتويات
+                  <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500">
+                    {modalDrafts.length}
+                  </span>
+               </h4>
             </div>
 
-            <div className="overflow-hidden rounded-3xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-inner">
-              <table className="w-full text-right text-sm">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+              <table className="w-full text-right">
                 <thead>
-                  <tr className="bg-slate-50/80 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 font-bold">
-                    <th className="px-6 py-4">الصنف</th>
-                    <th className="px-6 py-4 text-center">الكمية</th>
-                    <th className="px-6 py-4 text-center">الصلاحية</th>
-                    <th className="px-6 py-4 text-center">إجراء</th>
+                  <tr className="bg-slate-50 dark:bg-slate-800/80 text-slate-400 dark:text-slate-500 font-black text-[8px] uppercase tracking-[0.2em] border-b border-slate-100 dark:border-slate-800">
+                    <th className="px-4 py-2 w-10 text-center">م</th>
+                    <th className="px-4 py-2">الصنف</th>
+                    <th className="px-4 py-2">الشركة</th>
+                    <th className="px-4 py-2 text-center">الكمية</th>
+                    <th className="px-4 py-2 text-center">القسم</th>
+                    <th className="px-4 py-2 text-center">الوحدة</th>
+                    <th className="px-4 py-2 text-center">إجراء</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
-                  {modalDrafts.length === 0 ? (
-                    <tr>
-                      <td colSpan="4" className="px-6 py-12 text-center text-slate-400 font-bold">
-                        <div className="flex flex-col items-center gap-2">
-                          <CheckCircle size={32} className="opacity-20" />
-                          <span>لم يتم إضافة أي أصناف بعد</span>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    modalDrafts.map((d, idx) => (
-                      <motion.tr 
-                        key={d.draftId} 
-                        initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}
-                        className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors"
-                      >
-                        <td className="px-6 py-4">
-                          <div className="font-bold text-slate-800 dark:text-white">{d.item}</div>
-                          <div className="text-[10px] text-slate-400">{d.company} • {d.cat}</div>
+                  <AnimatePresence initial={false}>
+                    {modalDrafts.length === 0 ? (
+                      <tr>
+                        <td colSpan="7" className="px-4 py-10 text-center">
+                          <div className="flex flex-col items-center gap-2 opacity-30">
+                            <Box size={24} strokeWidth={1} />
+                            <span className="font-black text-[10px]">ابدأ بإضافة الأصناف أعلاه</span>
+                          </div>
                         </td>
-                        <td className="px-6 py-4 text-center font-black text-primary dark:text-primary-light text-base">
-                          {d.qty} <span className="text-[10px] opacity-60 font-bold">{d.unit}</span>
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          {d.expiryDate ? (
-                            <span className="bg-status-warning/10 text-status-warning text-[10px] px-2.5 py-1 rounded-full font-black border border-status-warning/20">
-                              {d.expiryDate}
+                      </tr>
+                    ) : (
+                      modalDrafts.map((d, idx) => (
+                        <motion.tr 
+                          key={d.draftId} 
+                          layout
+                          initial={{ opacity: 0, y: 10 }} 
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, x: -20 }}
+                          className={`group hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors ${editingDraftId === d.draftId ? 'bg-amber-50/50 dark:bg-amber-500/5' : ''}`}
+                        >
+                          <td className="px-4 py-1.5 text-center text-[9px] font-black text-slate-300">{modalDrafts.length - idx}</td>
+                          <td className="px-4 py-1.5">
+                            <div className="font-black text-slate-800 dark:text-white text-xs">{d.item}</div>
+                          </td>
+                          <td className="px-4 py-1.5">
+                            <div className="text-[9px] font-black text-slate-400">{d.company || '—'}</div>
+                          </td>
+                          <td className="px-4 py-1.5 text-center">
+                            <span className={`px-2 py-0.5 rounded-md font-black text-xs ${theme.qtyBadge}`}>
+                              {d.qty}
                             </span>
-                          ) : <span className="text-slate-300">—</span>}
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <button
-                            type="button"
-                            onClick={() => setModalDrafts((p) => p.filter((x) => x.draftId !== d.draftId))}
-                            className="p-2 text-status-danger hover:bg-status-danger/10 rounded-xl transition-colors"
-                          >
-                            <Trash2 size={18} />
-                          </button>
-                        </td>
-                      </motion.tr>
-                    ))
-                  )}
+                          </td>
+                          <td className="px-4 py-1.5 text-center text-[9px] font-bold text-slate-500">{d.cat}</td>
+                          <td className="px-4 py-1.5 text-center text-[10px] font-black text-slate-400">{d.unit}</td>
+                          <td className="px-4 py-1.5 text-center">
+                            <div className="flex items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button type="button" onClick={() => handleEditDraft(d)} className="w-7 h-7 flex items-center justify-center text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-all"><Pencil size={12} /></button>
+                              <button type="button" onClick={() => setModalDrafts(p => p.filter(x => x.draftId !== d.draftId))} className="w-7 h-7 flex items-center justify-center text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-all"><Trash2 size={12} /></button>
+                            </div>
+                          </td>
+                        </motion.tr>
+                      ))
+                    )}
+                  </AnimatePresence>
                 </tbody>
               </table>
             </div>
@@ -1496,6 +1762,7 @@ export default function VoucherWorkspace({ kind }) {
         onClose={() => setIsEditOpen(false)}
         onSubmit={handleEditSubmit}
         maxWidth="max-w-md"
+        height="h-auto"
         submitLabel="حفظ التغييرات"
         loading={loading}
         accent={cfg.accent}
@@ -1541,6 +1808,7 @@ export default function VoucherWorkspace({ kind }) {
         onClose={() => setIsDeleteOpen(false)}
         onSubmit={handleDeleteSubmit}
         maxWidth="max-w-md"
+        height="h-auto"
         submitLabel="نعم، احذف السطر"
         loading={loading}
         accent="rose"
@@ -1563,6 +1831,7 @@ export default function VoucherWorkspace({ kind }) {
         }}
         onSubmit={handleDeleteGroupSubmit}
         maxWidth="max-w-md"
+        height="h-auto"
         submitLabel="نعم، احذف السند كاملاً"
         loading={loading}
         accent="rose"
@@ -1578,6 +1847,124 @@ export default function VoucherWorkspace({ kind }) {
             </p>
           </div>
         </div>
+      </ModalWrapper>
+
+      {/* ── Confirm Close Modal ── */}
+      <ModalWrapper
+        title="تأكيد الخروج"
+        isOpen={isConfirmCloseOpen}
+        onClose={() => setIsConfirmCloseOpen(false)}
+        onSubmit={(e) => { e.preventDefault(); closeAddModal(); }}
+        maxWidth="max-w-sm"
+        height="h-auto"
+        submitLabel="نعم، تخلص من المسودة"
+        loading={false}
+        accent="rose"
+      >
+        <div className="flex flex-col items-center text-center py-4 space-y-4">
+          <div className="w-16 h-16 bg-rose-500/10 rounded-full flex items-center justify-center text-rose-500 mb-2">
+            <AlertTriangle size={32} />
+          </div>
+          <div>
+            <h4 className="text-xl font-black text-slate-800 dark:text-white mb-2">تجاهل التغييرات؟</h4>
+            <p className="text-slate-500 dark:text-slate-400 font-bold">
+              لديك أصناف لم يتم حفظها في المسودة. هل أنت متأكد من رغبتك في الخروج (Enter)؟
+            </p>
+          </div>
+        </div>
+      </ModalWrapper>
+
+      {/* ── Confirm Save Modal ── */}
+      <ModalWrapper
+        title="تأكيد حفظ السند"
+        isOpen={isConfirmSaveOpen}
+        onClose={() => setIsConfirmSaveOpen(false)}
+        onSubmit={executeSave}
+        maxWidth="max-w-sm"
+        height="h-auto"
+        submitLabel="نعم، احفظ السند"
+        loading={loading}
+        accent={cfg.accent}
+      >
+        <div className="flex flex-col items-center text-center py-4 space-y-4">
+          <div className={`w-16 h-16 bg-${cfg.accent}-500/10 rounded-full flex items-center justify-center text-${cfg.accent}-500 mb-2`}>
+            <CheckCircle size={32} />
+          </div>
+          <div>
+            <h4 className="text-xl font-black text-slate-800 dark:text-white mb-2">تأكيد الحفظ</h4>
+            <p className="text-slate-500 dark:text-slate-400 font-bold">
+              هل أنت متأكد من حفظ هذا السند وإدراجه في النظام نهائياً (Enter)؟
+            </p>
+          </div>
+        </div>
+      </ModalWrapper>
+
+      {/* ── Details Popup Modal ── */}
+      <ModalWrapper
+        title={expandedGroupId ? (() => {
+          const g = voucherGroups.find(x => x.groupId === expandedGroupId);
+          if (!g) return 'تفاصيل السند';
+          const typeLabel = kind === 'in' ? 'إدخال' : 'إخراج';
+          const partyLabel = kind === 'in' ? 'المورد' : 'المندوب';
+          const partyName = kind === 'in' ? g.supplier : g.rep;
+          return `تفاصيل سند ${typeLabel} - ${partyLabel}: ${partyName || '—'}`;
+        })() : 'تفاصيل السند'}
+        isOpen={!!expandedGroupId}
+        onClose={() => setExpandedGroupId(null)}
+        maxWidth="max-w-5xl"
+        height="h-auto"
+        hideFooter={true}
+        accent={cfg.accent}
+      >
+        {expandedGroupId && (() => {
+          const g = voucherGroups.find(x => x.groupId === expandedGroupId);
+          if (!g) return null;
+          return (
+            <div className="space-y-6">
+              <div className="grid grid-cols-3 gap-4">
+                <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800">
+                  <p className="text-[10px] font-black text-slate-400 mb-1 uppercase">رقم السند</p>
+                  <p className="text-sm font-black text-slate-800 dark:text-white">{g.voucherCode || '—'}</p>
+                </div>
+                <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800">
+                  <p className="text-[10px] font-black text-slate-400 mb-1 uppercase">تاريخ السند</p>
+                  <p className="text-sm font-black text-slate-800 dark:text-white">{g.date}</p>
+                </div>
+                <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800">
+                  <p className="text-[10px] font-black text-slate-400 mb-1 uppercase">إجمالي القطع</p>
+                  <p className="text-sm font-black text-primary">{g.lines.filter(l => !l.is_summary).reduce((sum, l) => sum + Number(l.qty || 0), 0)}</p>
+                </div>
+              </div>
+
+              <div className="bg-white dark:bg-slate-900 rounded-[1.5rem] border border-slate-100 dark:border-slate-800 overflow-hidden shadow-sm">
+                <table className="w-full text-right text-xs">
+                  <thead className="bg-slate-50 dark:bg-slate-800 text-slate-400 font-black uppercase text-[9px] tracking-widest">
+                    <tr>
+                      <th className="px-4 py-3 text-center w-10">م</th>
+                      <th className="px-4 py-3">اسم الصنف</th>
+                      <th className="px-4 py-3">الشركة</th>
+                      <th className="px-4 py-3 text-center">الكمية</th>
+                      <th className="px-4 py-3 text-center">القسم</th>
+                      <th className="px-4 py-3 text-center">وحدة القياس</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
+                    {g.lines.filter(l => !l.is_summary).map((l, idx) => (
+                      <tr key={l.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors font-bold">
+                        <td className="px-4 py-3 text-center text-slate-400">{idx + 1}</td>
+                        <td className="px-4 py-3 text-slate-800 dark:text-slate-200">{l.item}</td>
+                        <td className="px-4 py-3 text-slate-500">{l.company || '—'}</td>
+                        <td className="px-4 py-3 text-center font-black text-emerald-600 tabular-nums">{l.qty}</td>
+                        <td className="px-4 py-3 text-center text-slate-500 text-[10px]">{l.cat || '—'}</td>
+                        <td className="px-4 py-3 text-center text-slate-500 text-[10px]">{l.unit || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })()}
       </ModalWrapper>
     </div>
   );

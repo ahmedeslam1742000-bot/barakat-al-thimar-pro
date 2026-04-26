@@ -4,8 +4,8 @@ import Dashboard from './components/Dashboard';
 import Items from './components/Items';
 import StockOut from './components/StockOut';
 import Returns from './pages/Returns';
-import CashIn from './pages/CashIn';
-import CashOut from './pages/CashOut';
+import VoucherIn from './pages/VoucherIn';
+import VoucherOutward from './pages/VoucherOutward';
 import Reps from './pages/Reps';
 import WarehouseInsights from './pages/WarehouseInsights';
 import WarehouseLogs from './pages/WarehouseLogs';
@@ -14,6 +14,7 @@ import StockInventory from './pages/StockInventory';
 import Archive from './pages/Archive';
 import InboundRecords from './pages/InboundRecords';
 import InboundItems from './pages/InboundItems';
+import StockCard from './pages/StockCard';
 import Placeholder from './components/Placeholder';
 import Login from './components/Login';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -28,8 +29,8 @@ const viewConfig = {
   'stock-in': { component: InboundItems, title: 'الوارد', icon: TrendingUp },
   'stock-out': { component: StockOut, title: 'صادر', icon: ArrowUpRight },
   'returns': { component: Returns, title: 'مرتجع', icon: RotateCcw },
-  'voucher-in': { component: CashIn, title: 'سند إدخال', icon: Download },
-  'voucher-outward': { component: CashOut, title: 'سند إخراج', icon: Upload },
+  'voucher-in': { component: VoucherIn, title: 'سند إدخال', icon: Download },
+  'voucher-outward': { component: VoucherOutward, title: 'سند إخراج', icon: Upload },
   'warehouse-insights': { component: WarehouseInsights },
   'warehouse-logs': { component: WarehouseLogs, title: 'سجلات المستودع', icon: Activity },
   'reps': { component: Reps, title: 'المناديب', icon: User },
@@ -38,6 +39,7 @@ const viewConfig = {
   'inventory': { component: StockInventory, title: 'المخزون الحالي', icon: ClipboardList },
   'archive': { component: Archive, title: 'أرشيف التعاملات', icon: ArchiveIcon },
   'inbound-records': { component: InboundRecords, title: 'أذونات الواردات', icon: History },
+  'stock-card': { component: StockCard, title: 'الرصيد التراكمي', icon: History },
   'price-list': { title: 'الأسعار', icon: Tags },
   'settings': { component: Settings },
 };
