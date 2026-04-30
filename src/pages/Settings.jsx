@@ -594,10 +594,10 @@ function S8MasterBackup({ settings, update }) {
 
       // Transactions
       if (collections.transactions) {
-        const { data } = await supabase.from('transactions').select('timestamp, date, type, item, company, qty, unit, rep, line_note, note').order('timestamp', { ascending: false });
+        const { data } = await supabase.from('transactions').select('timestamp, date, type, item, company, qty, unit, rep, notes, note').order('timestamp', { ascending: false });
         const rows = (data || []).map(r => {
           const ts = r.timestamp ? new Date(r.timestamp).toLocaleDateString('ar-SA') : r.date||'';
-          return { 'التاريخ': ts, 'النوع': r.type||'', 'الصنف': r.item||'', 'الشركة': r.company||'', 'الكمية': r.qty??'', 'الوحدة': r.unit||'', 'المندوب': r.rep||'', 'ملاحظة': r.line_note||r.note||'' };
+          return { 'التاريخ': ts, 'النوع': r.type||'', 'الصنف': r.item||'', 'الشركة': r.company||'', 'الكمية': r.qty??'', 'الوحدة': r.unit||'', 'المندوب': r.rep||'', 'ملاحظة': r.notes||r.note||'' };
         });
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{}]), 'الحركات');
       }

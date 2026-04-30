@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Package, TrendingUp, Truck, AlertTriangle, ArrowUpRight, ArrowDownRight, ArrowDownLeft,
   Plus, X, FileText, RotateCcw, Search, Trash2, Bell, Clock, CheckCircle2, AlertOctagon,
-  Timer, History, ChevronDown, Layers, FileCheck, FileInput, Download, Upload, FileOutput, Pencil, Image, Loader2, Eye, CheckCircle, Save, List, Printer
+  Timer, History, ChevronDown, Layers, FileCheck, FileInput, Download, Upload, FileOutput, Pencil, Image, Loader2, Eye, CheckCircle, Save, List, Printer, User, Box, Calendar, RefreshCw,
+  Activity
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
@@ -311,8 +312,9 @@ export default function Dashboard() {
   // ---  RENAMED STATE VARIABLES TO FORCIBLY BYPASS VITE HMR --- //
   const [items, setItems] = useState([]);
   const [dbTransactionsList, setDbTransactionsList] = useState([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [showVoucherHistory, setShowVoucherHistory] = useState(false);
 
-  // Dynamic Locations State
   const [locations, setLocations] = useState(['مستودع الرياض', 'مستودع جدة', 'المركز الرئيسي', 'مورد خارجي']);
   const [stockSearchActiveIndex, setStockSearchActiveIndex] = useState(-1);
 
@@ -553,7 +555,7 @@ export default function Dashboard() {
         if (isItemModalOpen) setIsItemModalOpen(false);
         if (isStockInModalOpen) setIsStockInModalOpen(false);
         if (isTransactionDetailOpen) setIsTransactionDetailOpen(false);
-        if (isVoucherDetailOpen) setIsVoucherDetailOpen(false);
+        if (isVoucherDetailOpen) setIsVoucherDetailOpen(false); setShowVoucherHistory(false);
       }
     };
     window.addEventListener('keydown', handleGlobalKeys);
@@ -588,7 +590,7 @@ export default function Dashboard() {
       if (!isVoucherDetailOpen) return;
       if (event.key === 'Enter' || event.key === 'Escape') {
         event.preventDefault();
-        setIsVoucherDetailOpen(false);
+        setIsVoucherDetailOpen(false); setShowVoucherHistory(false);
       }
     };
     window.addEventListener('keydown', handleVoucherDetailKeys);
@@ -622,7 +624,7 @@ export default function Dashboard() {
       
       const { data: transData, error: transError } = await supabase
         .from('transactions')
-        .select('id, type, timestamp, item, company, qty, unit, cat, supplier, beneficiary, loc, location, rep, recipient, reference_number, batch_id, is_summary, item_id, notes')
+        .select('id, type, timestamp, item, company, qty, unit, cat, supplier, beneficiary, loc, location, rep, recipient, reference_number, batch_id, is_summary, item_id, notes, status')
         .order('timestamp', { ascending: false })
         .limit(200);
         
@@ -635,8 +637,17 @@ export default function Dashboard() {
           voucherCode: d.reference_number || '',
           voucherGroupId: d.batch_id,
           batchId: d.batch_id,
-          isInvoice: false, // Column doesn't exist
-          isFunctional: d.type === 'سند إدخال' || d.type === 'سند إخراج' || d.type === 'outward' || d.type === 'in' || (d.item && (d.item.includes('ملخص') || d.item.includes('عهده')))
+          isInvoice: d.status === 'مفوتر' || (d.notes && d.notes.includes('[تم إصدار الفاتورة]')),
+          isFunctional: d.type === 'سند إدخال' || d.type === 'سند إخراج' || d.type === 'outward' || d.type === 'in' || (d.item && (d.item.includes('ملخص') || d.item.includes('عهده'))),
+          isEdited: (d.notes && d.notes.includes('[تعديل حديث]')),
+          historyLog: (() => {
+            if (!d.notes) return null;
+            const match = d.notes.match(/<!--(\{.*\})-->/);
+            if (match) {
+              try { return JSON.parse(match[1]); } catch(e) { return null; }
+            }
+            return null;
+          })()
         })));
       }
     } catch (err) {
@@ -735,9 +746,10 @@ export default function Dashboard() {
           kind: tx.type === FUNCTIONAL_INBOUND_TYPE ? 'in' : 'outward',
           clientName: tx.rep || tx.supplier || tx.loc || 'غير محدد',
           timestamp: txDate,
-          invoiced: tx.invoiced === true,
-          deducted: tx.deducted === true,
+          invoiced: false, // Will be computed from all lines below
+          deducted: false,
           isFunctional: true,
+          line_note: tx.notes || '',
           lines: [],
         });
       }
@@ -748,30 +760,62 @@ export default function Dashboard() {
         quantity: Number(tx.qty || 0),
         timestamp: txDate,
       });
-      group.invoiced = group.invoiced && tx.invoiced === true;
-      group.deducted = group.deducted && tx.deducted === true;
+      // Mark as invoiced if ANY line has 'مفوتر' status OR invoice note (OR logic)
+      const txIsInvoiced = 
+        tx.status === 'مفوتر' || 
+        tx.invoiced === true || 
+        (tx.notes && (
+          tx.notes.includes('[تمت الفوترة]') || 
+          tx.notes.includes('[تم إصدار الفاتورة]')
+        ));
+      
+      const txIsCancelled = tx.status === 'cancelled';
+
+      if (txIsInvoiced) {
+        group.invoiced = true;
+        // Extract invoice date from notes if present
+        if (tx.notes && tx.notes.includes('[تم إصدار الفاتورة: ')) {
+          const match = tx.notes.match(/\[تم إصدار الفاتورة: (.*?)\]/);
+          if (match && match[1]) group.invoiceDate = match[1];
+        }
+      }
+      if (txIsCancelled) {
+        group.isCancelled = true;
+      }
       if (txDate > group.timestamp) group.timestamp = txDate;
     });
 
     return Array.from(groupedVouchers.values())
-      .map((voucher) => ({
-        ...voucher,
-        itemName: voucher.lines.map(line => line.item).join('، '),
-        quantity: voucher.lines.reduce((sum, line) => sum + Number(line.qty || 0), 0),
-      }))
+      .map((voucher) => {
+        // Pick the note containing history JSON if available, fallback to first line's note
+        const richNote = voucher.lines.find(l => (l.notes || '').includes('<!--'));
+        if (richNote) voucher.line_note = richNote.notes;
+        return {
+          ...voucher,
+          itemName: voucher.lines.map(line => line.item).join('، '),
+          quantity: voucher.lines.reduce((sum, line) => sum + Number(line.qty || 0), 0),
+        };
+      })
       .sort((a, b) => b.timestamp - a.timestamp);
   }, [dbTransactionsList]);
 
   const pendingVouchers = useMemo(
     () => functionalVoucherGroups
-      .filter(v => !v.invoiced)
+      .filter(v => !v.invoiced && !v.isCancelled)
       .sort((a, b) => b.timestamp - a.timestamp),
     [functionalVoucherGroups]
   );
 
   const completedVouchers = useMemo(
     () => functionalVoucherGroups
-      .filter(v => v.invoiced)
+      .filter(v => v.invoiced && !v.isCancelled)
+      .sort((a, b) => b.timestamp - a.timestamp),
+    [functionalVoucherGroups]
+  );
+
+  const cancelledVouchers = useMemo(
+    () => functionalVoucherGroups
+      .filter(v => v.isCancelled)
       .sort((a, b) => b.timestamp - a.timestamp),
     [functionalVoucherGroups]
   );
@@ -788,19 +832,22 @@ export default function Dashboard() {
 
   // --- Aggregations --- //
   const stockInCount = dbTransactionsList
+    .filter(t => t.is_summary !== true && t.status !== 'cancelled')
     .filter(t => t.type === 'in' || t.type === 'Restock' || (t.type === FUNCTIONAL_INBOUND_TYPE && t.isFunctional === true))
-    .reduce((sum, t) => {
-      if (t.type === 'in') return sum + Number(t.total_qty || 0);
-      return sum + Number(t.qty || 0);
-    }, 0);
+    .reduce((sum, t) => sum + Number(t.qty || 0), 0);
+
   const salesCount = dbTransactionsList
+    .filter(t => t.is_summary !== true && t.status !== 'cancelled')
     .filter(t => t.type === 'out' || (t.type === 'Issue' && t.isInvoice === true) || (t.type === FUNCTIONAL_OUTBOUND_TYPE && t.isFunctional === true))
-    .reduce((sum, t) => {
-      if (t.type === 'out') return sum + Number(t.total_qty || 0);
-      return sum + Number(t.qty || 0);
-    }, 0);
-  const returnsCount = dbTransactionsList.filter(t => t.type === 'Return').reduce((sum, t) => sum + Number(t.qty || 0), 0);
-  const damageCount = dbTransactionsList.filter(t => t.status === 'مرتجع تالف').reduce((sum, t) => sum + Number(t.qty || 0), 0);
+    .reduce((sum, t) => sum + Math.abs(Number(t.qty || 0)), 0);
+
+  const returnsCount = dbTransactionsList
+    .filter(t => t.is_summary !== true && t.type === 'Return' && t.status !== 'cancelled')
+    .reduce((sum, t) => sum + Number(t.qty || 0), 0);
+
+  const damageCount = dbTransactionsList
+    .filter(t => t.is_summary !== true && t.status === 'مرتجع تالف' && t.status !== 'cancelled')
+    .reduce((sum, t) => sum + Number(t.qty || 0), 0);
 
 
 
@@ -1046,8 +1093,19 @@ export default function Dashboard() {
   const handleAddInvoiceItemToTable = () => {
     if (!currentInvoiceItem.selectedItem) return toast.error("حدد الصنف أولاً!");
     if (!currentInvoiceItem.qty || currentInvoiceItem.qty <= 0) return toast.error("أدخل كمية صحيحة!");
-    if (Number(currentInvoiceItem.qty) > currentInvoiceItem.selectedItem.stockQty) {
-      return toast.error(`الكمية غير كافية! الرصيد المتوفر ${currentInvoiceItem.selectedItem.stockQty}`);
+    
+    // Account for voucher quantity if editing a voucher-to-invoice
+    let alreadyReserved = 0;
+    if (sourceVoucher) {
+      const vLine = (sourceVoucher.lines || []).find(vl => vl.item_id === currentInvoiceItem.selectedItem.id);
+      if (vLine) alreadyReserved = Number(vLine.qty || 0);
+    }
+
+    const requestedDelta = Number(currentInvoiceItem.qty) - alreadyReserved;
+
+    if (requestedDelta > 0 && requestedDelta > currentInvoiceItem.selectedItem.stockQty) {
+      const availableTotal = (currentInvoiceItem.selectedItem.stockQty || 0) + alreadyReserved;
+      return toast.error(`الكمية غير كافية! الرصيد الإجمالي المتاح هو ${availableTotal} (شاملاً رصيد السند)`);
     }
     
     setInvoiceForm({...invoiceForm, items: [
@@ -1083,11 +1141,24 @@ export default function Dashboard() {
     
     for (let i = 0; i < invoiceForm.items.length; i++) {
         const line = invoiceForm.items[i];
-        const invItem = items.find(inv => inv.id === line.selectedItem.id);
-        if (!invItem || Number(line.qty) > invItem.stockQty) {
+        const invItem = items.find(inv => inv.id === (line.selectedItem?.id || line.selectedItemId));
+        
+        // If this is a voucher-to-invoice conversion, the 'line.qty' is already 
+        // partially or fully deducted from stockQty. 
+        // We only care about the DELTA (the difference).
+        let alreadyDeducted = 0;
+        if (sourceVoucher) {
+            const vLine = (sourceVoucher.lines || []).find(vl => vl.item_id === (line.selectedItem?.id || line.selectedItemId));
+            if (vLine) alreadyDeducted = Number(vLine.qty || 0);
+        }
+
+        const requestedDelta = Number(line.qty) - alreadyDeducted;
+
+        if (!invItem || (requestedDelta > 0 && requestedDelta > invItem.stockQty)) {
             setInvoiceErrors({ [`qty-${i}`]: true });
             playWarning();
-            return toast.error(`الكمية غير كافية لـ "${line.selectedItem.name}"! الرصيد المتوفر ${invItem?.stockQty || 0} فقط ⛔️`);
+            const availableTotal = (invItem?.stockQty || 0) + alreadyDeducted;
+            return toast.error(`الكمية غير كافية لـ "${line.selectedItem?.name || line.name}"! الرصيد الإجمالي المتاح هو ${availableTotal} فقط (شاملاً رصيد السند) ⛔️`);
         }
     }
     setInvoiceErrors({});
@@ -1096,112 +1167,200 @@ export default function Dashboard() {
 
   const performInvoiceSave = async () => {
     setShowInvoiceSaveConfirm(false);
-    setLoading(true);
     try {
-        const processPromises = [];
+      setLoading(true);
+      const now = new Date();
+      const invoiceTimestamp = now.toLocaleString('ar-SA', {
+        year: 'numeric', month: 'long', day: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      });
 
-        // CRITICAL FIX: Only deduct stock if this is NOT a voucher invoice
-        // Vouchers (سند إخراج) already deduct stock when created
-        const shouldDeductInventory = !sourceVoucher || sourceVoucher.kind !== 'outward' || sourceVoucher.deducted !== true;
-        if (shouldDeductInventory) {
-            const deductions = {};
-            invoiceForm.items.forEach(it => {
-                const id = it.selectedItem.id || it.selectedItemId;
-                if (!deductions[id]) deductions[id] = { id: id, qty: 0, currentStock: 0 };
-                deductions[id].qty += Number(it.qty);
-            });
+      // 1. Skip optional invoices table (doesn't exist)
+      // Removed to avoid 400 errors
 
-            for (const [id, payload] of Object.entries(deductions)) {
-                const currentItem = items.find(i => i.id === id);
-                if (currentItem) {
-                    const newStock = currentItem.stockQty - payload.qty;
-                    if (newStock < 50) playWarning();
-                    await supabase.from('products').update({ stock_qty: newStock }).eq('id', id);
-                }
-            }
+      // 2. Sync Transactions & Stock
+      if (sourceVoucher) {
+        const batchId = sourceVoucher.voucherGroupId || sourceVoucher.id;
+        const voucherLines = sourceVoucher.lines || [];
+        const invoiceLines = invoiceForm.items;
+
+        console.log('🔄 Invoice Save Starting...', {
+          batchId,
+          voucherLinesCount: voucherLines.length,
+          invoiceLinesCount: invoiceLines.length,
+          sourceVoucherKeys: Object.keys(sourceVoucher),
+          firstLineId: voucherLines[0]?.id,
+          firstLineItemId: voucherLines[0]?.item_id,
+        });
+
+        // STRATEGY: Update ALL transactions in this batch at once using batch_id
+        // We only update status to 'مفوتر'. We DON'T touch notes to preserve user's comments.
+        const { error: batchUpdateErr, count: batchCount } = await supabase
+          .from('transactions')
+          .update({ 
+            status: 'مفوتر'
+          })
+          .eq('batch_id', batchId);
+
+        console.log('📦 Batch update result:', { batchUpdateErr, batchCount, batchId });
+
+        if (batchUpdateErr) {
+          console.warn('⚠️ Batch update by batch_id failed, trying individual updates...');
+          
+          for (const vLine of voucherLines) {
+            await supabase
+              .from('transactions')
+              .update({ 
+                status: 'مفوتر',
+                // Append if we have notes
+                notes: vLine.notes ? `${vLine.notes} [تم إصدار الفاتورة]` : '[تم إصدار الفاتورة]'
+              })
+              .eq('id', vLine.id);
+          }
         }
 
-        const batchId = Date.now().toString();
-        const userId = currentUser?.email?.split('@')[0] || 'مدير النظام';
+        // VERIFY: Read back to confirm the write actually persisted
+        const { data: verifyData } = await supabase
+          .from('transactions')
+          .select('id, status, notes')
+          .eq('batch_id', batchId)
+          .limit(5);
         
-        // Log transactions
-        const txsToInsert = invoiceForm.items.map(it => ({
-            item: `${it.selectedItem.name} - ${it.selectedItem.company}`,
-            type: 'out',
-            qty: Number(it.qty),
-            date: new Date().toLocaleTimeString('ar-SA'),
-            timestamp: new Date().toISOString(),
-            status: 'مكتمل',
-            loc: invoiceForm.client,
-            rep: invoiceForm.rep,
-            is_invoice: true,
-            user_id: null,
-            batch_id: batchId,
-            source_voucher_id: sourceVoucher?.voucherGroupId || sourceVoucher?.id || null,
-            item_id: it.selectedItem.id || it.selectedItemId
-        }));
-        await supabase.from('transactions').insert(txsToInsert);
-
-        // CREATE INVOICE RECORD
-        const { data: insertedInvoice, error: invError } = await supabase.from('invoices').insert({
-          status: 'issued',
-          recipient: invoiceForm.client,
-          rep: invoiceForm.rep,
-          created_by: userId,
-          issued_at: new Date().toISOString()
-        }).select().single();
+        console.log('✅ Verification read-back:', verifyData);
         
-        if (insertedInvoice && !invError) {
-          const invItemsToInsert = invoiceForm.items.map(it => ({
-            invoice_id: insertedInvoice.id,
-            product_id: it.selectedItem.id || it.selectedItemId,
-            item_name: it.selectedItem.name,
-            company: it.selectedItem.company,
-            cat: it.cat || it.selectedItem.cat,
-            unit: it.unit || it.selectedItem.unit,
-            quantity: Number(it.qty)
-          }));
-          await supabase.from('invoice_items').insert(invItemsToInsert);
-        }
+        const verified = verifyData && verifyData.some(v => v.status === 'مفوتر');
 
-        // If this invoice came from a voucher, mark the voucher as invoiced
-        if (sourceVoucher) {
-          const now = new Date();
-          const y = now.getFullYear();
-          const m = String(now.getMonth() + 1).padStart(2, '0');
-          const d = String(now.getDate()).padStart(2, '0');
-          const h = String(now.getHours()).padStart(2, '0');
-          const min = String(now.getMinutes()).padStart(2, '0');
-          const invoiceTimestamp = `${y}/${m}/${d} - ${h}:${min}`;
-
-          // Update all voucher line transactions sequentially
-          for (const line of sourceVoucher.lines) {
-              await supabase.from('transactions').update({
-                  invoiced: true,
-                  deducted: true,
-                  invoice_date: invoiceTimestamp
-              }).eq('id', line.id);
+        if (!verified) {
+          console.error('❌ VERIFICATION FAILED! Data did not persist.');
+          const vCode = sourceVoucher.voucherCode || sourceVoucher.reference_number;
+          console.log('Trying alternative: update by reference_number...', vCode);
+          
+          if (vCode) {
+            await supabase
+              .from('transactions')
+              .update({ status: 'مفوتر' })
+              .eq('reference_number', vCode);
           }
           
-          // Update local state with invoiceDate
-          setInvoiceTimestamps(prev => ({...prev, [sourceVoucher.id]: invoiceTimestamp}));
-          setVoucherTransactions(prev =>
-            prev.map(v => v.id === sourceVoucher.id ? { ...v, invoiced: true, deducted: true, invoiceDate: invoiceTimestamp } : v)
-          );
-          if (detailVoucher && detailVoucher.id === sourceVoucher.id) {
-            setDetailVoucher(prev => ({...prev, invoiced: true, deducted: true, invoiceDate: invoiceTimestamp}));
+          // Also try updating each line by ID one more time
+          for (const vLine of voucherLines) {
+            await supabase
+              .from('transactions')
+              .update({ 
+                status: 'مفوتر',
+                notes: vLine.notes ? `${vLine.notes} [تم إصدار الفاتورة]` : '[تم إصدار الفاتورة]'
+              })
+              .eq('id', vLine.id);
           }
-          setSourceVoucher(null);
         }
 
-        toast.success(`تم إصدار فاتورة بنجاح ${sourceVoucher ? 'وتوثيق السند' : 'وتحجيم الأرصدة'} ✅`);
-        playSuccess();
-        performInvoiceReset();
-        fetchInitialData();
+        // Handle stock adjustments for qty changes
+        for (const vLine of voucherLines) {
+          const matchingInvItem = invoiceLines.find(it => 
+            (it.selectedItem?.id === vLine.item_id) || 
+            (it.selectedItemId === vLine.item_id)
+          );
+
+          if (matchingInvItem) {
+            const diff = Number(matchingInvItem.qty) - Number(vLine.qty);
+            if (diff !== 0) {
+              const currentItem = items.find(i => i.id === vLine.item_id);
+              if (currentItem) {
+                const newStock = (currentItem.stockQty || 0) - diff;
+                await supabase.from('products').update({ stock_qty: newStock }).eq('id', vLine.item_id);
+              }
+              await supabase.from('transactions').update({ qty: Number(matchingInvItem.qty) }).eq('id', vLine.id);
+            }
+          } else {
+            // Item deleted in review - return stock
+            const currentItem = items.find(i => i.id === vLine.item_id);
+            if (currentItem) {
+              const newStock = (currentItem.stockQty || 0) + Number(vLine.qty);
+              await supabase.from('products').update({ stock_qty: newStock }).eq('id', vLine.item_id);
+            }
+          }
+        }
+
+        // Handle new items added in review
+        for (const invItem of invoiceLines) {
+          const itemId = invItem.selectedItem?.id || invItem.selectedItemId;
+          if (!itemId) continue;
+          if (!voucherLines.some(vl => vl.item_id === itemId)) {
+            const currentItem = items.find(i => i.id === itemId);
+            if (currentItem) {
+              const newStock = (currentItem.stockQty || 0) - Number(invItem.qty);
+              await supabase.from('products').update({ stock_qty: newStock }).eq('id', itemId);
+            }
+            await supabase.from('transactions').insert({
+              item: invItem.name || invItem.selectedItem?.name,
+              item_id: itemId,
+              type: sourceVoucher.type || 'outward',
+              qty: Number(invItem.qty),
+              batch_id: batchId,
+              reference_number: sourceVoucher.voucherCode,
+              beneficiary: sourceVoucher.clientName,
+              rep: invoiceForm.rep,
+              timestamp: new Date().toISOString(),
+              status: 'مفوتر',
+              notes: `[إضافة مراجعة] ${statusNotes}`
+            });
+          }
+        }
+        
+        setInvoiceTimestamps(prev => ({...prev, [sourceVoucher.id]: invoiceTimestamp}));
+        setSourceVoucher(null);
+      } else {
+        // --- 3. REGULAR SALES INVOICE (No Voucher) ---
+        console.log('📝 Direct Invoice Save Starting...', {
+          client: invoiceForm.client,
+          itemsCount: invoiceForm.items.length
+        });
+
+        const batchId = `INV-${Date.now()}`;
+        const txsToInsert = [];
+
+        for (const line of invoiceForm.items) {
+          const itemId = line.selectedItem?.id || line.selectedItemId;
+          if (!itemId) continue;
+
+          // Fetch fresh stock to avoid race conditions
+          const { data: latestProd } = await supabase.from('products').select('stock_qty').eq('id', itemId).single();
+          const currentStock = latestProd?.stock_qty || 0;
+          const newStock = currentStock - Number(line.qty);
+          
+          await supabase.from('products').update({ stock_qty: newStock }).eq('id', itemId);
+
+          txsToInsert.push({
+            item: line.name || line.selectedItem?.name,
+            item_id: itemId,
+            type: 'Issue',
+            qty: Number(line.qty),
+            date: invoiceForm.date,
+            timestamp: new Date().toISOString(),
+            status: 'مفوتر',
+            beneficiary: invoiceForm.client,
+            rep: invoiceForm.rep,
+            batch_id: batchId,
+            reference_number: batchId,
+            notes: `فاتورة مباشرة - ${invoiceForm.client}`
+          });
+        }
+
+        if (txsToInsert.length > 0) {
+          const { error: insErr } = await supabase.from('transactions').insert(txsToInsert);
+          if (insErr) throw insErr;
+        }
+      }
+
+      toast.success("تم تأكيد الفاتورة (إجراء روتيني) - المخزون تم التعامل معه مسبقاً في السند ✅");
+      playSuccess();
+      performInvoiceReset();
+      fetchInitialData();
     } catch (err) {
-        toast.error("حدث خطأ في النظام. قد تحتاج لمراجعة اتصالك.");
+      console.error("❌ performInvoiceSave crash:", err);
+      toast.error("حدث خطأ تقني أثناء الحفظ. يرجى مراجعة الكونسول.");
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
   };
   
@@ -1210,7 +1369,7 @@ export default function Dashboard() {
     const handleGlobalEsc = (event) => {
       if (event.key === 'Escape') {
         if (isTransactionDetailOpen) setIsTransactionDetailOpen(false);
-        if (isVoucherDetailOpen) setIsVoucherDetailOpen(false);
+        if (isVoucherDetailOpen) setIsVoucherDetailOpen(false); setShowVoucherHistory(false);
       }
     };
     window.addEventListener('keydown', handleGlobalEsc);
@@ -1441,22 +1600,22 @@ export default function Dashboard() {
     if (lineItems.length > 0) {
       setInvoiceForm({
         client: voucher.clientName || voucher.recipient || 'عميل نقدي',
-        rep: voucher.rep || 'أحمد المندوب',
+        rep: '',
         date: new Date().toISOString().split('T')[0],
         items: lineItems
       });
       setCurrentInvoiceItem({
-        name: lineItems[0].name,
-        selectedItem: lineItems[0].selectedItem,
-        cat: lineItems[0].cat,
-        unit: lineItems[0].unit,
-        qty: String(lineItems[0].qty)
+        name: '',
+        selectedItem: null,
+        cat: '',
+        unit: '',
+        qty: ''
       });
     } else {
       // Fallback: create empty invoice with just recipient
       setInvoiceForm({
         client: voucher.clientName || voucher.recipient || 'عميل نقدي',
-        rep: voucher.rep || 'أحمد المندوب',
+        rep: '',
         date: new Date().toISOString().split('T')[0],
         items: []
       });
@@ -1470,120 +1629,107 @@ export default function Dashboard() {
     }
 
     // Close voucher detail modal and open invoice modal
-    setIsVoucherDetailOpen(false);
+    setIsVoucherDetailOpen(false); setShowVoucherHistory(false);
     setIsVoucherInvoice(true); // Enable read-only mode
     setIsSalesModalOpen(true);
   };
 
-  // --- 6. MARK VOUCHER AS INVOICED (opens invoice modal) --- //
-  const handleMarkAsInvoiced = () => {
-    if (!selectedVoucher) return;
-    if (selectedVoucher.kind === 'in') {
-      finalizeInboundVoucher(selectedVoucher);
+  // --- 6. VOUCHER ACTIONS (Delete, Edit, Mark as Invoiced) --- //
+  const handleDeleteVoucher = async (voucher) => {
+    if (!window.confirm('هل أنت متأكد من حذف هذا السند نهائياً؟ سيتم استرجاع الكميات للمخزن.')) return;
+    
+    try {
+      setLoading(true);
+      const lines = voucher.lines || [];
+      
+      // 1. Return stock for each line if it was deducted
+      for (const line of lines) {
+        if (line.deducted !== false) { // Assuming vouchers usually deduct stock
+           const currentItem = items.find(i => i.id === line.item_id);
+           if (currentItem) {
+             const type = line.type || '';
+             const isIn = type.includes('إدخال') || type === 'Restock';
+             const isOut = type.includes('إخراج') || type === 'Issue' || type === 'out';
+             
+             // If it was Inbound (+stock), subtract to reverse
+             // If it was Outbound (-stock), add to reverse
+             const delta = isIn ? -Number(line.qty) : Number(line.qty);
+             const newStock = currentItem.stockQty + delta;
+             
+             await supabase.from('products').update({ stock_qty: Math.max(0, newStock) }).eq('id', line.item_id);
+           }
+        }
+      }
+      
+      // 2. Delete transactions from DB
+      const { error } = await supabase.from('transactions').delete().eq('batch_id', voucher.id);
+      if (error) throw error;
+      
+      toast.success('تم حذف السند وإرجاع الكميات للمخزن بنجاح ✅');
+      playSuccess();
+      setIsVoucherDetailOpen(false); setShowVoucherHistory(false);
+      fetchInitialData();
+    } catch (err) {
+      toast.error('حدث خطأ أثناء حذف السند.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEditVoucher = (voucher) => {
+    const view = voucher.kind === 'in' ? 'voucher-in' : 'voucher-outward';
+    // Use localStorage to pass the editing context to the workspace
+    localStorage.setItem('edit_voucher_id', voucher.id);
+    setActiveView(view);
+    setIsVoucherDetailOpen(false); setShowVoucherHistory(false);
+  };
+
+  const handleMarkAsInvoiced = async (voucher = null) => {
+    const v = voucher || selectedVoucher;
+    if (!v) return;
+
+    if (v.kind === 'in') {
+      // For inbound vouchers: just mark as invoiced/completed in DB
+      try {
+        setLoading(true);
+        const now = new Date();
+        const invoiceTimestamp = now.toLocaleDateString('ar-SA', {
+          year: 'numeric', month: 'long', day: 'numeric'
+        });
+
+        // Update all voucher line transactions sequentially
+        const lines = v.lines || [];
+        for (const line of lines) {
+            await supabase.from('transactions').update({
+                status: 'مفوتر',
+                notes: line.notes ? `${line.notes} [تم إصدار الفاتورة] ${invoiceTimestamp}` : `[تم إصدار الفاتورة] ${invoiceTimestamp}`
+            }).eq('id', line.id);
+        }
+
+        // Update local state
+        setInvoiceTimestamps(prev => ({...prev, [v.id]: invoiceTimestamp}));
+        setVoucherTransactions(prev =>
+          prev.map(item => item.id === v.id ? { ...item, invoiced: true, deducted: true, invoiceDate: invoiceTimestamp } : item)
+        );
+        if (detailVoucher && detailVoucher.id === v.id) {
+          setDetailVoucher(prev => ({...prev, invoiced: true, deducted: true, invoiceDate: invoiceTimestamp}));
+        }
+
+        toast.success('تم اعتماد السند بنجاح ✅');
+        playSuccess();
+        fetchInitialData();
+      } catch (err) {
+        toast.error('تعذر اعتماد السند.');
+        playWarning();
+      } finally {
+        setLoading(false);
+      }
       return;
     }
 
     // For outbound vouchers: stock was already deducted at voucher creation.
-    // The invoice is a financial record only - no stock movement.
-    // Close voucher modal
-    setIsVoucherModalOpen(false);
-
-    // Set source voucher with forced deducted=true to prevent double deduction
-    const sourceVoucherData = {
-      ...selectedVoucher,
-      deducted: true, // Ensure invoice doesn't deduct stock again
-      kind: 'outward'
-    };
-    setSourceVoucher(sourceVoucherData);
-
-    const lineItems = (selectedVoucher.lines || [])
-      .map((line) => {
-        const matchedItem = findItemFromVoucherLine(line);
-        if (!matchedItem) return null;
-
-        return {
-          selectedItem: matchedItem,
-          name: `${matchedItem.name} - ${matchedItem.company}`,
-          cat: matchedItem.cat,
-          unit: matchedItem.unit,
-          qty: Number(line.qty || 0)
-        };
-      })
-      .filter(Boolean);
-
-    if (lineItems.length > 0) {
-      setInvoiceForm({
-        client: selectedVoucher.clientName || 'عميل نقدي',
-        rep: selectedVoucher.rep || 'أحمد المندوب',
-        date: new Date().toISOString().split('T')[0],
-        items: lineItems
-      });
-      setCurrentInvoiceItem({
-        name: lineItems[0].name,
-        selectedItem: lineItems[0].selectedItem,
-        cat: lineItems[0].cat,
-        unit: lineItems[0].unit,
-        qty: String(lineItems[0].qty)
-      });
-      setIsSalesModalOpen(true);
-      setSelectedVoucher(null);
-      return;
-    }
-
-    // Pre-fill invoice form with voucher data
-    const itemName = selectedVoucher.itemName || '';
-    
-    // Try to find matching item - multiple strategies
-    let matchedItem = null;
-    
-    // Strategy 1: Direct name match (itemName might be "فراولة - شركة نادك")
-    matchedItem = items.find(i => 
-      itemName.includes(i.name) && (i.company === 'بدون شركة' || itemName.includes(i.company))
-    );
-    
-    // Strategy 2: Just match by item name if company doesn't match
-    if (!matchedItem) {
-      matchedItem = items.find(i => itemName.includes(i.name));
-    }
-    
-    // Strategy 3: Match by exact item string
-    if (!matchedItem) {
-      matchedItem = items.find(i => `${i.name} - ${i.company}` === itemName);
-    }
-
-    if (matchedItem) {
-      setCurrentInvoiceItem({
-        name: `${matchedItem.name} - ${matchedItem.company}`,
-        selectedItem: matchedItem,
-        cat: matchedItem.cat,
-        unit: matchedItem.unit,
-        qty: String(selectedVoucher.quantity)
-      });
-      // Auto-add to invoice items
-      const lineItem = {
-        selectedItem: matchedItem,
-        name: `${matchedItem.name} - ${matchedItem.company}`,
-        cat: matchedItem.cat,
-        unit: matchedItem.unit,
-        qty: Number(selectedVoucher.quantity)
-      };
-      setInvoiceForm({
-        rep: selectedVoucher.clientName || 'عميل نقدي',
-        date: new Date().toISOString().split('T')[0],
-        items: [lineItem]
-      });
-    } else {
-      setInvoiceForm({
-        rep: selectedVoucher.clientName || 'عميل نقدي',
-        date: new Date().toISOString().split('T')[0],
-        items: []
-      });
-      setCurrentInvoiceItem({ name: '', selectedItem: null, cat: '', unit: '', qty: '' });
-    }
-
-    // Open invoice modal
-    setIsSalesModalOpen(true);
-    setSelectedVoucher(null);
+    // Open the invoice modal with voucher data pre-filled
+    handleExportInvoiceToInvoice(v);
   };
 
   // --- Transactions Chart Processing --- //
@@ -1702,12 +1848,21 @@ export default function Dashboard() {
        // Movement filter logic
        let matches = true;
        if (movementTypeFilter !== 'الكل') {
-          if (movementTypeFilter === 'وارد') matches = tx.type === 'Restock' || tx.type === 'وارد' || tx.type === 'in';
-          else if (movementTypeFilter === 'صادر') matches = (tx.type === 'Issue' || tx.type === 'out') && !tx.isInvoice && !tx.isFunctional;
-          else if (movementTypeFilter === 'فاتورة') matches = (tx.type === 'Issue' || tx.type === 'out') && tx.isInvoice;
-          else if (movementTypeFilter === 'مرتجع') matches = tx.type === 'Return' || tx.type === 'مرتجع' || tx.type === 'return' || tx.status === 'مرتجع تالف';
-          else if (movementTypeFilter === 'سند إدخال') matches = tx.type === FUNCTIONAL_INBOUND_TYPE || tx.type === 'adjust_in' || (tx.type === FUNCTIONAL_INBOUND_TYPE && tx.isFunctional);
-          else if (movementTypeFilter === 'سند إخراج') matches = tx.type === FUNCTIONAL_OUTBOUND_TYPE || tx.type === 'adjust_out' || (tx.type === FUNCTIONAL_OUTBOUND_TYPE && tx.isFunctional);
+         const type = tx.type || '';
+         if (movementTypeFilter === 'وارد') {
+           matches = type === 'Restock' || type === 'وارد' || type === 'in' || type === FUNCTIONAL_INBOUND_TYPE;
+         } else if (movementTypeFilter === 'صادر') {
+           // Fixed: include both direct out and functional vouchers
+           matches = (type === 'Issue' || type === 'out' || type === 'صادر' || type === FUNCTIONAL_OUTBOUND_TYPE);
+         } else if (movementTypeFilter === 'فاتورة') {
+           matches = tx.isInvoice === true;
+         } else if (movementTypeFilter === 'مرتجع') {
+           matches = type === 'Return' || type === 'مرتجع' || type === 'return' || tx.status === 'مرتجع تالف';
+         } else if (movementTypeFilter === 'سند إدخال') {
+           matches = (type === FUNCTIONAL_INBOUND_TYPE || type === 'adjust_in') && !tx.isInvoice;
+         } else if (movementTypeFilter === 'سند إخراج') {
+           matches = (type === FUNCTIONAL_OUTBOUND_TYPE || type === 'adjust_out') && !tx.isInvoice;
+         }
        }
        
        if (matches) {
@@ -1797,17 +1952,31 @@ export default function Dashboard() {
                   const isReturn = type === 'return' || type === 'مرتجع' || tx.status === 'مرتجع تالف';
                   const isInbound = type === 'in' || type === 'وارد' || type === 'restock' || type === 'adjust_in';
                   const isOutbound = (type === 'issue' || type === 'out' || type === 'صادر');
+                  const isCancelled = tx.status === 'cancelled';
 
-                  if (isFunctionalIn) {
+                  if (isCancelled) {
+                    actionTitle = (tx.type === FUNCTIONAL_OUTBOUND_TYPE || tx.type === 'outward' || tx.type === 'Issue') ? 'سند إخراج (ملغي)' : 
+                                  (tx.type === FUNCTIONAL_INBOUND_TYPE || tx.type === 'in' || tx.type === 'Restock') ? 'سند إدخال (ملغي)' : 'حركة ملغاة';
+                    actionColor = 'text-slate-400';
+                    actionBg = 'bg-slate-50';
+                    actionIcon = <AlertTriangle size={14} className="text-rose-500 animate-pulse" />;
+                  } else if (isFunctionalOut) {
+                    if (tx.isInvoice) {
+                      actionTitle = 'فاتورة سند';
+                      actionColor = 'text-blue-600';
+                      actionBg = 'bg-blue-50';
+                      actionIcon = <FileText size={14} />;
+                    } else {
+                      actionTitle = 'سند إخراج';
+                      actionColor = 'text-rose-600';
+                      actionBg = 'bg-rose-50';
+                      actionIcon = <FileOutput size={14} />;
+                    }
+                  } else if (isFunctionalIn) {
                     actionTitle = 'سند إدخال';
                     actionColor = 'text-indigo-600';
                     actionBg = 'bg-indigo-50';
                     actionIcon = <FileInput size={14} />;
-                  } else if (isFunctionalOut) {
-                    actionTitle = 'سند إخراج';
-                    actionColor = 'text-rose-600';
-                    actionBg = 'bg-rose-50';
-                    actionIcon = <FileOutput size={14} />;
                   } else if (isInbound) {
                     const isAdj = type === 'adjust_in';
                     actionTitle = isAdj ? 'سند إدخال (تعديل)' : 'وارد';
@@ -1830,6 +1999,8 @@ export default function Dashboard() {
                     actionBg = 'bg-slate-50';
                     actionIcon = <FileCheck size={14} />;
                   }
+
+                  const isModifiedVoucher = tx.isEdited;
 
                   // 2. Build Content Summary and Names
                   const supplierName = tx.supplier || '';
@@ -1858,29 +2029,35 @@ export default function Dashboard() {
                         setSelectedBatchTransactions(rawBatch.filter(t => t.is_summary !== true));
                         setIsTransactionDetailOpen(true);
                       }}
-                      className="flex items-center justify-between p-3.5 hover:bg-slate-50 transition-all rounded-2xl cursor-pointer group border border-transparent hover:border-slate-100"
+                      className="flex items-center justify-between py-1.5 px-3 hover:bg-slate-50 transition-all rounded-xl cursor-pointer group border border-transparent hover:border-slate-100"
                     >
-                      <div className="flex items-center gap-4 min-w-0 flex-1">
-                        <div className={`w-10 h-10 rounded-xl shrink-0 flex items-center justify-center ${actionBg} ${actionColor} shadow-sm group-hover:scale-110 transition-transform`}>
-                          {actionIcon}
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                        <div className={`w-8 h-8 rounded-lg shrink-0 flex items-center justify-center ${actionBg} ${actionColor} shadow-sm group-hover:scale-105 transition-transform`}>
+                          {React.cloneElement(actionIcon, { size: 16 })}
                         </div>
                         
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                            <h4 className="font-black text-slate-800 text-[14px] font-tajawal text-right truncate">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="font-black text-slate-800 text-[12px] font-tajawal text-right truncate">
                               {primaryName}
                               {secondaryName && (
-                                <span className="text-[11px] text-slate-400 font-readex font-medium mr-2">
+                                <span className="text-[10px] text-slate-400 font-readex font-medium mr-1.5">
                                    - {secondaryName}
                                 </span>
                               )}
                             </h4>
                           </div>
                           
-                          <div className="flex items-center gap-2">
-                            <p className={`text-[11px] font-bold font-readex ${actionColor}`}>
-                              {actionTitle}
-                            </p>
+                           <div className="flex items-center gap-2">
+                             <p className={`text-[10px] font-bold font-readex ${actionColor}`}>
+                               {actionTitle}
+                             </p>
+                            {isModifiedVoucher && (
+                               <div className="flex items-center gap-1 bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded-md border border-amber-100 dark:border-amber-500/20">
+                                 <RefreshCw size={8} className="animate-spin-slow" />
+                                 <span className="text-[9px] font-black uppercase tracking-wider">تم تعديله</span>
+                               </div>
+                             )}
                           </div>
                         </div>
                       </div>
@@ -1950,17 +2127,7 @@ export default function Dashboard() {
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
-                              const now = new Date();
-                              const timestamp = now.toLocaleString('ar-SA', {
-                                year: 'numeric', month: 'long', day: 'numeric',
-                                hour: '2-digit', minute: '2-digit'
-                              });
-                              setInvoiceTimestamps(prev => ({...prev, [voucher.id]: timestamp}));
-                              setVoucherTransactions(prev =>
-                                prev.map(v => v.id === voucher.id ? {...v, invoiced: true, deducted: true} : v)
-                              );
-                              toast.success(`تم إصدار الفاتورة بنجاح ✅`);
-                              playSuccess();
+                              handleMarkAsInvoiced(voucher);
                             }}
                             className="shrink-0 mt-0.5 cursor-pointer"
                           >
@@ -1968,21 +2135,6 @@ export default function Dashboard() {
                               type="checkbox"
                               checked={isCompleted}
                               readOnly
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                const now = new Date();
-                                const timestamp = now.toLocaleString('ar-SA', {
-                                  year: 'numeric', month: 'long', day: 'numeric',
-                                  hour: '2-digit', minute: '2-digit'
-                                });
-                                setInvoiceTimestamps(prev => ({...prev, [voucher.id]: timestamp}));
-                                setVoucherTransactions(prev =>
-                                  prev.map(v => v.id === voucher.id ? {...v, invoiced: true, deducted: true} : v)
-                                );
-                                toast.success(`تم إصدار الفاتورة بنجاح ✅`);
-                                playSuccess();
-                              }}
                               className="w-4 h-4 rounded border-2 border-slate-300 hover:border-emerald-500 cursor-pointer accent-emerald-500"
                             />
                           </div>
@@ -1995,9 +2147,16 @@ export default function Dashboard() {
                                 تم إصدار الفاتورة بتاريخ: {invoiceDate}
                               </p>
                             ) : (
-                              <p className="text-[9px] text-slate-400 font-readex mt-0.5 truncate">
-                                {dayName} - {dateStr}
-                              </p>
+                              <div className="flex flex-col gap-1">
+                                <p className="text-[9px] text-slate-400 font-readex mt-0.5 truncate">
+                                  {dayName} - {dateStr}
+                                </p>
+                                {voucher.line_note && (
+                                  <p className="text-[9px] font-black text-indigo-500 font-tajawal truncate bg-indigo-50/50 px-1.5 py-0.5 rounded border border-indigo-100/50 w-fit max-w-full">
+                                    {voucher.line_note.split('[تعديل حديث]')[0].split('[تم إصدار الفاتورة')[0].split('<!--')[0].trim()}
+                                  </p>
+                                )}
+                              </div>
                             )}
                           </div>
                         </div>
@@ -2061,6 +2220,43 @@ export default function Dashboard() {
                         );
                         })
                       }
+                    </AnimatePresence>
+                  </>
+                )}
+
+                {/* Cancelled Vouchers Section */}
+                {cancelledVouchers.length > 0 && (
+                  <>
+                    <div className="flex items-center gap-2 mt-4 mb-2">
+                      <div className="h-px flex-1 bg-rose-100"></div>
+                      <span className="text-[10px] font-bold text-rose-400 font-readex uppercase tracking-wider">سندات ملغاة</span>
+                      <div className="h-px flex-1 bg-rose-100"></div>
+                    </div>
+                    <AnimatePresence>
+                      {cancelledVouchers.slice(0, 5).map((voucher) => (
+                        <motion.div
+                          key={`${voucher.id}-${voucher.batchId}`}
+                          initial={{ opacity: 0, y: 5 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          onClick={() => {
+                            setDetailVoucher(voucher);
+                            setIsVoucherDetailOpen(true);
+                          }}
+                          className="p-2 rounded-xl border border-rose-100 bg-rose-50/30 cursor-pointer hover:bg-rose-50 transition-all opacity-60 group"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-6 h-6 rounded-lg bg-rose-100 flex items-center justify-center text-rose-500 shrink-0">
+                               <AlertTriangle size={12} />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <h4 className="text-[11px] font-bold text-slate-500 font-tajawal truncate line-through decoration-rose-300">
+                                {voucher.kind === 'in' ? 'سند إدخال' : 'سند إخراج'} - {voucher.clientName}
+                              </h4>
+                              <p className="text-[8px] text-rose-400 font-medium">تم إلغاء هذا السند وإرجاع الكميات</p>
+                            </div>
+                          </div>
+                        </motion.div>
+                      ))}
                     </AnimatePresence>
                   </>
                 )}
@@ -2217,9 +2413,10 @@ export default function Dashboard() {
                   themeColor = 'indigo';
                   themeIcon = <FileInput size={28} />;
                 } else if (isFunctionalOut) {
-                  typeLabel = 'تفاصيل سند إخراج';
-                  themeColor = 'rose';
-                  themeIcon = <FileOutput size={28} />;
+                  const isInvoicedVoucher = firstTx.isInvoice;
+                  typeLabel = isInvoicedVoucher ? 'تفاصيل فاتورة سند' : 'تفاصيل سند إخراج';
+                  themeColor = isInvoicedVoucher ? 'blue' : 'rose';
+                  themeIcon = isInvoicedVoucher ? <FileText size={28} /> : <FileOutput size={28} />;
                 } else if (isInbound) {
                   const isAdj = type === 'adjust_in';
                   typeLabel = isAdj ? 'سند إدخال (تعديل)' : 'تفاصيل حركة وارد';
@@ -2248,122 +2445,154 @@ export default function Dashboard() {
                 const primaryName = (isInbound || isFunctionalIn) 
                   ? (firstTx.supplier || firstTx.beneficiary || firstTx.recipient || firstTx.location || 'بدون مورد') 
                   : (firstTx.beneficiary || firstTx.recipient || firstTx.supplier || firstTx.location || 'جهة غير محددة');
-                const secondaryName = (isOutbound || isReturn || isFunctionalOut) ? firstTx.rep : '';
+                
+                const isModifiedVoucher = firstTx.isEdited;
+                const currentNotes = (firstTx.notes || '')
+                                      .split(/\[تعديل حديث\]|\[تم تعديله\]|\[تم إصدار الفاتورة|\[إضافة مراجعة\]|\[مستند رقم|<!--/)[0]
+                                      .trim();
 
                 return (
                   <>
-                    {/* Header: Indigo Gradient Style */}
-                    <div className={`px-8 py-4 bg-${themeColor}-600 text-white flex items-center justify-between shrink-0 relative overflow-hidden`}>
-                       {/* Abstract BG Decor */}
-                       <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/3 blur-3xl pointer-events-none" />
+                    {/* Header: Premium Gradient Style */}
+                    <div className="relative px-8 py-8 shrink-0 overflow-hidden">
+                       <div className={`absolute inset-0 bg-gradient-to-br ${
+                         themeColor === 'rose' ? 'from-rose-500 to-rose-700' : 
+                         themeColor === 'emerald' ? 'from-emerald-500 to-teal-700' : 
+                         themeColor === 'amber' ? 'from-amber-500 to-orange-600' : 
+                         'from-indigo-500 to-blue-700'
+                       } transition-all duration-500`} />
+                       <div className="absolute top-0 right-0 w-80 h-80 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/3 blur-3xl animate-pulse" />
                        
-                       <div className="flex items-center gap-6 relative z-10">
-                          <div className="w-16 h-16 bg-white/20 backdrop-blur-lg rounded-2xl flex items-center justify-center text-white shadow-xl border border-white/20">
-                             {themeIcon}
-                          </div>
-                          <div>
-                             <div className="flex items-center gap-3 mb-1.5">
-                                <h3 className="text-2xl font-black font-tajawal">{typeLabel} - {primaryName}</h3>
-                                {docNumber && (
-                                  <span className="bg-white/20 text-[11px] font-black px-3 py-1 rounded-lg backdrop-blur-md border border-white/10">
-                                    رقم المستند: {docNumber}
-                                  </span>
-                                )}
+                       <div className="relative z-10 flex flex-col gap-6">
+                          <div className="flex items-center justify-between">
+                             <div className="flex items-center gap-5">
+                                <div className="w-16 h-16 bg-white/20 backdrop-blur-xl rounded-[22px] flex items-center justify-center text-white shadow-2xl border border-white/30">
+                                   {themeIcon}
+                                </div>
+                                <div>
+                                   <div className="flex items-center gap-3 mb-1.5">
+                                      <h3 className="text-xl font-black font-tajawal text-white tracking-tight">{typeLabel}</h3>
+                                      {docNumber && (
+                                        <span className="bg-white/20 text-[9px] font-black text-white px-2 py-0.5 rounded-md backdrop-blur-md border border-white/10 uppercase tracking-widest">
+                                          #{docNumber}
+                                        </span>
+                                      )}
+                                   </div>
+                                   <div className="flex items-center gap-4 text-white/80">
+                                      <div className="flex items-center gap-1.5 text-[10px] font-bold font-readex">
+                                         <Calendar size={12} className="opacity-70" />
+                                         {formattedDate}
+                                      </div>
+                                      <div className="flex items-center gap-1.5 text-[10px] font-bold font-readex">
+                                         <Clock size={12} className="opacity-70" />
+                                         {formattedTime}
+                                      </div>
+                                      {isModifiedVoucher && (
+                                        <span className="inline-flex items-center gap-1 bg-amber-400 text-amber-950 px-2 py-0.5 rounded-full text-[9px] font-black shadow-lg animate-in fade-in zoom-in">
+                                           <RefreshCw size={10} className="animate-spin-slow" />
+                                           معدل
+                                        </span>
+                                      )}
+                                   </div>
+                                </div>
                              </div>
-                             <p className="text-sm font-bold text-white/80 font-readex opacity-90">
-                                {formattedDate}
-                             </p>
+                             
+                             <button 
+                               onClick={() => setIsTransactionDetailOpen(false)}
+                               className="w-10 h-10 flex items-center justify-center bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all active:scale-90 border border-white/10"
+                             >
+                                <X size={20} />
+                             </button>
+                          </div>
+
+                          <div className="grid grid-cols-3 gap-2">
+                             <div className="bg-white/10 backdrop-blur-md rounded-xl p-3 border border-white/10 group/card transition-all hover:bg-white/15">
+                                <p className="text-[9px] font-black text-white/60 uppercase tracking-widest mb-1">الجهة</p>
+                                <div className="flex items-center gap-2">
+                                   <User size={14} className="text-white/80" />
+                                   <p className="text-xs font-black text-white truncate">{primaryName}</p>
+                                </div>
+                             </div>
+                             <div className="bg-white/10 backdrop-blur-md rounded-xl p-3 border border-white/10 group/card transition-all hover:bg-white/15 overflow-hidden">
+                                <p className="text-[9px] font-black text-white/60 uppercase tracking-widest mb-1">ملاحظات</p>
+                                <div className="flex items-center gap-2">
+                                   <FileText size={14} className="text-white/80" />
+                                   <p className="text-xs font-bold text-white truncate italic opacity-90">
+                                      {currentNotes || 'لا توجد ملاحظات'}
+                                   </p>
+                                </div>
+                             </div>
+                             <div className="bg-white/10 backdrop-blur-md rounded-xl p-3 border border-white/10 group/card transition-all hover:bg-white/15">
+                                <p className="text-[9px] font-black text-white/60 uppercase tracking-widest mb-1">النوع</p>
+                                <div className="flex items-center gap-2">
+                                   <Activity size={14} className="text-white/80" />
+                                   <p className="text-xs font-black text-white flex items-center gap-2">
+                                      {firstTx.isInvoice && firstTx.isFunctional ? 'فاتورة' : typeLabel.replace('تفاصيل ', '')}
+                                   </p>
+                                </div>
+                             </div>
                           </div>
                        </div>
-                       
-                       <button 
-                         onClick={() => setIsTransactionDetailOpen(false)}
-                         className="w-12 h-12 flex items-center justify-center bg-white/10 hover:bg-white/20 rounded-2xl transition-all relative z-10"
-                       >
-                          <X size={24} />
-                       </button>
-                    </div>
-                    
-                    {/* Summary Bar */}
-                    <div className={`px-10 py-3 bg-slate-50 border-b border-slate-100 grid grid-cols-2 gap-8 shrink-0`}>
-                       <div className="flex flex-col">
-                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
-                             {(isInbound || isFunctionalIn) ? 'المورد' : 'الجهة / المستفيد'}
-                          </span>
-                          <span className="text-sm font-black text-slate-800 truncate">
-                             {primaryName}
-                          </span>
-                       </div>
-                        <div className="flex flex-col">
-                           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">ملاحظات</span>
-                           <span className="text-sm font-black text-slate-800 truncate">
-                              {firstTx.notes || '—'}
-                           </span>
-                        </div>
                     </div>
 
-                    {/* Content Section */}
-                    <div className="flex-1 overflow-y-auto px-10 py-4 custom-scrollbar">
-                       <table className="w-full text-right border-separate border-spacing-y-2">
-                          <thead>
-                             <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">
-                                <th className="pb-2 pr-6 text-center w-12">م</th>
-                                <th className="pb-2">الصنف</th>
-                                <th className="pb-2 text-center">الشركة</th>
-                                <th className="pb-2 text-center">القسم</th>
-                                <th className="pb-2 text-center">الوحدة</th>
-                                <th className="pb-2 text-center rounded-l-2xl">الكمية</th>
-                             </tr>
-                          </thead>
-                          <tbody>
-                             {selectedBatchTransactions.filter(t => t.is_summary !== true).map((tx, idx) => {
-                                const itemFromId = tx.item_id ? items.find(i => i.id === tx.item_id) : null;
-                                const itemName = itemFromId ? itemFromId.name : (tx.item || tx.itemName || 'صنف غير معروف');
-                                const itemCompany = itemFromId ? itemFromId.company : (tx.company || '');
-                                const itemCat = tx.cat || itemFromId?.cat || '-';
-                                
-                                return (
-                                  <tr key={idx} className="bg-white border border-slate-100 hover:bg-slate-50 transition-colors group">
-                                     <td className="py-1.5 pr-6 rounded-r-xl text-center text-[10px] font-black text-slate-400">{idx + 1}</td>
-                                     <td className="py-1.5">
-                                        <div className="flex items-center gap-2">
-                                           <div className="w-7 h-7 bg-slate-50 rounded-lg flex items-center justify-center text-slate-400 group-hover:bg-white group-hover:shadow-sm transition-all">
-                                              <Package size={14} />
+                    <div className="flex-1 overflow-y-auto px-6 py-4 bg-slate-50/30 custom-scrollbar">
+                         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                           <table className="w-full text-right text-[11px]">
+                              <thead className="bg-slate-50/50 text-slate-400 font-black text-[9px] uppercase tracking-widest border-b border-slate-100 sticky top-0 backdrop-blur-md z-10">
+                                 <tr>
+                                    <th className="px-4 py-3 text-center w-10">#</th>
+                                    <th className="px-4 py-3 text-right">الصنف</th>
+                                    <th className="px-4 py-3 text-center">الشركة</th>
+                                    <th className="px-4 py-3 text-center">القسم</th>
+                                    <th className="px-4 py-3 text-center">الوحدة</th>
+                                    <th className="px-4 py-3 text-center">الكمية</th>
+                                 </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-50">
+                                 {selectedBatchTransactions.filter(t => t.is_summary !== true).map((tx, idx) => {
+                                   const itemFromId = tx.item_id ? items.find(i => i.id === tx.item_id) : null;
+                                   const itemName = itemFromId ? itemFromId.name : (tx.item || tx.itemName || 'صنف غير معروف');
+                                   const itemCompany = itemFromId ? itemFromId.company : (tx.company || '');
+                                   const itemCat = tx.cat || itemFromId?.cat || '-';
+                                   
+                                   return (
+                                     <tr key={idx} className="hover:bg-slate-50/80 transition-colors group">
+                                        <td className="px-4 py-3 text-center font-black text-slate-300 tabular-nums">{idx + 1}</td>
+                                        <td className="px-4 py-3">
+                                           <div className="flex flex-col">
+                                              <span className="text-xs font-bold text-slate-700">{itemName}</span>
                                            </div>
-                                           <span className="text-xs font-black text-slate-800">{itemName}</span>
-                                        </div>
-                                     </td>
-                                     <td className="py-2.5 text-center">
-                                        <span className="text-xs font-bold text-slate-600">{itemCompany || 'بدون شركة'}</span>
-                                     </td>
-                                     <td className="py-2.5 text-center">
-                                        <span className="inline-flex items-center px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md text-[9px] font-black border border-slate-200 uppercase">
-                                           {itemCat}
-                                        </span>
-                                     </td>
-                                     <td className="py-2.5 text-center">
-                                        <span className="text-xs font-bold text-slate-500">{tx.unit || 'وحدة'}</span>
-                                     </td>
-                                     <td className="py-2.5 text-center rounded-l-xl">
-                                        <div className="inline-flex items-center gap-1.5 bg-white border border-slate-100 px-2.5 py-0.5 rounded-lg shadow-sm">
-                                           <span className={`text-xs font-black tabular-nums ${isInbound || isFunctionalIn || type === 'return' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                              {isInbound || isFunctionalIn || type === 'return' ? `+${Math.abs(tx.qty)}` : `-${Math.abs(tx.qty)}`}
+                                        </td>
+                                        <td className="px-4 py-3 text-center">
+                                           <span className="text-[10px] font-bold text-slate-500">{itemCompany || '-'}</span>
+                                        </td>
+                                        <td className="px-4 py-3 text-center">
+                                           <span className="text-[9px] font-bold bg-slate-100 px-2 py-0.5 rounded text-slate-500 uppercase">
+                                              {itemCat}
                                            </span>
-                                        </div>
-                                     </td>
-                                  </tr>
-                                );
-                             })}
-                          </tbody>
-                       </table>
-                    </div>
+                                        </td>
+                                        <td className="px-4 py-3 text-center">
+                                           <span className="text-[10px] font-bold text-slate-400">{tx.unit || 'وحدة'}</span>
+                                        </td>
+                                        <td className="px-4 py-3 text-center">
+                                           <div className={`text-xs font-black tabular-nums ${isInbound || isFunctionalIn || type === 'return' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                              {isInbound || isFunctionalIn || type === 'return' ? `+${Math.abs(tx.qty)}` : `-${Math.abs(tx.qty)}`}
+                                           </div>
+                                        </td>
+                                     </tr>
+                                   );
+                                 })}
+                              </tbody>
+                           </table>
+                         </div>
+                     </div>
 
                     {/* Footer Section */}
-                    <div className="px-10 py-5 bg-slate-50 border-t border-slate-100 flex items-center justify-between shrink-0">
+                    <div className="px-8 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between shrink-0">
                        <div className="flex items-center gap-6">
                           <div className="flex flex-col">
-                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">المجموع الكلي</span>
-                             <p className="text-lg font-black text-slate-800 font-tajawal tabular-nums">
+                             <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">الإجمالي</span>
+                             <p className="text-base font-black text-slate-800 font-tajawal tabular-nums">
                                 {selectedBatchTransactions.reduce((acc, curr) => acc + Number(curr.qty || 0), 0)} وحدة
                              </p>
                           </div>
@@ -2372,9 +2601,9 @@ export default function Dashboard() {
                        <div className="flex items-center gap-3">
                           <button 
                             onClick={() => setIsTransactionDetailOpen(false)}
-                            className={`px-10 py-2.5 bg-${themeColor}-600 text-white rounded-2xl text-sm font-black hover:brightness-95 shadow-md shadow-${themeColor}-500/20 transition-all active:scale-95`}
+                            className={`px-8 py-2 bg-${themeColor}-600 text-white rounded-xl text-xs font-black hover:brightness-95 shadow-lg shadow-${themeColor}-500/20 transition-all active:scale-95`}
                           >
-                             إغلاق النافذة
+                             إغلاق
                           </button>
                        </div>
                     </div>
@@ -2403,110 +2632,391 @@ export default function Dashboard() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               transition={{ type: 'spring', damping: 28, stiffness: 320 }}
-              className="w-full max-w-xl bg-white rounded-[24px] shadow-2xl border border-slate-100/60 flex flex-col max-h-[85vh] overflow-hidden"
+              className={`w-full ${showVoucherHistory ? 'max-w-[1200px]' : 'max-w-4xl'} bg-white rounded-[24px] shadow-2xl border border-slate-100/60 flex flex-col max-h-[85vh] overflow-hidden transition-all duration-500`}
             >
               {(() => {
                 const isIn = detailVoucher.kind === 'in';
-                const isCompleted = detailVoucher.invoiced === true || invoiceTimestamps[detailVoucher.id];
-                const invoiceDate = invoiceTimestamps[detailVoucher.id] || detailVoucher.invoiceDate;
+                const isCancelled = detailVoucher.isCancelled === true || (detailVoucher.line_note || '').includes('[تم الإلغاء]');
+                const matchColon = (detailVoucher.line_note || '').match(/\[تم إصدار الفاتورة:\s*([^\]]+)\]/);
+                const matchNoColon = (detailVoucher.line_note || '').match(/\[تم إصدار الفاتورة\]\s*([^\[<]+)/);
+                const invoiceMatch = matchColon || matchNoColon;
+                const isCompleted = (detailVoucher.invoiced === true || invoiceTimestamps[detailVoucher.id] || invoiceMatch) && !isCancelled;
+                const extractedDate = invoiceMatch && invoiceMatch[1] ? invoiceMatch[1].trim() : 'حديثاً';
                 const voucherDate = detailVoucher.timestamp ? new Date(detailVoucher.timestamp) : new Date();
-                const formattedShortDate = voucherDate.toLocaleDateString('ar-SA', { 
-                  day: '2-digit', month: '2-digit', year: 'numeric'
-                }) + ' ' + voucherDate.toLocaleTimeString('ar-SA', { 
-                  hour: '2-digit', minute: '2-digit'
+                const formattedShortDate = voucherDate.toLocaleDateString('ar-SA', {
+                  day: 'numeric', month: 'long', year: 'numeric'
                 });
+                const invoiceDate = invoiceTimestamps[detailVoucher.id] || detailVoucher.invoiceDate || (extractedDate !== 'حديثاً' ? extractedDate : new Date().toLocaleDateString('ar-SA', { year: 'numeric', month: 'long', day: 'numeric' }));
                 const recipient = detailVoucher.clientName || detailVoucher.supplier || detailVoucher.rep || 'غير محدد';
                 const lines = detailVoucher.lines || [];
+                
+                // Simple history extractor - reads new <!--HIST:{}--> and old <!--{}--> formats
+                const getOldVersion = (note) => {
+                  if (!note) return null;
+                  // New format
+                  const m1 = note.match(/<!--HIST:(\{.*?\})-->/s);
+                  if (m1) { try { return JSON.parse(m1[1]); } catch(e) {} }
+                  // Old format (backward compat) - try with basic repair
+                  const m2 = note.match(/<!--(\{.*?)(?:-->|$)/s);
+                  if (m2) {
+                    let j = m2[1];
+                    try { return JSON.parse(j); } catch(e) {
+                      const ob = (j.match(/\{/g)||[]).length, cb = (j.match(/\}/g)||[]).length;
+                      const oB = (j.match(/\[/g)||[]).length, cB = (j.match(/\]/g)||[]).length;
+                      if ((j.match(/"/g)||[]).length % 2 !== 0) j += '"';
+                      for(let i=0;i<oB-cB;i++) j+=']';
+                      for(let i=0;i<ob-cb;i++) j+='}';
+                      try {
+                        const p = JSON.parse(j);
+                        // Normalize old format fields
+                        return { at: p.modifiedAt, lines: p.lines || [] };
+                      } catch(e2) { return null; }
+                    }
+                  }
+                  return null;
+                };
+                const historyData = getOldVersion(detailVoucher.line_note);
+                const currentNotes = (detailVoucher.line_note || '')
+                                      .split(/\[تعديل حديث\]|\[تم تعديله\]|\[تم إصدار الفاتورة|\[إضافة مراجعة\]|\[مستند رقم|<!--/)[0]
+                                      .trim();
 
                 return (
                   <>
                     {/* Header: Symmetrical layout */}
-                    <div className={`px-6 py-5 border-b border-slate-100 shrink-0 ${isCompleted ? 'bg-emerald-50' : isIn ? 'bg-teal-50' : 'bg-red-50'}`}>
-                      <div className="flex items-start justify-between">
-                        {/* Right: Voucher Type + Date */}
-                        <div className="flex flex-col items-start">
-                          <h3 className={`text-xl font-extrabold ${isCompleted ? 'text-emerald-700' : isIn ? 'text-teal-700' : 'text-red-700'} font-tajawal`}>
-                            {isIn ? 'سند إدخال' : 'سند إخراج'} - {recipient}
-                          </h3>
-                          <p className="text-xs text-slate-500 font-readex mt-1">
-                            تاريخ السند: <span className="font-bold text-slate-700">{formattedShortDate}</span>
-                          </p>
+                    {/* --- Premium Redesigned Header (Balanced & Sleeker) --- */}
+                    <div className="relative px-6 py-4 shrink-0 overflow-hidden">
+                      {/* Background Gradient & Animated Glow */}
+                      <div className={`absolute inset-0 bg-gradient-to-br ${isCancelled ? 'from-rose-600 to-rose-800' : isCompleted ? 'from-emerald-600 to-teal-800' : isIn ? 'from-teal-600 to-emerald-700' : 'from-indigo-600 to-blue-800'} transition-all duration-500`} />
+                      <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl animate-pulse" />
+                      
+                      <div className="relative flex flex-col gap-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white shadow-xl border border-white/20 shrink-0">
+                              {isIn ? <Download size={22} strokeWidth={2.5} /> : <Upload size={22} strokeWidth={2.5} />}
+                            </div>
+                            <div>
+                              <h3 className="text-lg font-black text-white font-tajawal tracking-tight">
+                                {isCancelled ? (
+                                  <span className="flex items-center gap-2">
+                                    <AlertTriangle size={20} className="text-white" />
+                                    {isIn ? 'سند إدخال (ملغي)' : 'سند إخراج (ملغي)'}
+                                  </span>
+                                ) : (
+                                  <span className="flex items-center gap-2">
+                                    {isIn ? 'سند إدخال مخزني' : 'سند إخراج بضاعة'}
+                                    {isCompleted && <CheckCircle size={16} className="text-emerald-300" />}
+                                  </span>
+                                )}
+                              </h3>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center gap-3">
+                            {/* Audit Trail Button - Premium Pill */}
+                            {historyData && (
+                              <button
+                                type="button"
+                                onClick={() => setShowVoucherHistory(v => !v)}
+                                className={`h-10 px-5 rounded-full text-[11px] font-black transition-all flex items-center gap-2 border shadow-lg active:scale-95 ${
+                                  showVoucherHistory 
+                                  ? 'bg-amber-500 border-amber-400 text-white shadow-amber-500/30' 
+                                  : 'bg-white/15 border-white/20 text-white hover:bg-white/25'
+                                }`}
+                              >
+                                <History size={16} className={showVoucherHistory ? 'animate-spin-slow' : ''} />
+                                {showVoucherHistory ? 'النسخة الحالية' : 'النسخة السابقة'}
+                              </button>
+                            )}
+                            
+                            <button
+                              onClick={() => setIsVoucherDetailOpen(false)}
+                              className="w-10 h-10 rounded-full bg-black/20 hover:bg-black/30 text-white flex items-center justify-center transition-all active:scale-90 border border-white/10"
+                            >
+                              <X size={20} />
+                            </button>
+                          </div>
                         </div>
-                        {/* Left: Recipient */}
-                        <div className="text-right pl-4">
-                          <span className="text-[10px] text-slate-500 font-readex block">المستلم</span>
-                          <p className="text-base font-extrabold text-[#0F2747] font-tajawal mt-0.5">{recipient}</p>
+
+                        {/* Distinct Stats Cards - Refined */}
+                        <div className="grid grid-cols-3 gap-3">
+                           <div className="bg-white/15 backdrop-blur-xl rounded-2xl p-3 border border-white/20 shadow-xl">
+                              <span className="text-[10px] font-black text-white/60 uppercase tracking-widest block mb-1">الجهة المستلمة</span>
+                              <div className="flex items-center gap-2.5">
+                                <User size={16} className="text-emerald-300" />
+                                <p className="text-[15px] font-black text-white truncate leading-none">{recipient}</p>
+                              </div>
+                           </div>
+                           <div className="bg-white/15 backdrop-blur-xl rounded-2xl p-3 border border-white/20 shadow-xl">
+                              <span className="text-[10px] font-black text-white/60 uppercase tracking-widest block mb-1">تاريخ العملية</span>
+                              <div className="flex items-center gap-2.5">
+                                <Calendar size={16} className="text-emerald-300" />
+                                <p className="text-[15px] font-black text-white tabular-nums leading-none">{formattedShortDate}</p>
+                              </div>
+                           </div>
+                           <div className="bg-white/15 backdrop-blur-xl rounded-2xl p-3 border border-white/20 shadow-xl">
+                              <span className="text-[10px] font-black text-white/60 uppercase tracking-widest block mb-1">ملاحظات السند</span>
+                              <div className="flex items-center gap-2.5">
+                                <FileText size={16} className="text-emerald-300" />
+                                <p className="text-[15px] font-bold text-white leading-none truncate italic">
+                                   {currentNotes || 'لا توجد'}
+                                </p>
+                              </div>
+                           </div>
                         </div>
                       </div>
                     </div>
 
-                    {/* Export Invoice Button / Status */}
-                    <div className={`px-6 py-4 border-b border-slate-100 shrink-0 ${isCompleted ? 'bg-emerald-50/50' : ''}`}>
-                      {isCompleted && invoiceDate ? (
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-bold text-emerald-700 font-tajawal">
-                            تم إصدار الفاتورة بتاريخ: {invoiceDate}
-                          </span>
+                    {/* --- Content Area --- */}
+                    <div className="flex-1 overflow-hidden bg-slate-50/50">
+                      {lines.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-12 opacity-40">
+                          <FileText size={48} className="text-slate-300 mb-2" />
+                          <p className="text-sm font-bold text-slate-400">لا توجد بيانات متاحة لهذا السند</p>
+                        </div>
+                      ) : showVoucherHistory && historyData && historyData.lines && historyData.lines.length > 0 ? (
+                        /* ── Split-Screen: Two Full Voucher Cards ── */
+                        <div className="grid grid-cols-2 h-full bg-slate-100/30" dir="rtl">
+                          {(() => {
+                            const oldDate = historyData.date || (historyData.at
+                              ? new Date(historyData.at).toLocaleDateString('ar-SA', { day: 'numeric', month: 'long', year: 'numeric' })
+                              : historyData.modifiedAt 
+                                ? new Date(historyData.modifiedAt).toLocaleDateString('ar-SA', { day: 'numeric', month: 'long', year: 'numeric' })
+                                : 'تاريخ سابق');
+                            const oldRecipient = historyData.beneficiary || recipient;
+                            const oldNotes = historyData.notes || '';
+                            
+                            // Check if metadata has changed to decide on header visibility
+                            const hasHeaderChange = oldRecipient !== recipient || oldNotes !== currentNotes;
+
+                            return (
+                              <>
+                                {/* RIGHT: Current Voucher */}
+                                <div className="flex flex-col overflow-hidden border-l border-slate-200/60 shadow-[inset_-10px_0_15px_-10px_rgba(0,0,0,0.05)]">
+                                  {/* Card Header - Only if changed */}
+                                  {hasHeaderChange ? (
+                                    <div className="relative px-4 py-2.5 shrink-0 overflow-hidden">
+                                      <div className={`absolute inset-0 bg-gradient-to-br ${isIn ? 'from-teal-500 to-emerald-600' : 'from-indigo-500 to-blue-600'}`} />
+                                      <div className="relative flex items-center gap-3">
+                                        <span className="text-[9px] font-black text-white px-2 py-1 rounded-lg bg-white/20 backdrop-blur-md border border-white/10 shadow-sm uppercase shrink-0">
+                                          النسخة الحالية
+                                        </span>
+                                        <div className="flex items-center gap-2 text-white bg-white/10 px-2 py-1 rounded-lg border border-white/5 shadow-inner min-w-0">
+                                          <User size={12} className="text-white/70 shrink-0" />
+                                          <span className="text-[11px] font-black tracking-tight truncate">{recipient}</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-white/90 bg-black/10 px-2 py-1 rounded-lg border border-white/5 shrink-0 mr-auto">
+                                          <Calendar size={11} className="opacity-70" />
+                                          {formattedShortDate}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="px-4 py-1.5 shrink-0 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest bg-slate-200/50 px-1.5 py-0.5 rounded">الحالية</span>
+                                        <span className="text-[11px] font-bold text-slate-600">{recipient}</span>
+                                      </div>
+                                      <span className="text-[10px] font-bold text-slate-400 tabular-nums">{formattedShortDate}</span>
+                                    </div>
+                                  )}
+                                  
+                                  {/* Card Items */}
+                                  <div className="overflow-y-auto custom-scrollbar flex-1 p-3">
+                                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                                      <table className="w-full text-right text-xs">
+                                        <thead className={`${isIn ? 'bg-teal-50 text-teal-600 border-teal-100' : 'bg-indigo-50 text-indigo-600 border-indigo-100'} font-black text-[10px] uppercase tracking-widest border-b sticky top-0 backdrop-blur-md z-10`}>
+                                          <tr>
+                                            <th className="px-3 py-2.5 text-center w-8">م</th>
+                                            <th className="px-3 py-2.5 text-right">الصنف</th>
+                                            <th className="px-3 py-2.5 text-center">القسم</th>
+                                            <th className="px-3 py-2.5 text-center">كمية</th>
+                                            <th className="px-3 py-2.5 text-center">وحدة</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50">
+                                          {lines.map((line, idx) => (
+                                            <tr key={line.id || idx} className={`transition-colors group hover:bg-slate-50/80`}>
+                                              <td className={`px-3 py-2 text-center text-[10px] font-black ${isIn ? 'text-teal-300' : 'text-indigo-300'}`}>{idx + 1}</td>
+                                              <td className="px-3 py-2 font-black text-slate-700 text-right text-[11px] leading-tight">
+                                                {line.company && line.company !== '-' && !(line.item||'').includes(line.company)
+                                                  ? <span className="flex flex-col"><span>{line.item}</span><span className="text-[9px] text-slate-400 font-bold">{line.company}</span></span> : line.item||'-'}
+                                              </td>
+                                              <td className="px-3 py-2 text-center">
+                                                <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 text-[9px] font-bold">{line.cat||'-'}</span>
+                                              </td>
+                                              <td className="px-3 py-2 text-center">
+                                                <span className={`inline-flex items-center justify-center min-w-[2rem] px-2 py-0.5 rounded-lg font-black text-xs tabular-nums border ${isIn ? 'bg-teal-50 text-teal-700 border-teal-200' : 'bg-rose-50 text-rose-600 border-rose-200'}`}>{line.qty}</span>
+                                              </td>
+                                              <td className="px-3 py-2 text-center text-[10px] font-bold text-slate-400">{line.unit||'كرتونة'}</td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* LEFT: Old Voucher Comparison */}
+                                <div className="flex flex-col overflow-hidden bg-white/40">
+                                  {/* Card Header - Only if changed */}
+                                  {hasHeaderChange ? (
+                                    <div className="relative px-4 py-2.5 shrink-0 overflow-hidden">
+                                      <div className="absolute inset-0 bg-gradient-to-br from-amber-500 to-orange-600" />
+                                      <div className="relative flex items-center gap-3">
+                                        <span className="text-[9px] font-black text-white px-2 py-1 rounded-lg bg-white/20 backdrop-blur-md border border-white/10 shadow-sm uppercase shrink-0">
+                                          النسخة السابقة
+                                        </span>
+                                        <div className="flex items-center gap-2 text-white bg-white/10 px-2 py-1 rounded-lg border border-white/5 shadow-inner min-w-0">
+                                          <User size={12} className="text-white/70 shrink-0" />
+                                          <span className="text-[11px] font-black tracking-tight truncate">{oldRecipient}</span>
+                                        </div>
+                                        {oldDate && (
+                                          <div className="flex items-center gap-1.5 text-[10px] font-bold text-white/90 bg-black/10 px-2 py-1 rounded-lg border border-white/5 shrink-0 mr-auto">
+                                            <Calendar size={11} className="opacity-70" />
+                                            {oldDate}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="px-4 py-1.5 shrink-0 bg-amber-50 border-b border-amber-200 flex items-center justify-between">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-[9px] font-black text-amber-500 uppercase tracking-widest bg-amber-200/50 px-1.5 py-0.5 rounded">السابقة</span>
+                                        <span className="text-[11px] font-bold text-amber-700">{oldRecipient}</span>
+                                      </div>
+                                      <span className="text-[10px] font-bold text-amber-400 tabular-nums">{oldDate}</span>
+                                    </div>
+                                  )}
+                                  
+                                  {/* Card Items */}
+                                  <div className="overflow-y-auto custom-scrollbar flex-1 p-3">
+                                    <div className="bg-amber-50/40 rounded-2xl border border-amber-200 shadow-sm overflow-hidden">
+                                      <table className="w-full text-right text-xs">
+                                        <thead className="bg-amber-100 text-amber-700 font-black text-[10px] uppercase tracking-widest border-b border-amber-200 sticky top-0 backdrop-blur-md z-10">
+                                          <tr>
+                                            <th className="px-3 py-2.5 text-center w-8">م</th>
+                                            <th className="px-3 py-2.5 text-right">الصنف</th>
+                                            <th className="px-3 py-2.5 text-center">القسم</th>
+                                            <th className="px-3 py-2.5 text-center">كمية</th>
+                                            <th className="px-3 py-2.5 text-center">وحدة</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-amber-100/50">
+                                          {historyData.lines.filter(l => l.item && l.item.trim() !== '').map((l, i) => (
+                                            <tr key={i} className="hover:bg-amber-100/40 transition-colors">
+                                              <td className="px-3 py-2 text-center text-[10px] font-black text-amber-400">{i + 1}</td>
+                                              <td className="px-3 py-2 font-black text-amber-900/80 text-right text-[11px] leading-tight">{l.item}</td>
+                                              <td className="px-3 py-2 text-center">
+                                                <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-amber-100 text-amber-600 text-[9px] font-bold">{l.cat||'-'}</span>
+                                              </td>
+                                              <td className="px-3 py-2 text-center">
+                                                <span className="inline-flex items-center justify-center min-w-[2rem] px-2 py-0.5 rounded-lg font-black text-xs tabular-nums border bg-amber-50 text-amber-700 border-amber-300 shadow-sm">{l.qty}</span>
+                                              </td>
+                                              <td className="px-3 py-2 text-center text-[10px] font-bold text-amber-500/70">{l.unit||'-'}</td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  </div>
+                                </div>
+                              </>
+                            );
+                          })()}
                         </div>
                       ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleExportInvoiceToInvoice(detailVoucher)}
-                          className="w-full py-3 rounded-xl text-sm font-bold text-white bg-blue-500 hover:bg-blue-600 shadow-md shadow-blue-500/20 transition-all flex items-center justify-center gap-2"
-                        >
-                          <FileText size={16} />
-                          تصدير الفاتورة
-                        </button>
+                        /* ── Normal Single-Column View ── */
+                        <div className="p-6 overflow-y-auto custom-scrollbar h-full">
+                          <div className="flex flex-col gap-2">
+                            <div className="flex items-center gap-2 px-1 text-slate-400">
+                              <List size={14} />
+                              <span className="text-[10px] font-black uppercase tracking-widest">قائمة الأصناف الحالية</span>
+                            </div>
+                            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+                              <table className="w-full text-right text-xs">
+                                <thead className="bg-slate-50/80 text-slate-400 font-black text-[9px] uppercase tracking-widest border-b border-slate-100 sticky top-0 backdrop-blur-md z-10">
+                                  <tr>
+                                    <th className="px-5 py-4 text-center w-12">م</th>
+                                    <th className="px-5 py-4 text-right">الصنف</th>
+                                    <th className="px-5 py-4 text-center">القسم</th>
+                                    <th className="px-5 py-4 text-center">الكمية</th>
+                                    <th className="px-5 py-4 text-center">الوحدة</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50">
+                                  {lines.map((line, idx) => (
+                                    <tr key={line.id || idx} className="hover:bg-slate-50/50 transition-colors">
+                                      <td className="px-5 py-4 text-[10px] font-bold text-center tabular-nums text-slate-400">{idx + 1}</td>
+                                      <td className="px-5 py-4 text-right">
+                                        <span className="text-sm font-black text-slate-700">
+                                          {line.company && line.company !== '-' && !(line.item||'').includes(line.company)
+                                            ? `${line.item||'-'} - ${line.company}` : line.item||'-'}
+                                        </span>
+                                      </td>
+                                      <td className="px-5 py-4 text-center">
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-bold bg-slate-100 text-slate-500">{line.cat||'-'}</span>
+                                      </td>
+                                      <td className="px-5 py-4 text-center">
+                                        <span className={`inline-flex items-center justify-center px-3 py-1 rounded-lg font-black text-xs tabular-nums border ${isIn ? 'bg-teal-50 text-teal-600 border-teal-100' : 'bg-red-50 text-red-600 border-red-100'}`}>{line.qty}</span>
+                                      </td>
+                                      <td className="px-5 py-4 text-center">
+                                        <span className="text-[11px] font-bold text-slate-400">{line.unit||'كرتونة'}</span>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        </div>
                       )}
                     </div>
 
-                    {/* Items Table with borders */}
-                    <div className="flex-1 overflow-y-auto custom-scrollbar">
-                      {lines.length === 0 ? (
-                        <div className="px-6 py-8 text-center text-slate-400 text-xs">لا توجد أصناف</div>
-                      ) : (
-                        <table className="w-full text-center text-xs border border-slate-200 rounded-lg overflow-hidden">
-                          <thead className="bg-slate-50">
-                            <tr className="text-[10px] font-bold text-slate-600 border-b border-slate-200">
-                              <th className="px-5 py-3 text-center w-12 border-l border-slate-200">م</th>
-                              <th className="px-5 py-3 text-center border-l border-slate-200">اسم الصنف</th>
-                              <th className="px-5 py-3 text-center w-24">الكمية</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-200">
-                            {lines.map((line, idx) => {
-                              // Hard-coded concatenation: Item Name - Company
-                              const displayName = line.item && line.company 
-                                ? `${line.item} - ${line.company}` 
-                                : (line.item || '-');
-                              return (
-                                <tr key={line.id || idx} className="bg-white hover:bg-slate-50">
-                                  <td className="px-5 py-4 text-[10px] font-bold text-slate-500 text-center border-l border-slate-200">{idx + 1}</td>
-                                  <td className="px-5 py-4 text-xs font-bold text-slate-800 text-center border-l border-slate-200">{displayName}</td>
-                                  <td className={`px-5 py-4 text-xs font-bold text-center ${isIn ? 'text-emerald-600' : 'text-red-600'}`}>
-                                    {line.qty}
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      )}
-                    </div>
+                    {/* --- Balanced Footer --- */}
+                    <div className="px-6 py-5 bg-white border-t border-slate-100 shrink-0">
+                      <div className="flex items-center justify-center gap-4">
+                        {isCancelled && (
+                          <div className="flex items-center gap-2 px-5 py-2.5 bg-rose-50 text-rose-600 rounded-2xl border border-rose-100/50 shadow-sm">
+                            <AlertTriangle size={18} />
+                            <span className="text-[13px] font-black font-tajawal">هذا السند ملغي ولا يمكن إصدار فاتورة له</span>
+                          </div>
+                        )}
 
-                    {/* Footer */}
-                    <div className={`px-6 py-4 ${isCompleted ? 'bg-emerald-50' : isIn ? 'bg-teal-50' : 'bg-red-50'} border-t border-slate-200 shrink-0`}>
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs text-slate-600 font-readex">
-                          إجمالي الأصناف: <span className="font-bold">{lines.length}</span>
-                        </p>
+                        {isCompleted && invoiceDate && (
+                          <div className="flex items-center gap-2 px-5 py-2.5 bg-emerald-50 text-emerald-600 rounded-2xl border border-emerald-100/50 shadow-sm">
+                            <CheckCircle size={18} />
+                            <span className="text-[13px] font-black font-tajawal">تم إصدار الفاتورة بتاريخ {invoiceDate}</span>
+                          </div>
+                        )}
+
+                        {!(isCancelled || (isCompleted && invoiceDate)) && (
+                          <button
+                            type="button"
+                            onClick={() => handleMarkAsInvoiced(detailVoucher)}
+                            className={`px-12 py-3 rounded-2xl text-xs font-black text-white ${isIn ? 'bg-gradient-to-r from-teal-500 to-emerald-600 shadow-teal-500/30' : 'bg-gradient-to-r from-indigo-500 to-blue-600 shadow-indigo-500/30'} shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2`}
+                          >
+                            {isIn ? (
+                              <><CheckCircle size={16} strokeWidth={3} /> اعتماد السند</>
+                            ) : (
+                              <><FileText size={16} strokeWidth={3} /> إصدار الفاتورة</>
+                            )}
+                          </button>
+                        )}
+                        
                         <button
                           onClick={() => setIsVoucherDetailOpen(false)}
-                          className={`px-6 py-2.5 rounded-lg text-xs font-bold text-white ${isCompleted ? 'bg-emerald-500 hover:bg-emerald-600' : isIn ? 'bg-teal-500 hover:bg-teal-600' : 'bg-red-500 hover:bg-red-600'} transition-all`}
+                          className="px-12 py-3 rounded-2xl bg-slate-100 text-slate-500 text-[11px] font-black hover:bg-slate-200 hover:text-slate-600 transition-all active:scale-95 border border-slate-200"
                         >
-                          إغلاق
+                          إغلاق النافذة
                         </button>
                       </div>
+                      
+                      {!(isCancelled || (isCompleted && invoiceDate)) && !isIn && (
+                        <p className="text-[9px] text-slate-400 font-bold text-center mt-3 italic">
+                          * سيتم مراجعة الفاتورة قبل الاعتماد النهائي
+                        </p>
+                      )}
                     </div>
                   </>
                 );
@@ -2998,12 +3508,12 @@ export default function Dashboard() {
                  list="reps-datalist"
                  className={`w-full h-[38px] bg-white border ${!invoiceForm.rep.trim() && invoiceErrors.rep ? 'border-red-200 ring-2 ring-red-500/5' : 'border-slate-200'} text-slate-800 text-[13px] font-black rounded-xl px-4 outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500/20 transition-all font-tajawal`}
                  value={invoiceForm.rep}
-                 readOnly={isVoucherInvoice}
+                 
                  onChange={(e) => {
                     setInvoiceForm({...invoiceForm, rep: e.target.value});
                     if (e.target.value.trim()) setInvoiceErrors(prev => ({...prev, rep: false}));
                  }}
-                 id="invoiceRepInput" placeholder="اسم مندوب المبيعات"
+                 autoComplete="off" id="invoiceRepInput" placeholder="اسم مندوب المبيعات"
                />
                <datalist id="reps-datalist">
                  {repsList.map(rep => <option key={rep} value={rep} />)}
@@ -3018,7 +3528,7 @@ export default function Dashboard() {
                     className="w-full h-[38px] bg-white border border-slate-200 text-slate-800 text-[13px] font-black rounded-xl px-4 outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500/20 transition-all font-readex text-center" 
                     value={invoiceForm.date} 
                     onChange={(e) => setInvoiceForm({...invoiceForm, date: e.target.value})} 
-                    readOnly={isVoucherInvoice} 
+                     
                   />
                 </div>
              </div>
@@ -3026,108 +3536,110 @@ export default function Dashboard() {
 
           {/* Item Entry Section - Redesigned Card */}
           {!isVoucherInvoice && (
-          <div className="bg-slate-50/50 p-2.5 rounded-[1.2rem] border border-slate-100 mb-2 shadow-sm">
-             <div className="flex items-center gap-2 mb-2 mr-1">
-                <div className="w-1.5 h-3 bg-indigo-500 rounded-full" />
-                <h4 className="text-[11px] font-black text-slate-700 font-tajawal">إضافة سريع للأصناف</h4>
-             </div>
-             <div className="flex flex-wrap items-end gap-2.5">
-                {/* Search Field */}
-                <div className="flex-1 min-w-[250px] relative group/item">
-                  <label className="block text-[10px] font-bold text-slate-400 mb-1.5 mr-1 uppercase h-[15px] leading-[15px]">البحث عن صنف</label>
-                  <div className="relative">
-                    <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input
-                      ref={invoiceSearchInputRef}
-                      type="text"
-                      className="w-full h-[38px] bg-white border border-slate-200 text-slate-800 text-[13px] font-black rounded-xl pr-9 pl-3 outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500/30 transition-all font-tajawal placeholder:text-slate-300 placeholder:font-semibold"
-                      placeholder="اكتب اسم الصنف هنا..."
-                      value={currentInvoiceItem.name}
-                      onChange={(e) => {
-                        setCurrentInvoiceItem({...currentInvoiceItem, name: e.target.value, selectedItem: null, cat: '', unit: ''});
-                        setInvoiceSearchActiveIndex(-1);
-                      }}
-                      onKeyDown={(e) => {
-                        const suggestions = items.filter(i => i.name.includes(currentInvoiceItem.name) || i.company.includes(currentInvoiceItem.name));
-                        if (e.key === 'ArrowDown') { e.preventDefault(); setInvoiceSearchActiveIndex(prev => prev < suggestions.length - 1 ? prev + 1 : prev); }
-                        else if (e.key === 'ArrowUp') { e.preventDefault(); setInvoiceSearchActiveIndex(prev => prev > 0 ? prev - 1 : 0); }
-                        else if (e.key === 'Enter') {
-                          e.preventDefault();
-                          if (invoiceSearchActiveIndex >= 0 && suggestions[invoiceSearchActiveIndex]) {
-                            const invItem = suggestions[invoiceSearchActiveIndex];
-                            setCurrentInvoiceItem({ ...currentInvoiceItem, name: `${invItem.name} - ${invItem.company}`, selectedItem: invItem, cat: invItem.cat || invItem.category || '', unit: invItem.unit || 'كرتونة' });
-                            setInvoiceSearchActiveIndex(-1);
-                            setTimeout(() => document.getElementById('invoiceQtyInput')?.focus(), 10);
-                          } else if (currentInvoiceItem.selectedItem) {
-                            setTimeout(() => document.getElementById('invoiceQtyInput')?.focus(), 10);
+            <div className={`p-2.5 rounded-[1.2rem] border mb-2 shadow-sm ${isVoucherInvoice ? 'bg-indigo-50/30 border-indigo-100' : 'bg-slate-50/50 border-slate-100'}`}>
+              <div className="flex items-center gap-2 mb-2 mr-1">
+                  <div className="w-1.5 h-3 bg-indigo-500 rounded-full" />
+                  <h4 className="text-[11px] font-black text-slate-700 font-tajawal">إضافة سريع للأصناف</h4>
+              </div>
+              <div className="flex flex-wrap items-end gap-2.5">
+                  {/* Search Field */}
+                  <div className="flex-1 min-w-[250px] relative group/item">
+                    <label className="block text-[10px] font-bold text-slate-400 mb-1.5 mr-1 uppercase h-[15px] leading-[15px]">البحث عن صنف</label>
+                    <div className="relative">
+                      <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        ref={invoiceSearchInputRef}
+                        type="text"
+                        autoComplete="off"
+                        className="w-full h-[38px] bg-white border border-slate-200 text-slate-800 text-[13px] font-black rounded-xl pr-9 pl-3 outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500/30 transition-all font-tajawal placeholder:text-slate-300 placeholder:font-semibold"
+                        placeholder="اكتب اسم الصنف هنا..."
+                        value={currentInvoiceItem.name}
+                        onChange={(e) => {
+                          setCurrentInvoiceItem({...currentInvoiceItem, name: e.target.value, selectedItem: null, cat: '', unit: ''});
+                          setInvoiceSearchActiveIndex(-1);
+                        }}
+                        onKeyDown={(e) => {
+                          const suggestions = items.filter(i => i.name.includes(currentInvoiceItem.name) || i.company.includes(currentInvoiceItem.name));
+                          if (e.key === 'ArrowDown') { e.preventDefault(); setInvoiceSearchActiveIndex(prev => prev < suggestions.length - 1 ? prev + 1 : prev); }
+                          else if (e.key === 'ArrowUp') { e.preventDefault(); setInvoiceSearchActiveIndex(prev => prev > 0 ? prev - 1 : 0); }
+                          else if (e.key === 'Enter') {
+                            e.preventDefault();
+                            if (invoiceSearchActiveIndex >= 0 && suggestions[invoiceSearchActiveIndex]) {
+                              const invItem = suggestions[invoiceSearchActiveIndex];
+                              setCurrentInvoiceItem({ ...currentInvoiceItem, name: `${invItem.name} - ${invItem.company}`, selectedItem: invItem, cat: invItem.cat || invItem.category || '', unit: invItem.unit || 'كرتونة' });
+                              setInvoiceSearchActiveIndex(-1);
+                              setTimeout(() => document.getElementById('invoiceQtyInput')?.focus(), 10);
+                            } else if (currentInvoiceItem.selectedItem) {
+                              setTimeout(() => document.getElementById('invoiceQtyInput')?.focus(), 10);
+                            }
                           }
-                        }
-                      }}
+                        }}
+                      />
+                    </div>
+                    {currentInvoiceItem.name && !currentInvoiceItem.selectedItem && (
+                      <div className="hidden group-focus-within/item:block absolute top-[110%] right-0 w-full max-h-64 overflow-y-auto bg-white rounded-xl shadow-xl border border-slate-100 z-50 p-1.5 backdrop-blur-xl custom-scrollbar">
+                        {items.filter(i => i.name.includes(currentInvoiceItem.name) || i.company.includes(currentInvoiceItem.name)).map((invItem, idx) => (
+                             <button key={invItem.id} type="button" className={`w-full text-right px-3 py-2 rounded-lg transition-all ${invoiceSearchActiveIndex === idx ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-slate-50 text-slate-700'}`} onMouseDown={(e) => {
+                               e.preventDefault();
+                               setCurrentInvoiceItem({
+                                 ...currentInvoiceItem,
+                                 name: `${invItem.name} - ${invItem.company}`,
+                                 selectedItem: invItem,
+                                 cat: invItem.cat || invItem.category || '',
+                                 unit: invItem.unit || 'كرتونة'
+                               });
+                               setInvoiceSearchActiveIndex(-1);
+                               setTimeout(() => { document.getElementById('invoiceQtyInput')?.focus(); }, 10);
+                             }}>
+                               <div className="flex justify-between items-center w-full">
+                                 <div className="flex flex-col">
+                                    <span className="text-xs font-black">{invItem.name}</span>
+                                    <span className="text-[9px] font-bold opacity-60">{invItem.company}</span>
+                                 </div>
+                                 <span className="text-[9px] font-black bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-md">رصيد: {invItem.stockQty}</span>
+                               </div>
+                             </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Quantity Field */}
+                  <div className="w-[85px]">
+                    <label className="block text-[10px] font-bold text-slate-400 mb-1.5 text-center uppercase h-[15px] leading-[15px]">الكمية</label>
+                    <input
+                      type="number"
+                      id="invoiceQtyInput"
+                      className="w-full h-[38px] bg-white border-2 border-indigo-400/50 focus:border-indigo-500 text-indigo-700 text-sm rounded-xl px-2 outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all text-center font-black tabular-nums shadow-inner"
+                      placeholder="0"
+                      value={currentInvoiceItem.qty}
+                      onChange={(e) => { if (e.target.value.length <= 4) setCurrentInvoiceItem({...currentInvoiceItem, qty: e.target.value}); }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddInvoiceItemToTable(); } }}
                     />
                   </div>
-                  {currentInvoiceItem.name && !currentInvoiceItem.selectedItem && (
-                    <div className="hidden group-focus-within/item:block absolute top-[110%] right-0 w-full max-h-64 overflow-y-auto bg-white rounded-xl shadow-xl border border-slate-100 z-50 p-1.5 backdrop-blur-xl custom-scrollbar">
-                      {items.filter(i => i.name.includes(currentInvoiceItem.name) || i.company.includes(currentInvoiceItem.name)).map((invItem, idx) => (
-                           <button key={invItem.id} type="button" className={`w-full text-right px-3 py-2 rounded-lg transition-all ${invoiceSearchActiveIndex === idx ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-slate-50 text-slate-700'}`} onMouseDown={(e) => {
-                             e.preventDefault();
-                             setCurrentInvoiceItem({
-                               ...currentInvoiceItem,
-                               name: `${invItem.name} - ${invItem.company}`,
-                               selectedItem: invItem,
-                               cat: invItem.cat || invItem.category || '',
-                               unit: invItem.unit || 'كرتونة'
-                             });
-                             setInvoiceSearchActiveIndex(-1);
-                             setTimeout(() => { document.getElementById('invoiceQtyInput')?.focus(); }, 10);
-                           }}>
-                             <div className="flex justify-between items-center w-full">
-                               <div className="flex flex-col">
-                                  <span className="text-xs font-black">{invItem.name}</span>
-                                  <span className="text-[9px] font-bold opacity-60">{invItem.company}</span>
-                               </div>
-                               <span className="text-[9px] font-black bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-md">رصيد: {invItem.stockQty}</span>
-                             </div>
-                           </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
 
-                {/* Quantity Field */}
-                <div className="w-[85px]">
-                  <label className="block text-[10px] font-bold text-slate-400 mb-1.5 text-center uppercase h-[15px] leading-[15px]">الكمية</label>
-                  <input
-                    type="number"
-                    id="invoiceQtyInput"
-                    className="w-full h-[38px] bg-white border-2 border-indigo-400/50 focus:border-indigo-500 text-indigo-700 text-sm rounded-xl px-2 outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all text-center font-black tabular-nums shadow-inner"
-                    placeholder="0"
-                    value={currentInvoiceItem.qty}
-                    onChange={(e) => { if (e.target.value.length <= 4) setCurrentInvoiceItem({...currentInvoiceItem, qty: e.target.value}); }}
-                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddInvoiceItemToTable(); } }}
-                  />
-                </div>
+                  {/* Category & Unit - Unified Fields */}
+                  <div className="w-[85px]">
+                    <label className="block text-[10px] font-bold text-slate-400 mb-1.5 text-center uppercase h-[15px] leading-[15px]">القسم</label>
+                    <input type="text" className="w-full h-[38px] bg-slate-100/50 border border-slate-200/60 text-slate-600 text-[12px] font-black rounded-xl px-2 outline-none cursor-default text-center transition-all" value={currentInvoiceItem.cat || '-'} readOnly />
+                  </div>
 
-                {/* Category & Unit - Unified Fields */}
-                <div className="w-[85px]">
-                  <label className="block text-[10px] font-bold text-slate-400 mb-1.5 text-center uppercase h-[15px] leading-[15px]">القسم</label>
-                  <input type="text" className="w-full h-[38px] bg-slate-100/50 border border-slate-200/60 text-slate-600 text-[12px] font-black rounded-xl px-2 outline-none cursor-default text-center transition-all" value={currentInvoiceItem.cat || '-'} readOnly />
-                </div>
+                  <div className="w-[85px]">
+                    <label className="block text-[10px] font-bold text-slate-400 mb-1.5 text-center uppercase h-[15px] leading-[15px]">الوحدة</label>
+                    <input type="text" className="w-full h-[38px] bg-white border border-slate-200 text-slate-800 text-[12px] font-black rounded-xl px-2 outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500/30 transition-all text-center" value={currentInvoiceItem.unit} onChange={(e) => setCurrentInvoiceItem({...currentInvoiceItem, unit: e.target.value})} placeholder="كرتونة" />
+                  </div>
 
-                <div className="w-[85px]">
-                  <label className="block text-[10px] font-bold text-slate-400 mb-1.5 text-center uppercase h-[15px] leading-[15px]">الوحدة</label>
-                  <input type="text" className="w-full h-[38px] bg-white border border-slate-200 text-slate-800 text-[12px] font-black rounded-xl px-2 outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500/30 transition-all text-center" value={currentInvoiceItem.unit} onChange={(e) => setCurrentInvoiceItem({...currentInvoiceItem, unit: e.target.value})} placeholder="كرتونة" />
-                </div>
-
-                {/* Add Button */}
-                <button
-                  type="button"
-                  className="w-[38px] h-[38px] bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-all shadow-md shadow-indigo-200 flex items-center justify-center hover:scale-105 active:scale-95 shrink-0"
-                  onClick={handleAddInvoiceItemToTable}
-                >
-                  <Plus size={20} strokeWidth={3} />
-                </button>
-             </div>
-          </div>
+                  {/* Add/Update Button */}
+                  <button
+                    type="button"
+                    className={`w-[38px] h-[38px] ${currentInvoiceItem.selectedItem ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-slate-300'} text-white rounded-xl font-bold transition-all shadow-md flex items-center justify-center hover:scale-105 active:scale-95 shrink-0`}
+                    onClick={handleAddInvoiceItemToTable}
+                    title={currentInvoiceItem.selectedItem ? "إضافة/تحديث الصنف" : "حدد صنف أولاً"}
+                  >
+                    <Plus size={20} strokeWidth={3} />
+                  </button>
+               </div>
+            </div>
           )}
 
           {/* Middle Section (The Table - Redesigned) */}
@@ -3172,31 +3684,31 @@ export default function Dashboard() {
                            <span className="text-[11px] font-bold text-slate-500 bg-slate-50 px-2 py-1 rounded-md">{item.unit || 'كرتونة'}</span>
                         </td>
                         <td className="px-6 py-4 text-center">
-                           <div className="inline-flex items-center justify-center px-4 py-1.5 rounded-xl bg-red-50 text-red-600 border border-red-100/50 font-black text-sm tabular-nums">
+                           <div className={`inline-flex items-center justify-center px-4 py-1.5 rounded-xl ${isVoucherInvoice ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-red-50 text-red-600 border-red-100'} border font-black text-sm tabular-nums`}>
                               {isVoucherInvoice ? item.qty : `-${item.qty}`}
                            </div>
                         </td>
                         {!isVoucherInvoice && (
-                        <td className="px-6 py-4 text-center">
-                          <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-all transform scale-90 group-hover:scale-100">
-                            <button 
-                              type="button" 
-                              onClick={() => handleEditInvoiceItem(idx)} 
-                              className="w-9 h-9 flex items-center justify-center text-blue-500 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
-                              title="تعديل"
-                            >
-                              <Pencil size={18} strokeWidth={2.5} />
-                            </button>
-                            <button 
-                              type="button" 
-                              onClick={() => setInvoiceForm({...invoiceForm, items: invoiceForm.items.filter((_, i) => i !== idx)})} 
-                              className="w-9 h-9 flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
-                              title="حذف"
-                            >
-                              <Trash2 size={18} strokeWidth={2.5} />
-                            </button>
-                          </div>
-                        </td>
+                          <td className="px-6 py-4 text-center">
+                            <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-all transform scale-90 group-hover:scale-100">
+                              <button 
+                                type="button" 
+                                onClick={() => handleEditInvoiceItem(idx)} 
+                                className={`w-9 h-9 flex items-center justify-center ${isVoucherInvoice ? 'text-indigo-500 hover:bg-indigo-50' : 'text-blue-500 hover:bg-blue-50'} rounded-xl transition-all`}
+                                title="تعديل"
+                              >
+                                <Pencil size={18} strokeWidth={2.5} />
+                              </button>
+                              <button 
+                                type="button" 
+                                onClick={() => setInvoiceForm({...invoiceForm, items: invoiceForm.items.filter((_, i) => i !== idx)})} 
+                                className="w-9 h-9 flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                                title="حذف"
+                              >
+                                <Trash2 size={18} strokeWidth={2.5} />
+                              </button>
+                            </div>
+                          </td>
                         )}
                       </tr>
                     ))

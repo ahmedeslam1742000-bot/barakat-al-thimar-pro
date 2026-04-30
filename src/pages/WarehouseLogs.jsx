@@ -35,9 +35,18 @@ const TX_TYPES = {
   'مرتجع': { label: 'مرتجع', color: 'amber', icon: RotateCcw, bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-200' },
   'سند إدخال': { label: 'سند إدخال', color: 'teal', icon: FileText, bg: 'bg-teal-50', text: 'text-teal-600', border: 'border-teal-200' },
   'سند إخراج': { label: 'سند إخراج', color: 'purple', icon: FileText, bg: 'bg-purple-50', text: 'text-purple-600', border: 'border-purple-200' },
+  'فاتورة سند': { label: 'فاتورة سند', color: 'blue', icon: FileText, bg: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-200' },
 };
 
-const getTxStyle = (type) => TX_TYPES[type] || { label: type, color: 'slate', icon: Package, bg: 'bg-slate-50', text: 'text-slate-500', border: 'border-slate-200' };
+const getTxStyle = (tx) => {
+  const type = tx.type;
+  const isInvoiced = tx.status === 'مفوتر' || (tx.notes && tx.notes.includes('[تم إصدار الفاتورة]'));
+  
+  if (type === 'سند إخراج' && isInvoiced) return TX_TYPES['فاتورة سند'];
+  if (type === 'صادر' && isInvoiced) return { ...TX_TYPES['صادر'], label: 'صادر - فاتورة', color: 'blue', bg: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-200' };
+
+  return TX_TYPES[type] || { label: type, color: 'slate', icon: Package, bg: 'bg-slate-50', text: 'text-slate-500', border: 'border-slate-200' };
+};
 
 const DISC_REASONS = ['نقص في العدد', 'تلف / كسر', 'انتهاء صلاحية', 'اختلاف في الوزن', 'سرقة مشتبه بها', 'خطأ في الإدخال', 'أخرى'];
 
@@ -52,7 +61,7 @@ export default function WarehouseLogs() {
 
   useEffect(() => {
     const fetchInitialData = async () => {
-      const { data: transData } = await supabase.from('transactions').select('id, type, timestamp, item, company, qty, unit, lineNote, note, supplyNotes, date, balance_after, item_id, is_summary').order('timestamp', { ascending: false });
+      const { data: transData } = await supabase.from('transactions').select('id, type, timestamp, item, company, qty, unit, notes, note, date, balance_after, item_id, is_summary').order('timestamp', { ascending: false });
       if (transData) setTransactions(transData);
 
       const { data: itemsData } = await supabase.from('products').select('id, name, company, cat, unit, stock_qty');
@@ -262,7 +271,7 @@ function DailyActivity({ transactions }) {
               <tbody className="divide-y divide-slate-50">
                 <AnimatePresence>
                   {filtered.map((tx, i) => {
-                    const style = getTxStyle(tx.type);
+                    const style = getTxStyle(tx);
                     const Icon = style.icon;
                     return (
                       <motion.tr
@@ -278,9 +287,9 @@ function DailyActivity({ transactions }) {
                           </div>
                         </td>
                         <td className="px-6 py-5">
-                          <span className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-black border shadow-sm ${style.bg} ${style.text} ${style.border}`}>
-                            <Icon size={12} />
-                            {style.label}
+                          <span className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-black border shadow-sm ${tx.status === 'cancelled' ? 'bg-rose-50 text-rose-600 border-rose-200' : `${style.bg} ${style.text} ${style.border}`}`}>
+                            {tx.status === 'cancelled' ? <AlertTriangle size={12} className="animate-pulse" /> : <Icon size={12} />}
+                            {tx.status === 'cancelled' ? `${style.label} (ملغي)` : style.label}
                           </span>
                         </td>
                         <td className="px-6 py-5">
@@ -295,8 +304,8 @@ function DailyActivity({ transactions }) {
                           </span>
                         </td>
                         <td className="px-6 py-5 font-black text-slate-500 text-xs">{tx.unit || '—'}</td>
-                        <td className="px-8 py-5 text-[11px] font-bold text-slate-400 max-w-[250px] truncate italic group-hover:text-slate-600 transition-colors">
-                          {tx.lineNote || tx.note || tx.supplyNotes || '—'}
+                        <td className="px-8 py-5 text-[11px] font-bold text-slate-400 max-w-[250px] truncate italic group-hover:text-slate-600 transition-colors" title={tx.notes || tx.note || ''}>
+                          {tx.notes || tx.note || '—'}
                         </td>
                       </motion.tr>
                     );

@@ -52,7 +52,7 @@ export default function WarehouseInsights() {
   // ── SUPABASE Reads (zero writes) ──
   useEffect(() => {
     const fetchInitialData = async () => {
-      const { data: transData } = await supabase.from('transactions').select('id, date, timestamp, type, item, company, qty, unit, line_note, note, voucher_supply_notes, is_summary').order('timestamp', { ascending: false });
+      const { data: transData } = await supabase.from('transactions').select('id, date, timestamp, type, item, company, qty, unit, note, is_summary').order('timestamp', { ascending: false });
       if (transData) setTransactions(transData);
 
       const { data: itemsData } = await supabase.from('products').select('id, name, company, cat, unit, stock_qty');
@@ -276,9 +276,9 @@ function DailyLog({ transactions }) {
                         </span>
                       </td>
                       <td className="px-6 py-5">
-                        <span className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-black border shadow-sm ${m.cls}`}>
-                          <Icon size={12} />
-                          {m.label}
+                        <span className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-black border shadow-sm ${tx.status === 'cancelled' ? 'bg-rose-50 text-rose-600 border-rose-200' : m.cls}`}>
+                          {tx.status === 'cancelled' ? <AlertTriangle size={12} className="animate-pulse" /> : <Icon size={12} />}
+                          {tx.status === 'cancelled' ? `${m.label} (ملغي)` : m.label}
                         </span>
                       </td>
                       <td className="px-6 py-5">
@@ -291,8 +291,8 @@ function DailyLog({ transactions }) {
                         <span className={`inline-flex items-center justify-center min-w-[50px] px-3 py-1.5 rounded-xl font-black text-sm shadow-sm ${m.cls}`}>{tx.qty ?? '—'}</span>
                       </td>
                       <td className="px-6 py-5 font-black text-slate-500 text-xs">{tx.unit || '—'}</td>
-                      <td className="px-8 py-5 text-[11px] font-bold text-slate-400 max-w-[250px] truncate italic group-hover:text-slate-600 transition-colors">
-                        {tx.lineNote || tx.note || tx.supplyNotes || '—'}
+                      <td className="px-8 py-5 text-[11px] font-bold text-slate-400 max-w-[250px] truncate italic group-hover:text-slate-600 transition-colors" title={tx.note || tx.supplyNotes || ''}>
+                        {tx.note || tx.supplyNotes || '—'}
                       </td>
                     </tr>
                   );

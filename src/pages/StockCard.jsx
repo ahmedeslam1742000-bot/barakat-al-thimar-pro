@@ -6,7 +6,7 @@ import {
   ChevronLeft, Layers, Box, Snowflake, Archive,
   LogOut, FileDown, X, Printer, TrendingUp,
   Clock, User, Hash, Info, ChevronRight,
-  Database
+  Database, AlertTriangle
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { toast } from 'sonner';
@@ -69,6 +69,7 @@ export default function StockCard({ setActiveView }) {
         .from('transactions')
         .select('*')
         .or(`item_id.eq.${item.id},item.ilike.%${item.name}%`)
+        .eq('is_summary', false)
         .order('timestamp', { ascending: true });
 
       if (error) throw error;
@@ -93,6 +94,7 @@ export default function StockCard({ setActiveView }) {
       const processed = data.map(tx => {
         const qtyChange = Number(tx.qty || 0);
         const rawType = tx.type || '';
+        const isCancelled = tx.status === 'cancelled';
         
         const isAddition = ['in', 'Restock', 'return', 'Return', 'adjust_in', 'سند إدخال'].includes(rawType);
         const isDeduction = ['out', 'Issue', 'adjust_out', 'سند إخراج', 'سند إخراج صوري'].includes(rawType) || tx.status === 'مرتجع تالف';
@@ -100,22 +102,25 @@ export default function StockCard({ setActiveView }) {
         const balanceBefore = currentBalance;
         let change = 0;
         
-        if (isAddition) {
-          change = qtyChange;
-        } else if (isDeduction) {
-          change = -qtyChange;
+        if (!isCancelled) {
+          if (isAddition) {
+            change = qtyChange;
+          } else if (isDeduction) {
+            change = -qtyChange;
+          }
         }
 
         currentBalance += change;
         
         return {
           ...tx,
-          displayType: typeMap[rawType] || rawType,
+          displayType: isCancelled ? `${typeMap[rawType] || rawType} (ملغي)` : (typeMap[rawType] || rawType),
           balanceBefore,
           change,
           balanceAfter: currentBalance,
           isAddition,
-          isDeduction
+          isDeduction,
+          isCancelled
         };
       }).reverse(); // Show latest first in table
 
@@ -394,6 +399,7 @@ export default function StockCard({ setActiveView }) {
                                 <th className="pb-4">البيان / الجهة</th>
                                 <th className="pb-4 text-center">الرصيد قبل</th>
                                 <th className="pb-4 text-center">الحركة</th>
+                                <th className="pb-4 text-right">الملاحظة</th>
                                 <th className="pb-4 text-center rounded-l-3xl">الرصيد بعد</th>
                              </tr>
                           </thead>
@@ -409,13 +415,16 @@ export default function StockCard({ setActiveView }) {
                                    <td className="py-4">
                                       <div className="flex items-center gap-3">
                                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
-                                           tx.isAddition ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
+                                           tx.isCancelled ? 'bg-rose-50 text-rose-500' : (tx.isAddition ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600')
                                          }`}>
-                                            {tx.isAddition ? <ArrowDownLeft size={14} /> : <ArrowUpRight size={14} />}
+                                            {tx.isCancelled ? <AlertTriangle size={14} /> : (tx.isAddition ? <ArrowDownLeft size={14} /> : <ArrowUpRight size={14} />)}
                                          </div>
                                          <div className="flex flex-col">
                                             <span className="text-xs font-black text-slate-800">{tx.beneficiary || tx.loc || tx.recipient || tx.rep || tx.supplier || 'بدون اسم'}</span>
-                                            <span className="text-[9px] font-bold text-slate-400">{tx.displayType}</span>
+                                            <div className="flex items-center gap-1">
+                                               {tx.isCancelled && <AlertTriangle size={10} className="text-rose-500" />}
+                                               <span className={`text-[9px] font-bold ${tx.isCancelled ? 'text-rose-400' : 'text-slate-400'}`}>{tx.displayType}</span>
+                                             </div>
                                          </div>
                                       </div>
                                    </td>
@@ -428,6 +437,11 @@ export default function StockCard({ setActiveView }) {
                                       }`}>
                                          {tx.change > 0 ? `+${tx.change}` : tx.change}
                                       </span>
+                                   </td>
+                                   <td className="py-4 text-right">
+                                       <span className="text-[10px] font-bold text-slate-400 italic truncate max-w-[120px]" title={tx.notes || tx.note || ''}>
+                                          {(tx.notes || tx.note || '').split('[تعديل حديث]')[0].split('[تم إصدار الفاتورة')[0].split('<!--')[0].trim() || '—'}
+                                       </span>
                                    </td>
                                    <td className="py-4 text-center rounded-l-3xl">
                                       <div className="inline-flex items-center px-3 py-1 bg-indigo-50 text-indigo-700 rounded-xl text-xs font-black border border-indigo-100 tabular-nums">

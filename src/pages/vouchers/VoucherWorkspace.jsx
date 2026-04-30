@@ -4,7 +4,7 @@ import {
   Search, Plus, X, Pencil, Trash2, Package, Box,
   AlertTriangle, CheckCircle, User, Truck, ChevronDown, Printer,
   Image as ImageIcon, FilterX, CalendarRange, Download, Upload, FileText, LogOut, Paperclip, Hash,
-  UploadCloud, Settings, Info, RefreshCw
+  UploadCloud, Settings, Info, RefreshCw, History
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { getItemName, getCompany, getCategory, getUnit } from '../../lib/itemFields';
@@ -27,7 +27,7 @@ const formatDate = (date) => {
 
 const KIND_CONFIG = {
   in: {
-    txType: 'in',
+    txType: 'سند إدخال',
     codePrefix: '',
     counterKey: 'in',
     pageTitle: 'سند إدخال بضاعة',
@@ -39,7 +39,7 @@ const KIND_CONFIG = {
     pdfTitle: 'إيصال رسمي — سند إدخال',
   },
   outward: {
-    txType: 'outward',
+    txType: 'سند إخراج',
     codePrefix: '',
     counterKey: 'out',
     pageTitle: 'سند إخراج بضاعة',
@@ -104,7 +104,7 @@ const actionBtnBase =
 /** Memoized voucher group row for table (desktop) */
 const VoucherGroupRow = React.memo(function VoucherGroupRow({
   group, idx, kind, expandedGroupId, isExporting, isViewer, theme, headerPartyLabel,
-  triggerExport, openEditGroup, openDeleteGroup, setExpandedGroupId, openEdit, openDelete,
+  triggerExport, openEditGroup, openDeleteGroup, setExpandedGroupId, openEdit, openDelete, onResetStatus
 }) {
   const isExpanded = expandedGroupId === group.groupId;
 
@@ -138,12 +138,70 @@ const VoucherGroupRow = React.memo(function VoucherGroupRow({
             {group.lineCount}
           </span>
         </td>
+        <td className="px-6 text-right border-x border-slate-50/50 dark:border-slate-700/30">
+          <div className="text-[10px] font-bold text-slate-500 truncate max-w-[150px]">
+             {(group.line_note || '').split('[تعديل حديث]')[0].split('[تم إصدار الفاتورة')[0].split('<!--')[0].trim() || '—'}
+             {(group.line_note || '').includes('<!--') && (
+               <div className="inline-flex items-center gap-1 bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded border border-amber-100 ml-1">
+                 <History size={10} />
+               </div>
+             )}
+          </div>
+        </td>
+        <td className="px-6 text-center border-x border-slate-50/50 dark:border-slate-700/30">
+           {group.lines.some(l => l.status === 'cancelled') ? (
+             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 text-rose-600 border border-rose-100 text-[10px] font-black shadow-sm">
+                <AlertTriangle size={10} /> ملغي
+             </span>
+           ) : group.lines.some(l => l.status === 'مفوتر') ? (
+             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-100 text-[10px] font-black shadow-sm">
+                <CheckCircle size={10} /> مفوتر
+             </span>
+           ) : (
+             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 text-amber-600 border border-amber-100 text-[10px] font-black shadow-sm">
+                <RefreshCw size={10} className="animate-spin-slow" /> قيد المراجعة
+             </span>
+           )}
+        </td>
         <td className="px-6 text-center border-x border-slate-50/50 dark:border-slate-700/30">
           <div className="flex items-center justify-center gap-1.5" onClick={e => e.stopPropagation()}>
             {group.lines.some(l => l.receipt_image) && (
               <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100">
                 <Paperclip size={14} />
               </div>
+            )}
+            {!isViewer && (
+              <>
+                {group.lines.some(l => l.status === 'cancelled') ? (
+                  <span className="text-[10px] font-bold text-rose-400 italic px-2">سند ملغي</span>
+                ) : group.lines.some(l => l.status === 'مفوتر') ? (
+                  /* Professional Mode: Lock invoiced vouchers, require reset to edit */
+                  <button 
+                    onClick={() => onResetStatus(group)}
+                    className="p-1.5 text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-500/10 rounded-lg transition-all"
+                    title="إلغاء الفوترة لإتاحة التعديل"
+                  >
+                    <RefreshCw size={14} strokeWidth={2.5} />
+                  </button>
+                ) : (
+                  <>
+                    <button 
+                      onClick={() => openEditGroup(group)}
+                      className="p-1.5 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-all"
+                      title="تعديل السند"
+                    >
+                      <Pencil size={14} strokeWidth={2.5} />
+                    </button>
+                    <button 
+                      onClick={() => openDeleteGroup(group)}
+                      className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-all"
+                      title="حذف السند"
+                    >
+                      <Trash2 size={14} strokeWidth={2.5} />
+                    </button>
+                  </>
+                )}
+              </>
             )}
           </div>
         </td>
@@ -152,6 +210,8 @@ const VoucherGroupRow = React.memo(function VoucherGroupRow({
   );
 }, (prev, next) => (
   prev.group.groupId === next.group.groupId &&
+  prev.group.lines.length === next.group.lines.length &&
+  prev.group.lines.every((l, i) => l.status === next.group.lines[i]?.status) &&
   prev.expandedGroupId === next.expandedGroupId &&
   prev.isExporting === next.isExporting &&
   prev.isViewer === next.isViewer &&
@@ -164,9 +224,18 @@ const VoucherGroupRow = React.memo(function VoucherGroupRow({
 const VoucherGroupDetails = React.memo(function VoucherGroupDetails({
   group, kind, isViewer, theme, openEdit, openDelete,
 }) {
+  const [showHistory, setShowHistory] = React.useState(false);
+
+  // Extract history from notes
+  const historyData = React.useMemo(() => {
+    const match = (group.line_note || '').match(/<!--(\{.*?\})-->/s);
+    if (!match) return null;
+    try { return JSON.parse(match[1]); } catch(e) { return null; }
+  }, [group.line_note]);
+
   return (
     <tr>
-      <td colSpan="6" className="px-6 py-0">
+      <td colSpan="7" className="px-6 py-0">
         <motion.div
           initial={{ height: 0, opacity: 0 }}
           animate={{ height: 'auto', opacity: 1 }}
@@ -175,38 +244,127 @@ const VoucherGroupDetails = React.memo(function VoucherGroupDetails({
           className="overflow-hidden bg-slate-50/50 dark:bg-slate-900/30 rounded-[2rem] mb-6 mt-2 border border-slate-100 dark:border-slate-800 shadow-inner"
         >
           <div className="p-6">
-            <table className="w-full text-right text-xs border-separate border-spacing-y-2">
+            {/* Header: Notes + Actions */}
+            <div className="flex items-center justify-between mb-4 px-2">
+              <div className="flex items-center gap-6">
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">📝 ملاحظات السند</span>
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300 italic">
+                    {(group.line_note || '')
+                      .split(/<!--|\[تعديل حديث\]|\[تم تعديله\]|\[تم إصدار الفاتورة|\[إضافة مراجعة\]|\[مستند رقم/)[0]
+                      .trim() || 'لا توجد ملاحظات إضافية لهذا السند'}
+                  </span>
+                </div>
+                {group.attachment && (
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">📎 المرفق</span>
+                    <a 
+                      href={group.attachment} 
+                      target="_blank" 
+                      rel="noreferrer"
+                      className="text-[10px] font-bold text-blue-500 hover:underline flex items-center gap-1.5"
+                    >
+                      <ImageIcon size={12} /> عرض المستند المرفق
+                    </a>
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {group.status === 'cancelled' && (
+                  <div className="flex items-center gap-2 px-4 py-1.5 bg-rose-50 text-rose-600 rounded-xl border border-rose-100 text-[10px] font-black animate-pulse shadow-sm">
+                    <AlertTriangle size={14} /> تم إلغاء هذا السند بالكامل - الكميات مسترجعة للمخزن
+                  </div>
+                )}
+                {/* Previous Version Button */}
+                {historyData && (
+                  <button
+                    type="button"
+                    onClick={() => setShowHistory(v => !v)}
+                    className={`flex items-center gap-2 px-4 py-1.5 rounded-xl border text-[10px] font-black transition-all shadow-sm ${
+                      showHistory
+                        ? 'bg-amber-400 text-amber-950 border-amber-300'
+                        : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+                    }`}
+                  >
+                    <RefreshCw size={12} />
+                    {showHistory ? 'عرض النسخة الحالية' : 'عرض النسخة السابقة'}
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Previous Version Inline Panel */}
+            {showHistory && historyData && (
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-amber-700">
+                    <RefreshCw size={13} />
+                    <span className="text-[10px] font-black uppercase tracking-widest">بيانات السند قبل آخر تعديل</span>
+                  </div>
+                  <span className="text-[10px] font-bold text-amber-600 tabular-nums">
+                    بتاريخ: {new Date(historyData.modifiedAt).toLocaleString('ar-SA')}
+                  </span>
+                </div>
+                <div className="bg-white rounded-xl border border-amber-100 overflow-hidden">
+                  <table className="w-full text-right text-xs">
+                    <thead className="bg-amber-50/80 text-amber-600 font-black text-[9px] uppercase tracking-widest border-b border-amber-100">
+                      <tr>
+                        <th className="px-4 py-2.5 text-center w-10">م</th>
+                        <th className="px-4 py-2.5">الصنف</th>
+                        <th className="px-4 py-2.5 text-center">الكمية</th>
+                        <th className="px-4 py-2.5 text-center">الوحدة</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-amber-50">
+                      {historyData.lines.filter(l => !l.is_summary && !(l.item && l.item.includes('ملخص'))).map((l, i) => (
+                        <tr key={i} className="hover:bg-amber-50/40 transition-colors">
+                          <td className="px-4 py-2.5 text-center text-[10px] font-bold text-amber-400">{i + 1}</td>
+                          <td className="px-4 py-2.5 font-black text-amber-900">{l.item}</td>
+                          <td className="px-4 py-2.5 text-center font-black text-amber-700 tabular-nums">{l.qty}</td>
+                          <td className="px-4 py-2.5 text-center font-bold text-amber-600">{l.unit}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+
+            <table className="w-full text-right text-xs border-separate border-spacing-y-1.5">
               <thead>
                 <tr className="text-slate-400 dark:text-slate-500 font-black uppercase tracking-widest text-[9px]">
                   <th className="px-4 py-2 w-12 text-center">م</th>
                   <th className="px-4 py-2">الصنف والشركة</th>
                   <th className="px-4 py-2 text-center">الكمية</th>
-                  <th className="px-4 py-2 text-center">تاريخ الصلاحية</th>
-                  <th className="px-4 py-2">ملاحظات</th>
-                  {!isViewer && <th className="px-4 py-2 text-center">إجراء</th>}
+                  <th className="px-4 py-2 text-center">القسم</th>
+                  <th className="px-4 py-2">ملاحظات السطر</th>
+                  {!isViewer && group.status !== 'cancelled' && <th className="px-4 py-2 text-center">إجراء</th>}
                 </tr>
               </thead>
               <tbody>
-                {group.lines.map((l, lIdx) => (
-                  <tr key={l.id} className="bg-white dark:bg-slate-800/80 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all rounded-xl shadow-sm">
-                    <td className="px-4 py-1.5 text-center text-[10px] font-black text-slate-400 rounded-r-xl border-y border-r border-slate-50 dark:border-slate-700/50">{lIdx + 1}</td>
-                    <td className="px-4 py-1.5 font-black text-slate-800 dark:text-slate-200 border-y border-slate-50 dark:border-slate-700/50">
+                {group.lines.filter(l => !l.is_summary).map((l, lIdx) => (
+                  <tr key={l.id} className="bg-white dark:bg-slate-800/80 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all rounded-xl shadow-sm group/row">
+                    <td className="px-4 py-2 text-center text-[10px] font-black text-slate-400 rounded-r-xl border-y border-r border-slate-50 dark:border-slate-700/50">{lIdx + 1}</td>
+                    <td className="px-4 py-2 font-black text-slate-800 dark:text-slate-200 border-y border-slate-50 dark:border-slate-700/50">
                       <div className="flex items-center gap-2">
                         <Package size={14} className="text-slate-300" />
                         <span>{l.item}</span>
                         {l.company && <span className="text-[10px] font-bold text-slate-400">({l.company})</span>}
                       </div>
                     </td>
-                    <td className="px-4 py-1.5 text-center border-y border-slate-50 dark:border-slate-700/50">
+                    <td className="px-4 py-2 text-center border-y border-slate-50 dark:border-slate-700/50">
                       <span className={`px-3 py-1 rounded-lg font-black text-xs ${theme.qtyBadge}`}>
                         {l.qty} {l.unit}
                       </span>
                     </td>
-                    <td className="px-4 py-1.5 text-center font-bold text-slate-500 dark:text-slate-400 border-y border-slate-50 dark:border-slate-700/50 tabular-nums">{l.expiryDate || '—'}</td>
-                    <td className="px-4 py-1.5 text-slate-400 dark:text-slate-500 font-bold border-y border-slate-50 dark:border-slate-700/50">{l.lineNote || '—'}</td>
-                    {!isViewer && (
-                      <td className="px-4 py-1.5 text-center rounded-l-xl border-y border-l border-slate-50 dark:border-slate-700/50">
-                        <div className="flex items-center justify-center gap-2">
+                    <td className="px-4 py-2 text-center text-slate-500 text-[10px] font-bold border-y border-slate-50 dark:border-slate-700/50">{l.cat || '—'}</td>
+                    <td className="px-4 py-2 text-slate-400 dark:text-slate-500 font-bold border-y border-slate-50 dark:border-slate-700/50 italic">
+                      {kind === 'in' ? l.lineNote || '—' : l.custodyStatus || '—'}
+                    </td>
+                    {!isViewer && group.status !== 'cancelled' && (
+                      <td className="px-4 py-2 text-center rounded-l-xl border-y border-l border-slate-50 dark:border-slate-700/50">
+                        <div className="flex items-center justify-center gap-1.5 opacity-0 group-hover/row:opacity-100 transition-opacity">
                           <button onClick={(e) => { e.stopPropagation(); openEdit(l); }} className="p-1.5 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors"><Pencil size={14} strokeWidth={2.5} /></button>
                           <button onClick={(e) => { e.stopPropagation(); openDelete(l); }} className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors"><Trash2 size={14} strokeWidth={2.5} /></button>
                         </div>
@@ -224,6 +382,7 @@ const VoucherGroupDetails = React.memo(function VoucherGroupDetails({
 }, (prev, next) => (
   prev.group.groupId === next.group.groupId &&
   prev.group.lines.length === next.group.lines.length &&
+  prev.group.status === next.group.status &&
   prev.isViewer === next.isViewer &&
   prev.kind === next.kind
 ));
@@ -251,12 +410,12 @@ function ModalWrapper({
             className={`relative w-full ${maxWidth} bg-white rounded-[2.5rem] shadow-2xl border border-slate-100 flex flex-col overflow-hidden ${height} max-h-[95vh]`}
             dir="rtl"
           >
-            <div className={`flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800 bg-gradient-to-r ${theme.gradient} shrink-0`}>
+            <div className={`flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-gradient-to-r ${theme.gradient} shrink-0`}>
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-white">
+                <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-white shadow-lg border border-white/10">
                   <Box size={22} />
                 </div>
-                <h3 className="text-xl font-black text-white">{title}</h3>
+                <h3 className="text-lg font-black text-white">{title}</h3>
               </div>
               <button
                 type="button"
@@ -297,7 +456,7 @@ function ModalWrapper({
 
 function emptySession(kind) {
   const base = { date: formatDate(new Date()), voucher_no: '', attachment: null };
-  if (kind === 'in') return { ...base, supplier: '', supplyNotes: '' };
+  if (kind === 'in') return { ...base, supplier: '', line_note: '' };
   return { ...base, rep: '' };
 }
 
@@ -322,9 +481,8 @@ async function allocateVoucherCode(kind) {
 // Export pipeline: renders hidden HTML → html2canvas → jsPDF or PNG download
 // This approach embeds Arabic perfectly since browser renders the fonts.
 
-/**
- * @param {{ kind: VoucherKind }} props
- */
+
+
 export default function VoucherWorkspace({ kind, setActiveView }) {
   const cfg = KIND_CONFIG[kind];
   const theme = accentTheme(cfg.accent);
@@ -373,74 +531,9 @@ export default function VoucherWorkspace({ kind, setActiveView }) {
   const [exportJob, setExportJob] = useState(null);
   const [isExporting, setIsExporting] = useState(false);
   const [isDateFilterOpen, setIsDateFilterOpen] = useState(false);
-
-  const triggerExport = (group, mode) => setExportJob({ group, mode });
-
-  useEffect(() => {
-    const fetchInitialData = async () => {
-      try {
-        const { data: itemsData, error: itemsError } = await supabase.from('products').select('id, name, company, cat, unit, stock_qty');
-        if (itemsError) throw itemsError;
-        if (itemsData) setItems(itemsData.map(d => ({ ...d, stockQty: d.stock_qty })));
-
-        const { data: transData, error: transError } = await supabase.from('transactions').select('id, type, timestamp, item_id, batch_id, reference_number, beneficiary, item, company, qty, unit, cat, notes, date, balance_after, receipt_image, is_summary').order('timestamp', { ascending: false });
-        if (transError) throw transError;
-        if (transData) setTransactions(transData.map(d => ({ 
-          ...d, 
-          itemId: d.item_id,
-          voucherGroupId: d.batch_id,
-          voucherCode: d.reference_number,
-          lineNote: d.notes,
-          supplier: d.beneficiary,
-          rep: d.beneficiary
-        })));
-      } catch (err) {
-        console.error("❌ VoucherWorkspace: Error fetching data:", err);
-      }
-    };
-
-    fetchInitialData();
-
-    const channels = [
-      supabase.channel(`public:products:vouchers:${kind}`).on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, fetchInitialData).subscribe(),
-      supabase.channel(`public:transactions:vouchers:${kind}`).on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, fetchInitialData).subscribe()
-    ];
-
-    return () => { channels.forEach(c => supabase.removeChannel(c)); };
-  }, [kind]);
-
-  // Handle ESC key to exit or close modals
-  useEffect(() => {
-    const handleESC = (e) => {
-      if (e.key === 'Escape') {
-        if (isConfirmCloseOpen) setIsConfirmCloseOpen(false);
-        else if (isConfirmSaveOpen) setIsConfirmSaveOpen(false);
-        else if (isAddModalOpen) triggerCloseAddModal();
-        else if (isEditOpen) setIsEditOpen(false);
-        else if (isDeleteOpen) setIsDeleteOpen(false);
-        else if (isDeleteGroupOpen) setIsDeleteGroupOpen(false);
-        else if (expandedGroupId) setExpandedGroupId(null);
-        else window.location.hash = '#dashboard';
-      } else if (e.key === 'Enter') {
-        if (isConfirmCloseOpen) {
-          e.preventDefault();
-          closeAddModal();
-        } else if (isConfirmSaveOpen) {
-          e.preventDefault();
-          executeSave();
-        }
-      }
-    };
-    window.addEventListener('keydown', handleESC);
-    return () => window.removeEventListener('keydown', handleESC);
-  }); // Run on every render to capture fresh closures for closeAddModal/executeSave
-
-  // ─── EMERGENCY AUTO-SAVE ───
-  const DRAFT_KEY = `barakat_voucher_draft_${kind}`;
-
-
-
-
+  const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
+  const [groupToReset, setGroupToReset] = useState(null);
+  const [originalVoucherTotals, setOriginalVoucherTotals] = useState({}); // itemId -> totalQty in DB
 
   const voucherTxs = useMemo(
     () => transactions.filter((t) => t.type === cfg.txType),
@@ -457,19 +550,29 @@ export default function VoucherWorkspace({ kind, setActiveView }) {
     });
     const groups = [...map.values()].map((g) => {
       g.lines.sort((a, b) => (a.timestamp?.seconds || 0) - (b.timestamp?.seconds || 0));
-      const first = g.lines[0];
+      const representative = g.lines.find(l => !l.is_summary) || g.lines[0];
       const lastTs = g.lines.reduce(
         (max, line) => Math.max(max, line.timestamp ? new Date(line.timestamp).getTime() : 0),
         0
       );
       return {
         ...g,
-        date: first?.date || formatDate(first?.timestamp?.toDate?.()),
-        supplier: first?.supplier,
-        rep: first?.rep,
-        supplyNotes: first?.voucherSupplyNotes || '',
-        voucherCode: (first?.voucherCode || '').replace(/^[A-Z]+-\d+-/g, '').replace(/^[A-Z]+-/g, ''),
+        date: representative?.date || formatDate(representative?.timestamp?.toDate?.()),
+        supplier: representative?.supplier,
+        rep: representative?.rep,
+        line_note: representative?.notes || '',
+        attachment: representative?.attachment || null,
+        voucherCode: (representative?.reference_number || '').replace(/^[A-Z]+-\d+-/g, '').replace(/^[A-Z]+-/g, ''),
         lineCount: g.lines.length,
+        isEdited: (representative?.notes && representative?.notes.includes('[تعديل حديث]')),
+        historyLog: (() => {
+          if (!representative?.notes) return null;
+          const match = representative.notes.match(/<!--(\{.*\})-->/);
+          if (match) {
+            try { return JSON.parse(match[1]); } catch(e) { return null; }
+          }
+          return null;
+        })(),
         lastTs,
       };
     });
@@ -493,6 +596,99 @@ export default function VoucherWorkspace({ kind, setActiveView }) {
     });
   }, [voucherGroups, filterSearch, filterDateFrom, filterDateTo, kind]);
 
+  const triggerExport = (group, mode) => setExportJob({ group, mode });
+
+  const fetchInitialData = useCallback(async () => {
+    try {
+      const { data: itemsData, error: itemsError } = await supabase.from('products').select('id, name, company, cat, unit, stock_qty');
+      if (itemsError) throw itemsError;
+      if (itemsData) setItems(itemsData.map(d => ({ ...d, stockQty: d.stock_qty })));
+
+      const { data: transData, error: transError } = await supabase.from('transactions').select('id, type, timestamp, item_id, batch_id, reference_number, beneficiary, item, company, qty, unit, cat, notes, date, balance_after, receipt_image, is_summary, status').order('timestamp', { ascending: false });
+      if (transError) throw transError;
+      if (transData) setTransactions(transData.map(d => ({ 
+        ...d, 
+        itemId: d.item_id,
+        voucherGroupId: d.batch_id,
+        voucherCode: d.reference_number,
+        lineNote: d.notes,
+        supplier: d.beneficiary,
+        rep: d.beneficiary,
+        status: d.status || 'قيد المراجعة',
+        line_note: d.notes || '',
+        attachment: d.receipt_image || null
+      })));
+    } catch (err) {
+      console.error("❌ VoucherWorkspace: Error fetching data:", err);
+    }
+  }, [kind]);
+
+  useEffect(() => {
+    fetchInitialData();
+
+    const channels = [
+      supabase.channel(`public:products:vouchers:${kind}`).on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, fetchInitialData).subscribe(),
+      supabase.channel(`public:transactions:vouchers:${kind}`).on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, fetchInitialData).subscribe()
+    ];
+
+    return () => { channels.forEach(c => supabase.removeChannel(c)); };
+  }, [kind]);
+
+  // ─── External Edit Trigger from Dashboard ───
+  useEffect(() => {
+    const editId = localStorage.getItem('edit_voucher_id');
+    if (editId && voucherGroups.length > 0) {
+      const groupToEdit = voucherGroups.find(g => g.groupId === editId);
+      if (groupToEdit) {
+        localStorage.removeItem('edit_voucher_id');
+        openEditGroup(groupToEdit);
+      }
+    }
+  }, [voucherGroups]);
+
+  // Handle ESC key to exit or close modals
+  useEffect(() => {
+    const handleKeyboard = (e) => {
+      if (e.key === 'Escape') {
+        if (isConfirmCloseOpen) setIsConfirmCloseOpen(false);
+        else if (isConfirmSaveOpen) setIsConfirmSaveOpen(false);
+        else if (isResetConfirmOpen) setIsResetConfirmOpen(false);
+        else if (isAddModalOpen) triggerCloseAddModal();
+        else if (isEditOpen) setIsEditOpen(false);
+        else if (isDeleteOpen) setIsDeleteOpen(false);
+        else if (isDeleteGroupOpen) setIsDeleteGroupOpen(false);
+        else if (expandedGroupId) setExpandedGroupId(null);
+        else window.location.hash = '#dashboard';
+      } else if (e.key === 'Enter') {
+        // Prevent submission if user is in an input (except for specific modals)
+        if (e.target.tagName === 'INPUT' && isAddModalOpen && !isConfirmSaveOpen && !isConfirmCloseOpen) return;
+
+        if (isConfirmCloseOpen) {
+          e.preventDefault();
+          closeAddModal();
+        } else if (isConfirmSaveOpen) {
+          e.preventDefault();
+          executeSave();
+        } else if (isResetConfirmOpen) {
+          e.preventDefault();
+          handleResetStatusSubmit();
+        } else if (isDeleteGroupOpen) {
+          e.preventDefault();
+          handleDeleteGroupSubmit();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyboard);
+    return () => window.removeEventListener('keydown', handleKeyboard);
+  }); // Run on every render to capture fresh closures for closeAddModal/executeSave
+
+  // ─── EMERGENCY AUTO-SAVE ───
+  const DRAFT_KEY = `barakat_voucher_draft_${kind}`;
+
+
+
+
+
   const resetFilters = () => {
     setFilterSearch('');
     setFilterDateFrom('');
@@ -502,11 +698,16 @@ export default function VoucherWorkspace({ kind, setActiveView }) {
   const itemSuggestions = useMemo(() => {
     if (!searchNameText || selectedItem) return [];
     const q = normalizeArabic(searchNameText);
+    if (!q) return [];
+
     return items.filter((i) => {
       const n = normalizeArabic(getItemName(i));
       const c = normalizeArabic(getCompany(i) || '');
-      return n.includes(q) || c.includes(q);
-    });
+      const cat = normalizeArabic(getCategory(i) || '');
+      
+      // Search in name, company, and category for maximum flexibility
+      return n.includes(q) || c.includes(q) || cat.includes(q);
+    }).slice(0, 20); // Show up to 20 suggestions
   }, [items, searchNameText, selectedItem]);
 
   const handleSelect = (item) => {
@@ -542,6 +743,7 @@ export default function VoucherWorkspace({ kind, setActiveView }) {
     setEditingLineIds([]);
     setPreservedVoucherCode('');
     setModalDrafts([]);
+    setOriginalVoucherTotals({});
     setSession(emptySession(kind));
     clearRow();
   };
@@ -554,7 +756,16 @@ export default function VoucherWorkspace({ kind, setActiveView }) {
     }
 
     if (kind === 'outward') {
-      const availableStock = Number(selectedItem.stock_qty || 0);
+      let availableStock = Number(selectedItem.stock_qty || 0);
+      
+      // If we are editing an existing line in an edit session, add its original qty back to available
+      if (editingDraftId) {
+        const existingDraft = modalDrafts.find(d => d.draftId === editingDraftId);
+        if (existingDraft && existingDraft.isOriginal) {
+          availableStock += Number(existingDraft.originalQty || 0);
+        }
+      }
+
       const requestedQty = Number(draftQty);
       if (requestedQty > availableStock) {
         toast.error(`الكمية لا تسمح! الرصيد المتاح: ${availableStock}`);
@@ -623,30 +834,55 @@ export default function VoucherWorkspace({ kind, setActiveView }) {
     setEditingGroupId(group.groupId);
     setEditingLineIds(group.lines.map((l) => l.id));
     setPreservedVoucherCode(group.voucherCode || '');
+    
+    // Robust cleaning using regex - Expanded to catch variations
+    let rawNote = group.line_note || '';
+    let cleanNote = rawNote
+      .split(/<!--|\[تعديل حديث\]|\[تم تعديله\]|\[تم إصدار الفاتورة|\[إضافة مراجعة\]|\[مستند رقم/)[0]
+      .trim();
+    
     if (kind === 'in') {
       setSession({
         supplier: group.supplier || '',
         date: group.date || formatDate(new Date()),
-        supplyNotes: group.supplyNotes || '',
+        line_note: cleanNote,
+        voucher_no: group.voucherCode || '',
+        attachment: group.attachment || null,
       });
     } else {
       setSession({
-        rep: group.rep || '',
+        rep: group.rep || '', 
         date: group.date || formatDate(new Date()),
+        voucher_no: group.voucherCode || '',
+        line_note: cleanNote,
+        attachment: group.attachment || null,
       });
     }
+
+    // Calculate original totals per item for stock validation
+    const totals = {};
+    group.lines.forEach(l => {
+      if (l.is_summary) return;
+      totals[l.itemId] = (totals[l.itemId] || 0) + Number(l.qty || 0);
+    });
+    setOriginalVoucherTotals(totals);
+
     setModalDrafts(
-      group.lines.map((l) => ({
-        draftId: crypto.randomUUID(),
-        itemId: l.itemId,
-        item: l.item,
-        company: l.company || 'بدون شركة',
-        cat: l.cat || 'أخرى',
-        unit: l.unit || 'كرتونة',
-        qty: Number(l.qty),
-        expiryDate: l.expiryDate || '',
-        lineNote: l.lineSupplyNote || l.lineNote || '',
-      }))
+      group.lines
+        .filter((l) => l.is_summary !== true)
+        .map((l) => ({
+          draftId: crypto.randomUUID(),
+          itemId: l.itemId,
+          item: l.item,
+          company: l.company || 'بدون شركة',
+          cat: l.cat || 'أخرى',
+          unit: l.unit || 'كرتونة',
+          qty: Number(l.qty),
+          originalQty: Number(l.qty), // Keep track of DB quantity
+          isOriginal: true,           // Mark as existing DB line
+          expiryDate: l.expiryDate || '',
+          lineNote: l.lineSupplyNote || l.lineNote || '',
+        }))
     );
     setIsAddModalOpen(true);
     setTimeout(() => itemNameRef.current?.focus(), 150);
@@ -670,10 +906,21 @@ export default function VoucherWorkspace({ kind, setActiveView }) {
     if (!modalDrafts.length) return;
     if (!validateSession()) return;
 
-    const voucherSupplyNotes = kind === 'in' ? String(session.supplyNotes || '').trim() : '';
+    const voucherSupplyNotes = String(session.line_note || '').trim();
     setLoading(true);
 
     try {
+      let oldLines = [];
+      if (editingGroupId) {
+          // IMPORTANT: Fetch existing transactions BEFORE deleting them
+          const { data: existing } = await supabase
+            .from('transactions')
+            .select('item_id, qty')
+            .eq('batch_id', editingGroupId)
+            .eq('is_summary', false);
+          if (existing) oldLines = existing;
+      }
+
       // ═══ OUTWARD: Final stock validation before saving ═══
       // This is the critical gate — re-fetch live stock from DB to prevent negatives
       if (kind === 'outward') {
@@ -694,11 +941,17 @@ export default function VoucherWorkspace({ kind, setActiveView }) {
         for (const p of liveProducts || []) {
           const liveStock = Number(p.stock_qty || 0);
           const requested = draftTotals[p.id] || 0;
-          if (requested > liveStock) {
+          const previouslyDeducted = Number(originalVoucherTotals[p.id] || 0);
+          
+          // Logic: We only care if the NEW total is greater than what was already taken.
+          // Net additional stock needed = requested - previouslyDeducted
+          const netAdditionalNeeded = requested - previouslyDeducted;
+
+          if (netAdditionalNeeded > liveStock) {
             setLoading(false);
             toast.error(
-              `❌ الكمية المطلوبة للصنف "${p.name}" (${requested}) تتجاوز المخزون المتاح (${liveStock}). تم إلغاء الحفظ.`,
-              { duration: 6000 }
+              `❌ الكمية المطلوبة للصنف "${p.name}" (${requested}) تتجاوز المخزون المتاح حالياً (${liveStock}) + الكمية المسترجعة من السند الأصلي (${previouslyDeducted}).`,
+              { duration: 8000 }
             );
             playWarning();
             return;
@@ -708,31 +961,56 @@ export default function VoucherWorkspace({ kind, setActiveView }) {
       // ═══════════════════════════════════════════════════════
 
       let voucherGroupId = editingGroupId || crypto.randomUUID();
-      let rawVoucherCode = preservedVoucherCode || String(session.voucher_no || '').trim();
-      let voucherCode = rawVoucherCode.replace(/^[A-Z]+-\d+-/g, '').replace(/^[A-Z]+-/g, '');
+      const inputVoucherCode = String(session.voucher_no || '').trim();
+      let voucherCode = inputVoucherCode.replace(/^[A-Z]+-\d+-/g, '').replace(/^[A-Z]+-/g, '');
 
       if (!voucherCode) {
         voucherCode = await allocateVoucherCode(kind);
-      } else if (!editingGroupId) {
-        // Prevent duplicates for new vouchers within the same category (In vs Out)
-        const checkTypes = kind === 'in' ? ['سند إدخال', 'in'] : ['سند إخراج', 'outward'];
-        const { data: dup } = await supabase
-          .from('transactions')
-          .select('id')
-          .eq('reference_number', voucherCode)
-          .in('type', checkTypes)
-          .limit(1);
-        
-        if (dup && dup.length > 0) {
-          setLoading(false);
-          return toast.error(`عفواً، رقم السند (${voucherCode}) مسجل مسبقاً في ${kind === 'in' ? 'سندات الإدخال' : 'سندات الإخراج'}!`);
+      } else {
+        // Check for duplicates if the number changed OR if it's a new voucher
+        const hasNumberChanged = voucherCode !== preservedVoucherCode;
+        if (!editingGroupId || hasNumberChanged) {
+          const checkTypes = kind === 'in' ? ['سند إدخال', 'in'] : ['سند إخراج', 'outward'];
+          const { data: dup } = await supabase
+            .from('transactions')
+            .select('id')
+            .eq('reference_number', voucherCode)
+            .in('type', checkTypes)
+            .limit(1);
+          
+          if (dup && dup.length > 0) {
+            setLoading(false);
+            return toast.error(`عفواً، رقم السند (${voucherCode}) مسجل مسبقاً في ${kind === 'in' ? 'سندات الإدخال' : 'سندات الإخراج'}!`);
+          }
         }
       }
 
       // 1. Delete old lines if editing
-      if (editingLineIds.length > 0) {
-        const { error: delError } = await supabase.from('transactions').delete().in('id', editingLineIds);
+      if (editingGroupId) {
+        const { error: delError } = await supabase.from('transactions').delete().eq('batch_id', editingGroupId);
         if (delError) throw delError;
+      }
+
+      // ─── 2. Prepare Rows for Database ───
+      const now = new Date();
+      const timestamp = now.toISOString();
+      
+      // Save previous version snapshot when editing
+      let historyTag = '';
+      if (editingGroupId && voucherGroups.length > 0) {
+        const originalGroup = voucherGroups.find(g => g.groupId === editingGroupId);
+        if (originalGroup) {
+          const snapshot = {
+            at: timestamp,
+            beneficiary: originalGroup.clientName || originalGroup.supplier || originalGroup.rep || '',
+            date: originalGroup.date || '',
+            notes: (originalGroup.line_note || '').split(/\[تعديل حديث\]|\[تم تعديله\]|\[تم إصدار الفاتورة|\[إضافة مراجعة\]|\[مستند رقم|<!--/)[0].trim(),
+            lines: originalGroup.lines
+              .filter(l => !l.is_summary)
+              .map(l => ({ item: l.item, qty: l.qty, unit: l.unit, cat: l.cat || '' }))
+          };
+          historyTag = ` <!--HIST:${JSON.stringify(snapshot)}-->`;
+        }
       }
 
       const beneficiary = kind === 'in' 
@@ -745,6 +1023,9 @@ export default function VoucherWorkspace({ kind, setActiveView }) {
         batch_id: voucherGroupId,
         reference_number: voucherCode,
         beneficiary: beneficiary,
+        notes: `${voucherSupplyNotes}${historyTag}`,
+        receipt_image: session.attachment || null,
+        timestamp: timestamp, // Jump to top
       };
 
       if (kind === 'in') {
@@ -772,7 +1053,7 @@ export default function VoucherWorkspace({ kind, setActiveView }) {
         qty: totalQty,
         total_qty: totalQty,
         is_summary: true,
-        notes: `مستند رقم ${voucherCode}`
+        notes: common.notes ? `${common.notes} [مستند رقم ${voucherCode}]` : `مستند رقم ${voucherCode}`
       });
 
       console.log('🚀 Final Transaction Payload:', rows);
@@ -783,26 +1064,40 @@ export default function VoucherWorkspace({ kind, setActiveView }) {
         throw insError;
       }
 
-      // --- Real-time Stock Update Logic ---
+      // --- Real-time Stock Update Logic (Sync Everything) ---
       const itemIds = [...new Set(modalDrafts.map(d => d.itemId))].filter(Boolean);
-      if (itemIds.length > 0 && !editingGroupId) {
+      
+      const allAffectedItemIds = [...new Set([...itemIds, ...oldLines.map(l => l.item_id)])].filter(Boolean);
+
+      if (allAffectedItemIds.length > 0) {
         const { data: currentProducts, error: fetchError } = await supabase
           .from('products')
           .select('id, stock_qty')
-          .in('id', itemIds);
+          .in('id', allAffectedItemIds);
 
         if (!fetchError && currentProducts) {
-          for (const entry of modalDrafts) {
-            const p = currentProducts.find(x => x.id === entry.itemId);
-            if (p) {
-              const currentStock = Number(p.stock_qty || 0);
-              const change = Number(entry.qty || 0);
-              const newStock = kind === 'in' ? currentStock + change : currentStock - change;
-              
-              await supabase
-                .from('products')
-                .update({ stock_qty: Math.max(0, newStock) }) // Never go below zero
-                .eq('id', entry.itemId);
+          // Calculate Net Change per Product
+          for (const pid of allAffectedItemIds) {
+            const p = currentProducts.find(x => x.id === pid);
+            if (!p) continue;
+
+            let netChange = 0;
+            // 1. Undo Old Impact
+            const oldSum = oldLines.filter(ol => ol.item_id === pid).reduce((sum, ol) => sum + Number(ol.qty || 0), 0);
+            if (kind === 'in') netChange -= oldSum; // Old Inbound added stock, so undoing subtracts
+            else netChange += oldSum; // Old Outbound subtracted stock, so undoing adds
+
+            // 2. Apply New Impact
+            const newSum = modalDrafts.filter(nd => nd.itemId === pid).reduce((sum, nd) => sum + Number(nd.qty || 0), 0);
+            if (kind === 'in') netChange += newSum; // New Inbound adds stock
+            else netChange -= newSum; // New Outbound subtracts stock
+
+            if (netChange !== 0) {
+                const currentStock = Number(p.stock_qty || 0);
+                await supabase
+                  .from('products')
+                  .update({ stock_qty: Math.max(0, currentStock + netChange) })
+                  .eq('id', pid);
             }
           }
         }
@@ -899,7 +1194,7 @@ export default function VoucherWorkspace({ kind, setActiveView }) {
       const { error } = await supabase.from('transactions').update({ 
         qty: Number(editForm.qty), 
         date: editForm.date, 
-        line_note: String(editForm.lineNote || '').trim() 
+        notes: String(editForm.lineNote || '').trim() 
       }).eq('id', selectedTx.id);
       if (error) throw error;
       toast.success('تم تعديل السطر بنجاح');
@@ -944,21 +1239,95 @@ export default function VoucherWorkspace({ kind, setActiveView }) {
   };
 
   const handleDeleteGroupSubmit = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     if (!groupToDelete?.lines?.length) return;
     setLoading(true);
     try {
+      // 1. Return stock BEFORE deleting
+      const lines = groupToDelete.lines.filter(l => l.is_summary !== true);
+      const itemIds = [...new Set(lines.map(l => l.item_id))].filter(Boolean);
+      
+      if (itemIds.length > 0) {
+          const { data: products } = await supabase.from('products').select('id, stock_qty').in('id', itemIds);
+          if (products) {
+              for (const l of lines) {
+                  const p = products.find(x => x.id === l.item_id);
+                  if (p) {
+                      const current = Number(p.stock_qty || 0);
+                      const qty = Number(l.qty || 0);
+                      // If it was Inbound (added stock), deleting it subtracts stock.
+                      // If it was Outbound (subtracted stock), deleting it adds stock.
+                      const adjustment = kind === 'in' ? -qty : qty;
+                      await supabase.from('products').update({ stock_qty: Math.max(0, current + adjustment) }).eq('id', p.id);
+                  }
+              }
+          }
+      }
+
+      // 2. Mark as cancelled instead of hard deleting for audit trail
       const ids = groupToDelete.lines.map((l) => l.id);
-      const { error } = await supabase.from('transactions').delete().in('id', ids);
+      const { error } = await supabase
+        .from('transactions')
+        .update({ status: 'cancelled', notes: `[تم الإلغاء] - ${new Date().toLocaleString('ar-EG')}` })
+        .in('id', ids);
       if (error) throw error;
-      toast.success('تم حذف السند بالكامل');
+
+      toast.success('تم إلغاء السند وإرجاع الكميات للمخزن بنجاح');
       playSuccess();
+      await fetchInitialData();
       setIsDeleteGroupOpen(false);
       setGroupToDelete(null);
       setExpandedGroupId(null);
     } catch (err) {
       console.error(err);
       toast.error('تعذر حذف السند');
+      playWarning();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onResetStatus = (group) => {
+    setGroupToReset(group);
+    setIsResetConfirmOpen(true);
+  };
+
+  const handleResetStatusSubmit = async (e) => {
+    if (e) e.preventDefault();
+    if (!groupToReset || !groupToReset.lines) return;
+    setLoading(true);
+    try {
+      let hasError = false;
+      for (const line of groupToReset.lines) {
+        let cleanNote = (line.notes || '')
+          .split(/<!--|\[تعديل حديث\]|\[تم تعديله\]|\[تم إصدار الفاتورة|\[إضافة مراجعة\]|\[مستند رقم/)[0]
+          .trim();
+          
+        const { error } = await supabase
+          .from('transactions')
+          .update({ 
+            status: null, 
+            notes: cleanNote || null 
+          }) 
+          .eq('id', line.id);
+          
+        if (error) {
+           console.error('Error updating line:', line.id, error);
+           hasError = true;
+        }
+      }
+
+      if (hasError) throw new Error("Failed to reset some lines");
+
+      toast.success('تم إلغاء الفوترة بنجاح. السند متاح الآن للتعديل أو الحذف.');
+      playSuccess();
+      await fetchInitialData();
+      setIsResetConfirmOpen(false);
+      setGroupToReset(null);
+      fetchInitialData();
+    } catch (err) {
+      console.error('❌ Reset Status Error:', err);
+      toast.error('تعذر إلغاء الفوترة. تحقق من الاتصال وقاعدة البيانات.');
       playWarning();
     } finally {
       setLoading(false);
@@ -982,13 +1351,13 @@ export default function VoucherWorkspace({ kind, setActiveView }) {
     setTimeout(() => itemNameRef.current?.focus(), 150);
   };
 
-  const headerPartyLabel = kind === 'in' ? 'المورد' : 'المندوب';
+  const headerPartyLabel = kind === 'in' ? 'المورد' : 'المستفيد';
 
   // Accent colors for the hidden receipt DOM
   const accentHex = kind === 'in' ? '#10b981' : '#3b82f6';
   const accentLight = kind === 'in' ? '#d1fae5' : '#dbeafe';
   const accentDark  = kind === 'in' ? '#065f46' : '#1e3a8a';
-  const partyLabel  = kind === 'in' ? 'المورد' : 'المندوب';
+  const partyLabel  = kind === 'in' ? 'المورد' : 'المستفيد';
   const partyValue  = exportJob?.group ? (kind === 'in' ? exportJob.group.supplier : exportJob.group.rep) : '—';
 
   // Pad lines array so the table always shows at least 30 rows
@@ -1217,7 +1586,9 @@ export default function VoucherWorkspace({ kind, setActiveView }) {
                   <th className="px-6 py-4 text-center w-40 border-x border-slate-100 dark:border-slate-700">رقم السند</th>
                   <th className="px-6 py-4 text-center w-48 border-x border-slate-100 dark:border-slate-700">التاريخ</th>
                   <th className="px-6 py-4 text-right border-x border-slate-100 dark:border-slate-700">{headerPartyLabel}</th>
-                  <th className="px-6 py-4 text-center w-32 border-x border-slate-100 dark:border-slate-700">الأصناف</th>
+                  <th className="px-6 py-4 text-center w-28 border-x border-slate-100 dark:border-slate-700">الأصناف</th>
+                  <th className="px-6 py-4 text-right w-48 border-x border-slate-100 dark:border-slate-700">الملاحظات</th>
+                  <th className="px-6 py-4 text-center w-44 border-x border-slate-100 dark:border-slate-700">الحالة</th>
                   <th className="px-6 py-4 text-center w-48 border-x border-slate-100 dark:border-slate-700">الإجراءات</th>
                 </tr>
               </thead>
@@ -1233,7 +1604,23 @@ export default function VoucherWorkspace({ kind, setActiveView }) {
                       isExporting={isExporting}
                       headerPartyLabel={headerPartyLabel}
                       setExpandedGroupId={setExpandedGroupId}
+                      onResetStatus={onResetStatus}
+                      openEditGroup={openEditGroup}
+                      openDeleteGroup={openDeleteGroup}
+                      triggerExport={triggerExport}
                     />
+                    <AnimatePresence>
+                      {expandedGroupId === group.groupId && (
+                        <VoucherGroupDetails
+                          group={group}
+                          kind={kind}
+                          isViewer={isViewer}
+                          theme={theme}
+                          openEdit={openEdit}
+                          openDelete={openDelete}
+                        />
+                      )}
+                    </AnimatePresence>
                   </React.Fragment>
                 ))}
               </tbody>
@@ -1260,19 +1647,32 @@ export default function VoucherWorkspace({ kind, setActiveView }) {
                     <p className="text-sm font-bold">
                       {headerPartyLabel}: {kind === 'in' ? group.supplier || '—' : group.rep || '—'}
                     </p>
-                    <p className="text-xs text-slate-500">{group.lineCount} صنف</p>
+                    <div className="flex items-center justify-between">
+                       <p className="text-xs text-slate-500">{group.lineCount} صنف</p>
+                       {group.lines.some(l => l.status === 'مفوتر') && (
+                         <span className="text-[10px] font-black bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full border border-emerald-200">مفوتر</span>
+                       )}
+                    </div>
                     <div className="flex flex-wrap gap-2">
                       <button type="button" disabled={isExporting} onClick={() => triggerExport(group, 'png')} className={`${actionBtnBase} px-3 py-2 border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 disabled:opacity-40 ${glowImg}`}>
                         <ImageIcon size={14} className="ml-1" /> صورة
                       </button>
                       {!isViewer && (
                         <>
-                          <button type="button" onClick={() => openEditGroup(group)} className={`${actionBtnBase} px-3 py-2 border-blue-200 text-blue-600 ${glowEdit}`}>
-                            <Pencil size={14} className="ml-1" /> تعديل
-                          </button>
-                          <button type="button" onClick={() => openDeleteGroup(group)} className={`${actionBtnBase} px-3 py-2 border-rose-200 text-rose-600 ${glowDel}`}>
-                            <Trash2 size={14} className="ml-1" /> حذف
-                          </button>
+                          {group.lines.some(l => l.status === 'مفوتر') ? (
+                            <button type="button" onClick={() => onResetStatus(group)} className={`${actionBtnBase} px-3 py-2 border-orange-200 bg-orange-50 text-orange-600`}>
+                              <RefreshCw size={14} className="ml-1" /> فك القفل
+                            </button>
+                          ) : (
+                            <>
+                              <button type="button" onClick={() => openEditGroup(group)} className={`${actionBtnBase} px-3 py-2 border-blue-200 text-blue-600 ${glowEdit}`}>
+                                <Pencil size={14} className="ml-1" /> تعديل
+                              </button>
+                              <button type="button" onClick={() => openDeleteGroup(group)} className={`${actionBtnBase} px-3 py-2 border-rose-200 text-rose-600 ${glowDel}`}>
+                                <Trash2 size={14} className="ml-1" /> حذف
+                              </button>
+                            </>
+                          )}
                         </>
                       )}
                     </div>
@@ -1322,60 +1722,7 @@ export default function VoucherWorkspace({ kind, setActiveView }) {
                 ))}
               </div>
 
-              {/* Expanded row details (desktop) */}
-              {filteredGroups.map(
-                (group) =>
-                  expandedGroupId === group.groupId && (
-                    <motion.div
-                      key={`exp-${group.groupId}`}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="hidden md:block border-t border-slate-100 dark:border-slate-700/80 bg-slate-50/50 dark:bg-slate-900/40 p-3 overflow-x-auto"
-                    >
-                      <table className="w-full text-right text-sm border-separate border-spacing-y-1 min-w-[640px] whitespace-nowrap">
-                        <thead>
-                          <tr className="text-slate-400 font-black text-xs">
-                            <th className="px-2 py-1">م</th>
-                            <th className="px-2 py-1">الصنف</th>
-                            <th className="px-2 py-1">الشركة</th>
-                            <th className={`px-2 py-1 ${theme.tableHead}`}>الكمية</th>
-                            <th className="px-2 py-1">القسم</th>
-                            {kind === 'in' ? <th className="px-2 py-1">ملاحظات السطر</th> : <th className="px-2 py-1">حالة العهدة</th>}
-                            <th className="px-2 py-1 text-center">سطر</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {group.lines.map((line, idx) => (
-                            <tr key={line.id} className="bg-white/60 dark:bg-slate-800/50 font-bold rounded-xl">
-                              <td className="px-2 py-2 text-center text-slate-400">{idx + 1}</td>
-                              <td className="px-2 py-2">{line.item}</td>
-                              <td className="px-2 py-2 text-xs text-slate-500">{line.company}</td>
-                              <td className="px-2 py-2 text-center">
-                                <span className={`px-2 py-0.5 rounded-lg ${theme.qtyBadge}`}>{line.qty}</span>
-                              </td>
-                              <td className="px-2 py-2 text-center text-xs">{line.cat}</td>
-                              <td className="px-2 py-2 text-xs text-slate-600 dark:text-slate-300 max-w-[140px] truncate">
-                                {kind === 'in' ? line.lineSupplyNote || '—' : line.custodyStatus || '—'}
-                              </td>
-                              <td className="px-2 py-2 text-center">
-                                {!isViewer && (
-                                <div className="flex gap-1 justify-center">
-                                  <button type="button" onClick={() => openEdit(line)} className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-500 hover:bg-emerald-500/10 transition-colors">
-                                    <Pencil size={14} />
-                                  </button>
-                                  <button type="button" onClick={() => openDelete(line)} className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition-colors">
-                                    <Trash2 size={14} />
-                                  </button>
-                                </div>
-                                )}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </motion.div>
-                  )
-              )}
+              {/* Expanded row details handled via VoucherGroupDetails in the table body */}
             </>
           )}
         </div>
@@ -1447,8 +1794,8 @@ export default function VoucherWorkspace({ kind, setActiveView }) {
                 type="text"
                 className="w-full bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 text-[11px] font-black rounded-full px-4 py-2 outline-none focus:border-primary/50 transition-all text-slate-700 dark:text-white shadow-sm"
                 placeholder="تفاصيل إضافية..."
-                value={session.supplyNotes || ''}
-                onChange={(e) => setSession((s) => ({ ...s, supplyNotes: e.target.value }))}
+                value={session.line_note || ''}
+                onChange={(e) => setSession((s) => ({ ...s, line_note: e.target.value }))}
               />
             </div>
 
@@ -1542,28 +1889,40 @@ export default function VoucherWorkspace({ kind, setActiveView }) {
                     
                     {/* ─── SUGGESTIONS DROPDOWN ─── */}
                     <AnimatePresence>
-                      {itemSuggestions.length > 0 && (
+                      {(itemSuggestions.length > 0 || (searchNameText.length >= 2 && !selectedItem)) && (
                         <motion.div 
                           initial={{ opacity: 0, y: 10, scale: 0.95 }}
                           animate={{ opacity: 1, y: 0, scale: 1 }}
                           exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                          className="absolute top-full left-0 right-0 mt-3 bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] z-[100] overflow-hidden max-h-[300px] overflow-y-auto"
+                          className="absolute top-full left-0 right-0 mt-3 bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] z-[999] overflow-hidden max-h-[350px] overflow-y-auto custom-scrollbar"
                         >
-                          {itemSuggestions.slice(0, 15).map((item, idx) => (
-                            <div
-                              key={item.id}
-                              className={`p-4 cursor-pointer flex items-center justify-between transition-all border-b border-slate-50 dark:border-slate-700/50 last:border-0 ${idx === searchIdx ? 'bg-primary/10 text-primary' : 'hover:bg-slate-50 dark:hover:bg-slate-700/50'}`}
-                              onClick={() => handleSelect(item)}
-                            >
-                              <div className="flex flex-col gap-0.5">
-                                <span className="text-[12px] font-black">{getItemName(item)}</span>
-                                <span className="text-[10px] text-slate-400 font-bold">{getCompany(item)}</span>
+                          {itemSuggestions.length > 0 ? (
+                            itemSuggestions.map((item, idx) => (
+                              <div
+                                key={item.id || idx}
+                                className={`p-4 cursor-pointer flex items-center justify-between transition-all border-b border-slate-50 dark:border-slate-700/50 last:border-0 ${idx === searchIdx ? 'bg-primary/10 text-primary' : 'hover:bg-slate-50 dark:hover:bg-slate-700/50'}`}
+                                onClick={() => handleSelect(item)}
+                              >
+                                <div className="flex flex-col gap-0.5">
+                                  <span className="text-[12px] font-black">{getItemName(item)}</span>
+                                  <span className="text-[10px] text-slate-400 font-bold">{getCompany(item)}</span>
+                                </div>
+                                <div className="text-[10px] font-black px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500">
+                                  {getCategory(item)}
+                                </div>
                               </div>
-                              <div className="text-[10px] font-black px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500">
-                                {getCategory(item)}
-                              </div>
+                            ))
+                          ) : (
+                            <div className="p-8 text-center flex flex-col items-center gap-3">
+                               <div className="w-12 h-12 bg-slate-50 dark:bg-slate-900/50 rounded-full flex items-center justify-center text-slate-300">
+                                  <Search size={20} strokeWidth={1.5} />
+                               </div>
+                               <div className="space-y-1">
+                                  <p className="text-xs font-black text-slate-600 dark:text-slate-300">لم يتم العثور على نتائج لـ "{searchNameText}"</p>
+                                  <p className="text-[10px] font-bold text-slate-400">تأكد من كتابة اسم الصنف أو الشركة بشكل صحيح</p>
+                               </div>
                             </div>
-                          ))}
+                          )}
                         </motion.div>
                       )}
                     </AnimatePresence>
@@ -1843,8 +2202,34 @@ export default function VoucherWorkspace({ kind, setActiveView }) {
           <div>
             <h4 className="text-xl font-black text-slate-800 dark:text-white mb-2">حذف السند رقم {groupToDelete?.voucherCode}</h4>
             <p className="text-slate-500 dark:text-slate-400 font-bold">
-              سيتم حذف السند وجميع أسطره الملحقة به ({groupToDelete?.lineCount} أصناف). هذا الإجراء لا يؤثر على الأرصدة الفعلية للمخزن.
+              سيتم إلغاء السند وجميع أسطره الملحقة به ({groupToDelete?.lineCount} أصناف). سيتم إرجاع كافة الكميات للمخزن تلقائياً وسيبقى السند في السجلات كـ "ملغي".
             </p>
+          </div>
+        </div>
+      </ModalWrapper>
+
+      {/* ═══ Reset Invoice Status Confirmation (Professional Mode) ═══ */}
+      <ModalWrapper
+        title="إلغاء فوترة السند"
+        isOpen={isResetConfirmOpen}
+        onClose={() => setIsResetConfirmOpen(false)}
+        onSubmit={handleResetStatusSubmit}
+        maxWidth="max-w-md"
+        submitLabel="إلغاء الفوترة وفتح السند"
+        loading={loading}
+        accent="orange"
+        height="h-auto"
+      >
+        <div className="p-6 text-center">
+          <div className="w-16 h-16 bg-orange-50 text-orange-500 rounded-full flex items-center justify-center mx-auto mb-4 border border-orange-100 shadow-inner">
+            <RefreshCw size={32} className="animate-spin-slow" />
+          </div>
+          <h3 className="text-lg font-black text-slate-800 mb-2">هل تريد إلغاء فوترة هذا السند؟</h3>
+          <p className="text-sm font-bold text-slate-500 leading-relaxed">
+            هذا السند تم إصدار فاتورة له مسبقاً. إلغاء الفوترة سيقوم بفتحه للتعديل أو الحذف، وسيحذف سجل التاريخ الخاص بالفاتورة المرتبطة به.
+          </p>
+          <div className="mt-4 p-3 bg-slate-50 rounded-xl border border-slate-100 text-[11px] font-bold text-slate-400">
+             * فك القفل نفسه لا يغير المخزن، ولكن أي تعديل تجريه على السند لاحقاً سيحدث المخزن تلقائياً.
           </div>
         </div>
       </ModalWrapper>
@@ -1905,7 +2290,7 @@ export default function VoucherWorkspace({ kind, setActiveView }) {
           const g = voucherGroups.find(x => x.groupId === expandedGroupId);
           if (!g) return 'تفاصيل السند';
           const typeLabel = kind === 'in' ? 'إدخال' : 'إخراج';
-          const partyLabel = kind === 'in' ? 'المورد' : 'المندوب';
+          const partyLabel = kind === 'in' ? 'المورد' : 'المستفيد';
           const partyName = kind === 'in' ? g.supplier : g.rep;
           return `تفاصيل سند ${typeLabel} - ${partyLabel}: ${partyName || '—'}`;
         })() : 'تفاصيل السند'}
