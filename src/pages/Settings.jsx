@@ -71,7 +71,7 @@ function Card({ title, subtitle, icon: Icon, accent = 'emerald', number, childre
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <h3 className="font-black text-sm text-slate-800 dark:text-white truncate">{title}</h3>
-            {number && <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full border shrink-0 ${a.badge}`}>#{number}</span>}
+            {number && <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full border shrink-0 ${a.badge}`}>م{number}</span>}
           </div>
           {subtitle && <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 mt-0.5 truncate">{subtitle}</p>}
         </div>
@@ -314,13 +314,13 @@ function S5Contacts() {
     const unsub = supabase
       .channel('public:reps:settings')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'reps' }, () => {
-        supabase.from('reps').select('id, name, phone, area, created_at').order('created_at', { ascending: false }).then(({ data }) => {
+        supabase.from('reps').select('id, name, phone, zone, created_at').order('created_at', { ascending: false }).then(({ data }) => {
           if (data) setReps(data.map(d => ({ ...d, createdAt: d.created_at })));
         });
       })
       .subscribe();
     
-    supabase.from('reps').select('id, name, phone, area, created_at').order('created_at', { ascending: false }).then(({ data }) => {
+    supabase.from('reps').select('id, name, phone, zone, created_at').order('created_at', { ascending: false }).then(({ data }) => {
       if (data) setReps(data.map(d => ({ ...d, createdAt: d.created_at })));
     });
 

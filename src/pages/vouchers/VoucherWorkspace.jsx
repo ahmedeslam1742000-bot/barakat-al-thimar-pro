@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, Plus, X, Pencil, Trash2, Package, Box,
   AlertTriangle, CheckCircle, User, Truck, ChevronDown, Printer,
-  Image as ImageIcon, FilterX, CalendarRange, Download, Upload, FileText, LogOut, Paperclip, Hash,
+  Image as ImageIcon, FilterX, CalendarRange, Calendar, Download, Upload, FileText, LogOut, Paperclip, Hash,
   UploadCloud, Settings, Info, RefreshCw, History
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
@@ -26,18 +26,6 @@ const formatDate = (date) => {
 
 
 const KIND_CONFIG = {
-  in: {
-    txType: 'سند إدخال',
-    codePrefix: '',
-    counterKey: 'in',
-    pageTitle: 'سند إدخال بضاعة',
-    pageSubtitle: 'إثبات دخول بضاعة للمستودع بدون فاتورة رسمية.',
-    modalTitle: 'سند إدخال بضاعة',
-    accent: 'emerald',
-    Icon: Download,
-    sessionFields: [{ key: 'supplier', label: 'اسم المورد', required: true, placeholder: 'مثال: شركة التوريدات' }],
-    pdfTitle: 'إيصال رسمي — سند إدخال',
-  },
   outward: {
     txType: 'سند إخراج',
     codePrefix: '',
@@ -130,7 +118,7 @@ const VoucherGroupRow = React.memo(function VoucherGroupRow({
         </td>
         <td className="px-6 text-right border-x border-slate-50/50 dark:border-slate-700/30">
           <div className="font-black text-slate-800 dark:text-white truncate">
-            {kind === 'in' ? group.supplier || '—' : group.rep || '—'}
+            {group.rep || '—'}
           </div>
         </td>
         <td className="px-6 text-center border-x border-slate-50/50 dark:border-slate-700/30">
@@ -140,7 +128,7 @@ const VoucherGroupRow = React.memo(function VoucherGroupRow({
         </td>
         <td className="px-6 text-right border-x border-slate-50/50 dark:border-slate-700/30">
           <div className="text-[10px] font-bold text-slate-500 truncate max-w-[150px]">
-             {(group.line_note || '').split('[تعديل حديث]')[0].split('[تم إصدار الفاتورة')[0].split('<!--')[0].trim() || '—'}
+             {(group.line_note || '').split(/\[تم الإلغاء\]|\[تعديل حديث\]|\[تم تعديله\]|\[تم إصدار الفاتورة|\[تمت الفوترة\]|\[إضافة مراجعة\]|\[مستند رقم|\[نوع:|<!--/)[0].trim() || '—'}
              {(group.line_note || '').includes('<!--') && (
                <div className="inline-flex items-center gap-1 bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded border border-amber-100 ml-1">
                  <History size={10} />
@@ -153,9 +141,9 @@ const VoucherGroupRow = React.memo(function VoucherGroupRow({
              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 text-rose-600 border border-rose-100 text-[10px] font-black shadow-sm">
                 <AlertTriangle size={10} /> ملغي
              </span>
-           ) : group.lines.some(l => l.status === 'مفوتر') ? (
+           ) : (group.lines.some(l => l.status === 'مفوتر') || group.isTransfer) ? (
              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-100 text-[10px] font-black shadow-sm">
-                <CheckCircle size={10} /> مفوتر
+                <CheckCircle size={10} /> {group.isTransfer ? 'تحويل مكتمل' : 'مفوتر'}
              </span>
            ) : (
              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 text-amber-600 border border-amber-100 text-[10px] font-black shadow-sm">
@@ -165,11 +153,6 @@ const VoucherGroupRow = React.memo(function VoucherGroupRow({
         </td>
         <td className="px-6 text-center border-x border-slate-50/50 dark:border-slate-700/30">
           <div className="flex items-center justify-center gap-1.5" onClick={e => e.stopPropagation()}>
-            {group.lines.some(l => l.receipt_image) && (
-              <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100">
-                <Paperclip size={14} />
-              </div>
-            )}
             {!isViewer && (
               <>
                 {group.lines.some(l => l.status === 'cancelled') ? (
@@ -235,7 +218,7 @@ const VoucherGroupDetails = React.memo(function VoucherGroupDetails({
 
   return (
     <tr>
-      <td colSpan="7" className="px-6 py-0">
+      <td colSpan="8" className="px-6 py-0">
         <motion.div
           initial={{ height: 0, opacity: 0 }}
           animate={{ height: 'auto', opacity: 1 }}
@@ -245,31 +228,73 @@ const VoucherGroupDetails = React.memo(function VoucherGroupDetails({
         >
           <div className="p-6">
             {/* Header: Notes + Actions */}
+            {/* ─── Refined Stats Cards ─── */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+              {/* Card 1: Beneficiary/Supplier */}
+              <div className="bg-white/40 dark:bg-slate-800/40 backdrop-blur-md rounded-2xl p-3 border border-white/20 dark:border-slate-700/50 shadow-sm flex items-center gap-3">
+                <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${theme.gradient} flex items-center justify-center text-white shadow-lg shrink-0`}>
+                  <User size={18} />
+                </div>
+                <div className="min-w-0">
+                  <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-0.5">
+                    الجهة المستلمة
+                  </span>
+                  <p className="text-sm font-black text-slate-700 dark:text-slate-200 truncate">
+                    {group.rep || '—'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Card 2: Date */}
+              <div className="bg-white/40 dark:bg-slate-800/40 backdrop-blur-md rounded-2xl p-3 border border-white/20 dark:border-slate-700/50 shadow-sm flex items-center gap-3">
+                <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${theme.gradient} flex items-center justify-center text-white shadow-lg shrink-0`}>
+                  <Calendar size={18} />
+                </div>
+                <div className="min-w-0">
+                  <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-0.5">تاريخ العملية</span>
+                  <p className="text-sm font-black text-slate-700 dark:text-slate-200 tabular-nums">
+                    {group.date || '—'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Card 3: Notes & Attachment */}
+              <div className="bg-white/40 dark:bg-slate-800/40 backdrop-blur-md rounded-2xl p-3 border border-white/20 dark:border-slate-700/50 shadow-sm flex items-center gap-3">
+                <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${theme.gradient} flex items-center justify-center text-white shadow-lg shrink-0`}>
+                  <FileText size={18} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-0.5">ملاحظات ومرفقات</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 truncate italic">
+                      {(group.line_note || '').split(/<!--|\[تم الإلغاء\]|\[تعديل حديث\]|\[تم تعديله\]|\[تم إصدار الفاتورة|\[تمت الفوترة\]|\[إضافة مراجعة\]|\[مستند رقم|\[نوع:/)[0].trim() || 'لا توجد ملاحظات'}
+                    </p>
+                    {group.attachment && (
+                      <a 
+                        href={group.attachment} 
+                        target="_blank" 
+                        rel="noreferrer"
+                        className="p-1 bg-blue-50 text-blue-500 rounded-md hover:bg-blue-100 transition-colors shrink-0"
+                        title="عرض المرفق"
+                      >
+                        <Paperclip size={14} />
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div className="flex items-center justify-between mb-4 px-2">
               <div className="flex items-center gap-6">
-                <div className="flex flex-col">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">📝 ملاحظات السند</span>
-                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300 italic">
-                    {(group.line_note || '')
-                      .split(/<!--|\[تعديل حديث\]|\[تم تعديله\]|\[تم إصدار الفاتورة|\[إضافة مراجعة\]|\[مستند رقم/)[0]
-                      .trim() || 'لا توجد ملاحظات إضافية لهذا السند'}
-                  </span>
-                </div>
-                {group.attachment && (
-                  <div className="flex flex-col">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">📎 المرفق</span>
-                    <a 
-                      href={group.attachment} 
-                      target="_blank" 
-                      rel="noreferrer"
-                      className="text-[10px] font-bold text-blue-500 hover:underline flex items-center gap-1.5"
-                    >
-                      <ImageIcon size={12} /> عرض المستند المرفق
-                    </a>
-                  </div>
-                )}
+                {/* Space for additional info if needed */}
               </div>
               <div className="flex items-center gap-2">
+                {group.isTransfer && (
+                   <div className="flex items-center gap-2 px-4 py-1.5 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100 text-[10px] font-black shadow-sm">
+                      <Package size={12} /> تحويل مخزني مكتمل
+                   </div>
+                )}
                 {group.status === 'cancelled' && (
                   <div className="flex items-center gap-2 px-4 py-1.5 bg-rose-50 text-rose-600 rounded-xl border border-rose-100 text-[10px] font-black animate-pulse shadow-sm">
                     <AlertTriangle size={14} /> تم إلغاء هذا السند بالكامل - الكميات مسترجعة للمخزن
@@ -456,8 +481,7 @@ function ModalWrapper({
 
 function emptySession(kind) {
   const base = { date: formatDate(new Date()), voucher_no: '', attachment: null };
-  if (kind === 'in') return { ...base, supplier: '', line_note: '' };
-  return { ...base, rep: '' };
+  return { ...base, rep: '', line_note: '', outwardType: 'sale' };
 }
 
 async function allocateVoucherCode(kind) {
@@ -565,6 +589,7 @@ export default function VoucherWorkspace({ kind, setActiveView }) {
         voucherCode: (representative?.reference_number || '').replace(/^[A-Z]+-\d+-/g, '').replace(/^[A-Z]+-/g, ''),
         lineCount: g.lines.length,
         isEdited: (representative?.notes && representative?.notes.includes('[تعديل حديث]')),
+        isTransfer: (representative?.notes && representative?.notes.includes('[نوع: تحويل مخزني]')),
         historyLog: (() => {
           if (!representative?.notes) return null;
           const match = representative.notes.match(/<!--(\{.*\})-->/);
@@ -856,6 +881,7 @@ export default function VoucherWorkspace({ kind, setActiveView }) {
         voucher_no: group.voucherCode || '',
         line_note: cleanNote,
         attachment: group.attachment || null,
+        outwardType: (group.line_note || '').includes('[نوع: تحويل مخزني]') ? 'transfer' : 'sale'
       });
     }
 
@@ -901,15 +927,64 @@ export default function VoucherWorkspace({ kind, setActiveView }) {
     handleBulkSubmit();
   };
 
+  const uploadToCloudinary = async (file) => {
+    if (!file || typeof file === 'string') return file; // Already a URL or empty
+    
+    const year = new Date(session.date).getFullYear();
+    const month = new Date(session.date).getMonth() + 1;
+    const beneficiary = session.rep || 'عام';
+    const subType = session.outwardType === 'transfer' ? 'تحويلات' : 'فواتير';
+    
+    // Structure: vouchers / اخراج / [فواتير|تحويلات] / [Beneficiary] / [Year] / [Month]
+    const folderPath = `vouchers/اخراج/${subType}/${beneficiary}/${year}/${month}`;
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', 'invoices');
+    formData.append('folder', folderPath);
+    
+    try {
+      const res = await fetch('https://api.cloudinary.com/v1_1/dvxryz62u/image/upload', {
+        method: 'POST',
+        body: formData 
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(`Cloudinary Error: ${errorData.error?.message || res.statusText}`);
+      }
+
+      const data = await res.json();
+      return data.secure_url;
+    } catch (error) {
+      console.error("❌ Cloudinary Upload Failed:", error);
+      throw error;
+    }
+  };
+
   const handleBulkSubmit = async (e) => {
     if (e) e.preventDefault();
     if (!modalDrafts.length) return;
     if (!validateSession()) return;
 
-    const voucherSupplyNotes = String(session.line_note || '').trim();
+    let voucherSupplyNotes = String(session.line_note || '').trim();
+    
+    // Add specific tag for internal transfers
+    if (kind === 'outward' && session.outwardType === 'transfer') {
+      if (!voucherSupplyNotes.includes('[نوع: تحويل مخزني]')) {
+        voucherSupplyNotes = voucherSupplyNotes ? `${voucherSupplyNotes} [نوع: تحويل مخزني]` : '[نوع: تحويل مخزني]';
+      }
+    }
+
     setLoading(true);
 
     try {
+      // ─── Cloudinary Upload Logic ───
+      let imageUrl = session.attachment;
+      if (session.attachment && typeof session.attachment !== 'string') {
+        imageUrl = await uploadToCloudinary(session.attachment);
+      }
+      // ───────────────────────────────
       let oldLines = [];
       if (editingGroupId) {
           // IMPORTANT: Fetch existing transactions BEFORE deleting them
@@ -970,7 +1045,7 @@ export default function VoucherWorkspace({ kind, setActiveView }) {
         // Check for duplicates if the number changed OR if it's a new voucher
         const hasNumberChanged = voucherCode !== preservedVoucherCode;
         if (!editingGroupId || hasNumberChanged) {
-          const checkTypes = kind === 'in' ? ['سند إدخال', 'in'] : ['سند إخراج', 'outward'];
+          const checkTypes = ['سند إخراج', 'outward'];
           const { data: dup } = await supabase
             .from('transactions')
             .select('id')
@@ -1004,7 +1079,7 @@ export default function VoucherWorkspace({ kind, setActiveView }) {
             at: timestamp,
             beneficiary: originalGroup.clientName || originalGroup.supplier || originalGroup.rep || '',
             date: originalGroup.date || '',
-            notes: (originalGroup.line_note || '').split(/\[تعديل حديث\]|\[تم تعديله\]|\[تم إصدار الفاتورة|\[إضافة مراجعة\]|\[مستند رقم|<!--/)[0].trim(),
+            notes: (originalGroup.line_note || '').split(/\[تعديل حديث\]|\[تم تعديله\]|\[تم إصدار الفاتورة|\[إضافة مراجعة\]|\[مستند رقم|\[نوع:|<!--/)[0].trim(),
             lines: originalGroup.lines
               .filter(l => !l.is_summary)
               .map(l => ({ item: l.item, qty: l.qty, unit: l.unit, cat: l.cat || '' }))
@@ -1013,26 +1088,20 @@ export default function VoucherWorkspace({ kind, setActiveView }) {
         }
       }
 
-      const beneficiary = kind === 'in' 
-        ? String(session.supplier || '').trim() 
-        : String(session.rep || '').trim();
+      const beneficiary = String(session.rep || '').trim();
 
       const common = {
-        type: kind === 'in' ? 'سند إدخال' : 'سند إخراج',
+        type: 'سند إخراج',
         date: session.date,
         batch_id: voucherGroupId,
         reference_number: voucherCode,
         beneficiary: beneficiary,
         notes: `${voucherSupplyNotes}${historyTag}`,
-        receipt_image: session.attachment || null,
+        receipt_image: imageUrl || null,
         timestamp: timestamp, // Jump to top
       };
 
-      if (kind === 'in') {
-        common.supplier = beneficiary;
-      } else {
-        common.rep = beneficiary;
-      }
+      common.rep = beneficiary;
 
       const rows = modalDrafts.map((entry) => ({
         ...common,
@@ -1049,7 +1118,7 @@ export default function VoucherWorkspace({ kind, setActiveView }) {
       const totalQty = modalDrafts.reduce((sum, d) => sum + d.qty, 0);
       rows.push({
         ...common,
-        item: kind === 'in' ? 'ملخص سند إدخال' : 'ملخص عهده مندوب',
+        item: 'ملخص عهده مندوب',
         qty: totalQty,
         total_qty: totalQty,
         is_summary: true,
@@ -1084,13 +1153,11 @@ export default function VoucherWorkspace({ kind, setActiveView }) {
             let netChange = 0;
             // 1. Undo Old Impact
             const oldSum = oldLines.filter(ol => ol.item_id === pid).reduce((sum, ol) => sum + Number(ol.qty || 0), 0);
-            if (kind === 'in') netChange -= oldSum; // Old Inbound added stock, so undoing subtracts
-            else netChange += oldSum; // Old Outbound subtracted stock, so undoing adds
+            netChange += oldSum; // Old Outbound subtracted stock, so undoing adds
 
             // 2. Apply New Impact
             const newSum = modalDrafts.filter(nd => nd.itemId === pid).reduce((sum, nd) => sum + Number(nd.qty || 0), 0);
-            if (kind === 'in') netChange += newSum; // New Inbound adds stock
-            else netChange -= newSum; // New Outbound subtracts stock
+            netChange -= newSum; // New Outbound subtracts stock
 
             if (netChange !== 0) {
                 const currentStock = Number(p.stock_qty || 0);
@@ -1786,7 +1853,7 @@ export default function VoucherWorkspace({ kind, setActiveView }) {
             </div>
 
             {/* Notes / Customer / Rep */}
-            <div className="md:col-span-4 space-y-1">
+            <div className={`${kind === 'outward' ? 'md:col-span-3' : 'md:col-span-4'} space-y-1`}>
               <label className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mr-2 flex items-center gap-1">
                 <Info size={10} className="text-primary" /> ملاحظات إضافية للسند
               </label>
@@ -1798,6 +1865,30 @@ export default function VoucherWorkspace({ kind, setActiveView }) {
                 onChange={(e) => setSession((s) => ({ ...s, line_note: e.target.value }))}
               />
             </div>
+
+            {/* Operation Type (Outward Only) */}
+            {kind === 'outward' && (
+              <div className="md:col-span-1 flex flex-col justify-end pb-1">
+                <div className="flex bg-white dark:bg-slate-800 rounded-lg p-0.5 border border-slate-100 dark:border-slate-700">
+                  <button
+                    type="button"
+                    onClick={() => setSession(s => ({ ...s, outwardType: 'sale' }))}
+                    className={`flex-1 flex items-center justify-center p-1.5 rounded-md transition-all ${session.outwardType === 'sale' ? 'bg-blue-500 text-white shadow-md shadow-blue-500/20' : 'text-slate-400 hover:text-slate-600'}`}
+                    title="مبيعات / عهدة"
+                  >
+                    <Truck size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSession(s => ({ ...s, outwardType: 'transfer', rep: 'بركة الثمار - الرياض' }))}
+                    className={`flex-1 flex items-center justify-center p-1.5 rounded-md transition-all ${session.outwardType === 'transfer' ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20' : 'text-slate-400 hover:text-slate-600'}`}
+                    title="تحويل للمخزن الرئيسي"
+                  >
+                    <Package size={14} />
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Attachment Button (Colorful & Animated) */}
             <div className="md:col-span-1 flex flex-col justify-end">

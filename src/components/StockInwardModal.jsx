@@ -381,10 +381,16 @@ export default function StockInwardModal({ isOpen, onClose, onSaveSuccess }) {
 
   const uploadToCloudinary = async (file, supplier) => {
     console.log("📤 بدء رفع الملف إلى Cloudinary...");
+    
+    const year = new Date(stockForm.date).getFullYear();
+    const month = new Date(stockForm.date).getMonth() + 1;
+    const subFolder = stockForm.receiptType === 'سند' ? 'سندات_توريد' : 'فواتير_توريد';
+    const folderPath = `vouchers/ادخال/${subFolder}/${supplier}/${year}/${month}`;
+
     const formData = new FormData();
     formData.append('file', file);
     formData.append('upload_preset', 'invoices');
-    formData.append('folder', `barakat/inbound/${new Date().getFullYear()}/${supplier}`);
+    formData.append('folder', folderPath);
     
     try {
       const res = await fetch('https://api.cloudinary.com/v1_1/dvxryz62u/image/upload', {

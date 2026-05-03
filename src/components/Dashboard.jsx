@@ -17,7 +17,136 @@ import { supabase } from '../lib/supabaseClient';
 // Utility Imports
 import { normalizeArabic, checkNearDuplicates } from '../lib/arabicTextUtils';
 import { useDebounce } from '../hooks/useDebounce';
+import html2canvas from 'html2canvas';
 import StockInwardModal from './StockInwardModal';
+
+// --- Professional Invoice Template for Capture ---
+const InvoiceTemplate = ({ data }) => {
+  if (!data) return null;
+  const isSale = data.type === 'sale';
+  
+  return (
+    <div 
+      id="invoice-capture-area" 
+      style={{ 
+        width: '800px', 
+        padding: '60px', 
+        backgroundColor: '#fff', 
+        direction: 'rtl', 
+        fontFamily: "'Tajawal', sans-serif",
+        color: '#0f172a',
+        minHeight: '1000px',
+        display: 'flex',
+        flexDirection: 'column',
+        boxSizing: 'border-box'
+      }}
+    >
+                <div className="bg-white border-2 border-slate-200 shadow-2xl rounded-3xl p-10 print:shadow-none print:p-0 print:border-none relative mx-auto" style={{ width: '210mm', minHeight: '297mm', direction: 'rtl', fontFamily: "'Tajawal', sans-serif", color: '#0f172a', display: 'flex', flexDirection: 'column' }}>
+                  
+                  {/* Header Section */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '56px', position: 'relative', paddingTop: '8px' }}>
+                    
+                    {/* Right: Logo */}
+                    <div style={{ width: '33%', display: 'flex', justifyContent: 'flex-start' }}>
+                      <img src="/src/logo.jpg" alt="بركة الثمار" style={{ height: '100px', width: 'auto', objectFit: 'contain', mixBlendMode: 'multiply', filter: 'contrast(1.1) brightness(1.05)', marginLeft: 'auto' }} onError={(e) => e.target.style.display='none'} />
+                    </div>
+
+                    {/* Center: Title */}
+                    <div style={{ width: '33%', display: 'flex', justifyContent: 'center', marginTop: '16px' }}>
+                      <div style={{ position: 'relative' }}>
+                         <h1 style={{ fontSize: '56px', fontWeight: '900', color: '#0f172a', letterSpacing: '-2px', margin: '0', fontFamily: "'Reem Kufi', 'Changa', sans-serif" }}>
+                           فاتورة
+                         </h1>
+                         <div style={{ position: 'absolute', bottom: '-12px', left: '50%', transform: 'translateX(-50%)', width: '48px', height: '6px', backgroundColor: '#4f46e5', borderRadius: '4px' }}></div>
+                      </div>
+                    </div>
+
+                    {/* Left: Invoice Info */}
+                    <div style={{ width: '33%', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', textAlign: 'right', marginTop: '4px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '14px', fontWeight: 'bold', color: '#475569' }}>
+                        {data.voucherCode && (
+                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '12px', marginBottom: '4px' }}>
+                              <span style={{ color: '#94a3b8', fontSize: '10px' }}>رقم المرجع:</span>
+                              <span style={{ color: '#0f172a', backgroundColor: '#f8fafc', border: '1px solid #f1f5f9', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontFamily: 'monospace' }}>#{data.voucherCode.slice(-8).toUpperCase()}</span>
+                           </div>
+                        )}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '12px' }}>
+                           <span style={{ color: '#94a3b8' }}>التاريخ:</span>
+                           <span style={{ color: '#0f172a', fontFamily: 'monospace' }}>{data.date}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '12px' }}>
+                           <span style={{ color: '#94a3b8' }}>النوع:</span>
+                           <span style={{ color: '#0f172a' }}>{isSale ? 'مبيعات' : 'سند إخراج'}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '12px' }}>
+                           <span style={{ color: '#94a3b8' }}>المستفيد:</span>
+                           <span style={{ color: '#0f172a', fontWeight: '900', fontSize: '16px' }}>{data.clientName || data.client || '—'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Table Section */}
+                  <div style={{ flex: 1, marginTop: '16px' }}>
+                    <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0' }}>
+                      <thead>
+                        <tr>
+                          <th style={{ backgroundColor: '#f1f5f9', padding: '20px 12px', textAlign: 'center', fontSize: '12px', fontWeight: '900', color: '#64748b', width: '48px', borderTopRightRadius: '12px', borderBottomRightRadius: '12px' }}>م</th>
+                          <th style={{ backgroundColor: '#f1f5f9', padding: '20px 16px', textAlign: 'right', fontSize: '12px', fontWeight: '900', color: '#64748b' }}>اسم الصنف</th>
+                          <th style={{ backgroundColor: '#f1f5f9', padding: '20px 16px', textAlign: 'center', fontSize: '12px', fontWeight: '900', color: '#64748b', width: '128px' }}>التصنيف</th>
+                          <th style={{ backgroundColor: '#f1f5f9', padding: '20px 16px', textAlign: 'center', fontSize: '12px', fontWeight: '900', color: '#64748b', width: '112px' }}>الكمية</th>
+                          <th style={{ backgroundColor: '#f1f5f9', padding: '20px 12px', textAlign: 'center', fontSize: '12px', fontWeight: '900', color: '#64748b', width: '96px', borderTopLeftRadius: '12px', borderBottomLeftRadius: '12px' }}>الوحدة</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {data.items.map((item, idx) => (
+                          <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ padding: '24px 12px', textAlign: 'center', fontSize: '13px', fontWeight: 'bold', color: '#94a3b8' }}>{idx + 1}</td>
+                            <td style={{ padding: '24px 16px' }}>
+                                <span style={{ fontSize: '16px', fontWeight: '900', color: '#1e293b' }}>
+                                  {item.name || item.item}
+                                  {item.company && item.company !== 'بدون شركة' && (
+                                    <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#94a3b8', marginRight: '6px' }}> - {item.company}</span>
+                                  )}
+                                </span>
+                            </td>
+                            <td style={{ padding: '24px 16px', textAlign: 'center' }}>
+                              <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#64748b' }}>{item.cat || '—'}</span>
+                            </td>
+                            <td style={{ padding: '24px 16px', textAlign: 'center' }}>
+                               <span style={{ fontSize: '18px', fontWeight: '900', color: '#0f172a', fontFamily: 'monospace' }}>{item.qty}</span>
+                            </td>
+                            <td style={{ padding: '24px 12px', textAlign: 'center' }}>
+                               <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#64748b' }}>{item.unit}</span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+      {/* Footer Section */}
+      <div style={{ marginTop: '48px', paddingTop: '24px', borderTop: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+           <p style={{ margin: 0, fontSize: '11px', fontWeight: '900', color: '#94a3b8' }}>ملاحظات</p>
+           <p style={{ margin: 0, fontSize: '12px', fontWeight: 'bold', color: '#64748b' }}>هذه الفاتورة صدرت إلكترونياً ولا تحتاج إلى توقيع.</p>
+        </div>
+        
+        <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+              <span style={{ fontSize: '11px', fontWeight: '900', color: '#94a3b8', marginBottom: '4px' }}>إجمالي الأصناف</span>
+              <span style={{ fontSize: '24px', fontWeight: '900', color: '#4f46e5', fontFamily: 'monospace', lineHeight: '1' }}>{data.items.length}</span>
+           </div>
+        </div>
+      </div>
+      
+      <div style={{ marginTop: '32px', textAlign: 'center' }}>
+         <p style={{ margin: 0, fontSize: '10px', fontWeight: 'bold', color: '#cbd5e1', letterSpacing: '1px', textTransform: 'uppercase' }}>Baraket Althemar System • {new Date().getFullYear()}</p>
+      </div>
+      </div>
+    </div>
+  );
+};
 
 const salesData = [
   { name: 'يناير', sales: 0 }, { name: 'فبراير', sales: 0 },
@@ -315,6 +444,33 @@ export default function Dashboard() {
   const [showHistory, setShowHistory] = useState(false);
   const [showVoucherHistory, setShowVoucherHistory] = useState(false);
 
+  // --- Invoice Capture State & Utils ---
+  const [invoiceDataForCapture, setInvoiceDataForCapture] = useState(null);
+  const uploadToCloudinary = async (blob, data) => {
+    console.log("📤 بدء رفع الفاتورة الاحترافية إلى Cloudinary...");
+    const year = new Date().getFullYear();
+    const month = new Date().getMonth() + 1;
+    const client = (data.clientName || data.client || 'عام').trim();
+    const subFolder = data.type === 'sale' ? 'فاتورة_مبيعات' : 'سند_إخراج';
+    const folderPath = `vouchers/outward/${subFolder}/${client}/${year}/${month}`;
+    const formData = new FormData();
+    formData.append('file', blob);
+    formData.append('upload_preset', 'invoices');
+    formData.append('folder', folderPath);
+    try {
+      const res = await fetch('https://api.cloudinary.com/v1_1/dvxryz62u/image/upload', { method: 'POST', body: formData });
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(`Cloudinary Error: ${errorData.error?.message || res.statusText}`);
+      }
+      const uploadResult = await res.json();
+      return uploadResult.secure_url;
+    } catch (error) {
+      console.error("❌ Cloudinary error:", error);
+      throw error;
+    }
+  };
+
   const [locations, setLocations] = useState(['مستودع الرياض', 'مستودع جدة', 'المركز الرئيسي', 'مورد خارجي']);
   const [stockSearchActiveIndex, setStockSearchActiveIndex] = useState(-1);
 
@@ -350,7 +506,7 @@ export default function Dashboard() {
   const [showSaveConfirm, setShowSaveConfirm] = useState(false);
 
 
-  const [invoiceForm, setInvoiceForm] = useState({ client: '', rep: '', date: new Date().toISOString().split('T')[0], items: [] });
+  const [invoiceForm, setInvoiceForm] = useState({ client: 'سحب مندوب', rep: '', notes: '', date: new Date().toISOString().split('T')[0], items: [] });
   const [currentInvoiceItem, setCurrentInvoiceItem] = useState({ name: '', selectedItem: null, cat: '', unit: '', qty: '' });
   const [invoiceErrors, setInvoiceErrors] = useState({});
   const [isVoucherInvoice, setIsVoucherInvoice] = useState(false); 
@@ -368,7 +524,7 @@ export default function Dashboard() {
   // Safety reset on open to prevent data persistence
   useEffect(() => {
     if (isSalesModalOpen && !isVoucherInvoice) {
-      setInvoiceForm({ client: 'سحب مندوب', rep: '', date: new Date().toISOString().split('T')[0], items: [] });
+      setInvoiceForm({ client: 'سحب مندوب', rep: '', notes: '', date: new Date().toISOString().split('T')[0], items: [] });
       setCurrentInvoiceItem({ name: '', selectedItem: null, cat: '', unit: '', qty: '' });
       setInvoiceErrors({});
     }
@@ -638,6 +794,7 @@ export default function Dashboard() {
           voucherGroupId: d.batch_id,
           batchId: d.batch_id,
           isInvoice: d.status === 'مفوتر' || (d.notes && d.notes.includes('[تم إصدار الفاتورة]')),
+          isTransfer: (d.notes && d.notes.includes('[نوع: تحويل مخزني]')),
           isFunctional: d.type === 'سند إدخال' || d.type === 'سند إخراج' || d.type === 'outward' || d.type === 'in' || (d.item && (d.item.includes('ملخص') || d.item.includes('عهده'))),
           isEdited: (d.notes && d.notes.includes('[تعديل حديث]')),
           historyLog: (() => {
@@ -653,11 +810,11 @@ export default function Dashboard() {
     } catch (err) {
       console.error("❌ Dashboard: Error fetching initial data:", err);
     }
-  }, []);
+  }, [supabase]);
 
+  // --- DEFINITIVE DATA RESTORATION & SUBSCRIPTIONS ---
   useEffect(() => {
-    fetchInitialData();
-    
+    // Real-time Subscriptions
     const itemsChannel = supabase.channel('public:products:dashboard')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, fetchInitialData)
       .subscribe();
@@ -670,6 +827,10 @@ export default function Dashboard() {
       supabase.removeChannel(itemsChannel);
       supabase.removeChannel(transChannel);
     };
+  }, [currentUser, fetchInitialData]);
+
+  useEffect(() => {
+    fetchInitialData();
   }, [fetchInitialData]);
 
   // Build functional voucher groups from transaction lines in real time.
@@ -747,6 +908,7 @@ export default function Dashboard() {
           clientName: tx.rep || tx.supplier || tx.loc || 'غير محدد',
           timestamp: txDate,
           invoiced: false, // Will be computed from all lines below
+          isTransfer: tx.notes && tx.notes.includes('[نوع: تحويل مخزني]'),
           deducted: false,
           isFunctional: true,
           line_note: tx.notes || '',
@@ -755,6 +917,7 @@ export default function Dashboard() {
       }
 
       const group = groupedVouchers.get(groupId);
+      if (tx.notes && tx.notes.includes('[نوع: تحويل مخزني]')) group.isTransfer = true;
       group.lines.push({
         ...tx,
         quantity: Number(tx.qty || 0),
@@ -801,14 +964,14 @@ export default function Dashboard() {
 
   const pendingVouchers = useMemo(
     () => functionalVoucherGroups
-      .filter(v => !v.invoiced && !v.isCancelled)
+      .filter(v => !v.invoiced && !v.isCancelled && !v.isTransfer)
       .sort((a, b) => b.timestamp - a.timestamp),
     [functionalVoucherGroups]
   );
 
   const completedVouchers = useMemo(
     () => functionalVoucherGroups
-      .filter(v => v.invoiced && !v.isCancelled)
+      .filter(v => (v.invoiced || v.isTransfer) && !v.isCancelled)
       .sort((a, b) => b.timestamp - a.timestamp),
     [functionalVoucherGroups]
   );
@@ -1071,7 +1234,7 @@ export default function Dashboard() {
   
   const performInvoiceReset = () => {
     setIsSalesModalOpen(false);
-    setInvoiceForm({ client: 'سحب مندوب', rep: '', date: new Date().toISOString().split('T')[0], items: [] });
+    setInvoiceForm({ client: 'سحب مندوب', rep: '', notes: '', date: new Date().toISOString().split('T')[0], items: [] });
     setCurrentInvoiceItem({ name: '', selectedItem: null, cat: '', unit: '', qty: '' });
     setInvoiceErrors({});
     setShowInvoiceExitConfirm(false);
@@ -1082,7 +1245,7 @@ export default function Dashboard() {
   };
 
   const openInvoiceModal = () => {
-    setInvoiceForm({ client: 'سحب مندوب', rep: '', date: new Date().toISOString().split('T')[0], items: [] });
+    setInvoiceForm({ client: 'سحب مندوب', rep: '', notes: '', date: new Date().toISOString().split('T')[0], items: [] });
     setCurrentInvoiceItem({ name: '', selectedItem: null, cat: '', unit: '', qty: '' });
     setInvoiceErrors({});
     setIsVoucherInvoice(false);
@@ -1136,7 +1299,7 @@ export default function Dashboard() {
   const handleAddInvoice = (e) => {
     if (e) e.preventDefault();
     if (!invoiceForm.client.trim()) { setInvoiceErrors({ client: true }); return toast.error("أدخل اسم العميل أولاً!"); }
-    if (!invoiceForm.rep.trim()) { setInvoiceErrors({ rep: true }); return toast.error("أدخل اسم المندوب!"); }
+    if (!isVoucherInvoice && !invoiceForm.rep.trim()) { setInvoiceErrors({ rep: true }); return toast.error("أدخل اسم المندوب!"); }
     if (invoiceForm.items.length === 0) return toast.error("لا توجد أصناف في الفاتورة!");
     
     for (let i = 0; i < invoiceForm.items.length; i++) {
@@ -1299,7 +1462,7 @@ export default function Dashboard() {
               batch_id: batchId,
               reference_number: sourceVoucher.voucherCode,
               beneficiary: sourceVoucher.clientName,
-              rep: invoiceForm.rep,
+              rep: invoiceForm.rep || sourceVoucher.rep || sourceVoucher.clientName,
               timestamp: new Date().toISOString(),
               status: 'مفوتر',
               notes: `[إضافة مراجعة] ${statusNotes}`
@@ -1342,7 +1505,7 @@ export default function Dashboard() {
             rep: invoiceForm.rep,
             batch_id: batchId,
             reference_number: batchId,
-            notes: `فاتورة مباشرة - ${invoiceForm.client}`
+            notes: `${invoiceForm.notes.trim()} [نوع: صادر]`
           });
         }
 
@@ -1350,6 +1513,49 @@ export default function Dashboard() {
           const { error: insErr } = await supabase.from('transactions').insert(txsToInsert);
           if (insErr) throw insErr;
         }
+      }
+
+      // --- 4. GENERATE AND UPLOAD PROFESSIONAL INVOICE IMAGE ---
+      try {
+        const targetBatchId = sourceVoucher ? (sourceVoucher.voucherGroupId || sourceVoucher.id) : `INV-${Date.now()}`; 
+        // Note: For direct sales, batchId is already used above, but we can re-derive it or pass it.
+        // Actually, let's use the actual batchId from the logic.
+        
+        const finalBatchId = sourceVoucher ? (sourceVoucher.voucherGroupId || sourceVoucher.id) : txsToInsert[0]?.batch_id;
+
+        const invData = {
+          type: sourceVoucher ? 'voucher' : 'sale',
+          clientName: sourceVoucher ? sourceVoucher.clientName : (invoiceForm.rep || invoiceForm.client),
+          rep: invoiceForm.rep,
+          date: invoiceForm.date,
+          batchId: finalBatchId,
+          voucherCode: sourceVoucher ? sourceVoucher.voucherCode : null,
+          items: invoiceForm.items.map(it => ({
+            name: it.name || it.selectedItem?.name,
+            company: it.company || it.selectedItem?.company,
+            cat: it.cat || it.selectedItem?.cat,
+            qty: it.qty,
+            unit: it.unit || it.selectedItem?.unit
+          })),
+          notes: sourceVoucher ? `تحويل السند ${sourceVoucher.voucherCode} إلى فاتورة` : (invoiceForm.notes.trim() || 'فاتورة مبيعات')
+        };
+        
+        setInvoiceDataForCapture(invData);
+        await new Promise(r => setTimeout(r, 800)); // Wait for render
+        
+        const element = document.getElementById('invoice-capture-area');
+        if (element) {
+          const canvas = await html2canvas(element, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+          const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+          const imageUrl = await uploadToCloudinary(blob, invData);
+          
+          if (imageUrl && finalBatchId) {
+            await supabase.from('transactions').update({ receipt_image: imageUrl }).eq('batch_id', finalBatchId);
+          }
+        }
+        setInvoiceDataForCapture(null);
+      } catch (genErr) {
+        console.error("⚠️ Invoice image generation failed:", genErr);
       }
 
       toast.success("تم تأكيد الفاتورة (إجراء روتيني) - المخزون تم التعامل معه مسبقاً في السند ✅");
@@ -1831,43 +2037,29 @@ export default function Dashboard() {
   }).sort((a,b) => a.stockQty - b.stockQty);
 
   // --- Transactions Processing --- //
-  const finalTransactions = useMemo(() => {
+   const finalTransactions = useMemo(() => {
     const movements = [];
     const seenGroups = new Set();
 
-    // Grouping logic to show "Movement Logic" instead of individual lines
     dbTransactionsList.forEach(tx => {
-       // Only movements, exclude "Add Item" and summary rows
        if (tx.type === 'product_add' || tx.type === 'AddProduct' || tx.is_summary === true) return;
 
        const groupId = tx.voucherGroupId || tx.batchId || tx.reference_number || tx.id;
-       
        if (seenGroups.has(groupId)) return;
        seenGroups.add(groupId);
 
-       // Movement filter logic
        let matches = true;
        if (movementTypeFilter !== 'الكل') {
          const type = tx.type || '';
-         if (movementTypeFilter === 'وارد') {
-           matches = type === 'Restock' || type === 'وارد' || type === 'in' || type === FUNCTIONAL_INBOUND_TYPE;
-         } else if (movementTypeFilter === 'صادر') {
-           // Fixed: include both direct out and functional vouchers
-           matches = (type === 'Issue' || type === 'out' || type === 'صادر' || type === FUNCTIONAL_OUTBOUND_TYPE);
-         } else if (movementTypeFilter === 'فاتورة') {
-           matches = tx.isInvoice === true;
-         } else if (movementTypeFilter === 'مرتجع') {
-           matches = type === 'Return' || type === 'مرتجع' || type === 'return' || tx.status === 'مرتجع تالف';
-         } else if (movementTypeFilter === 'سند إدخال') {
-           matches = (type === FUNCTIONAL_INBOUND_TYPE || type === 'adjust_in') && !tx.isInvoice;
-         } else if (movementTypeFilter === 'سند إخراج') {
-           matches = (type === FUNCTIONAL_OUTBOUND_TYPE || type === 'adjust_out') && !tx.isInvoice;
-         }
+         if (movementTypeFilter === 'وارد') matches = type === 'Restock' || type === 'وارد' || type === 'in' || type === FUNCTIONAL_INBOUND_TYPE;
+         else if (movementTypeFilter === 'صادر') matches = (type === 'Issue' || type === 'out' || type === 'صادر' || type === FUNCTIONAL_OUTBOUND_TYPE);
+         else if (movementTypeFilter === 'فاتورة') matches = tx.isInvoice === true;
+         else if (movementTypeFilter === 'مرتجع') matches = type === 'Return' || type === 'مرتجع' || type === 'return' || tx.status === 'مرتجع تالف';
+         else if (movementTypeFilter === 'سند إدخال') matches = (type === FUNCTIONAL_INBOUND_TYPE || type === 'adjust_in') && !tx.isInvoice;
+         else if (movementTypeFilter === 'سند إخراج') matches = (type === FUNCTIONAL_OUTBOUND_TYPE || type === 'adjust_out') && !tx.isInvoice;
        }
        
-       if (matches) {
-         movements.push(tx);
-       }
+       if (matches) movements.push(tx);
     });
 
     return movements;
@@ -1891,7 +2083,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 shrink-0">
         <StatCard icon={Package} label="إجمالي الأصناف" value={items.length} subtext="صنف مسجل" actionLabel="إضافة صنف" onClick={() => setIsItemModalOpen(true)} accentColor="#10B981" />
         <StatCard icon={Truck} label="الوارد" value={stockInCount} subtext="وحدة مُورّدة" actionLabel="إضافة وارد" onClick={() => setIsStockInModalOpen(true)} accentColor="#3B82F6" />
-        <StatCard icon={TrendingUp} label="الصادر" value={salesCount} subtext="وحدة مُباعة" actionLabel="فاتورة جديدة" onClick={openInvoiceModal} accentColor="#F59E0B" />
+        <StatCard icon={TrendingUp} label="الفواتير" value={salesCount} subtext="وحدة مُباعة" actionLabel="فاتورة جديدة" onClick={openInvoiceModal} accentColor="#F59E0B" />
         <StatCard icon={RotateCcw} label={damageCount > 0 ? `المرتجعات (${damageCount} تالف)` : "المرتجعات"} value={returnsCount} subtext="وحدة مُرتجعة" actionLabel="تسجيل مرتجع" onClick={openReturnModal} accentColor="#EF4444" />
       </div>
 
@@ -1918,11 +2110,11 @@ export default function Dashboard() {
             <select 
               value={movementTypeFilter}
               onChange={(e) => setMovementTypeFilter(e.target.value)}
-              className="text-xs bg-slate-100 border border-slate-200 text-slate-700 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/20 font-bold font-tajawal"
+              className="text-[10px] bg-slate-50 border border-slate-200 text-slate-500 rounded-lg px-2.5 py-1.5 outline-none font-black font-tajawal shadow-sm"
             >
-              <option value="الكل">الكل</option>
+              <option value="الكل">كل الأنواع</option>
               <option value="وارد">وارد</option>
-              <option value="صادر">صادر - فاتورة</option>
+              <option value="صادر">الفواتير</option>
               <option value="مرتجع">مرتجع</option>
               <option value="سند إدخال">سند إدخال</option>
               <option value="سند إخراج">سند إخراج</option>
@@ -1961,11 +2153,17 @@ export default function Dashboard() {
                     actionBg = 'bg-slate-50';
                     actionIcon = <AlertTriangle size={14} className="text-rose-500 animate-pulse" />;
                   } else if (isFunctionalOut) {
+                    const isTransfer = tx.isTransfer;
                     if (tx.isInvoice) {
                       actionTitle = 'فاتورة سند';
                       actionColor = 'text-blue-600';
                       actionBg = 'bg-blue-50';
                       actionIcon = <FileText size={14} />;
+                    } else if (isTransfer) {
+                      actionTitle = 'تحويل مخزني';
+                      actionColor = 'text-emerald-600';
+                      actionBg = 'bg-emerald-50';
+                      actionIcon = <Box size={14} />;
                     } else {
                       actionTitle = 'سند إخراج';
                       actionColor = 'text-rose-600';
@@ -2040,7 +2238,7 @@ export default function Dashboard() {
                           <div className="flex items-center gap-2 flex-wrap">
                             <h4 className="font-black text-slate-800 text-[12px] font-tajawal text-right truncate">
                               {primaryName}
-                              {secondaryName && (
+                              {secondaryName && secondaryName.trim() !== primaryName.trim() && (
                                 <span className="text-[10px] text-slate-400 font-readex font-medium mr-1.5">
                                    - {secondaryName}
                                 </span>
@@ -2062,10 +2260,19 @@ export default function Dashboard() {
                         </div>
                       </div>
                       
-                      <div className="text-left shrink-0 mr-4">
+                      <div className="text-left shrink-0 mr-4 flex flex-col items-end gap-1">
                         <p className="text-[11px] text-slate-400 font-bold font-readex">
                           {formattedDate}
                         </p>
+                        {tx.receipt_image && (
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); window.open(tx.receipt_image, '_blank'); }}
+                            className="w-7 h-7 flex items-center justify-center rounded-lg bg-emerald-100 text-emerald-700 border border-emerald-200 hover:bg-emerald-200 transition-all shadow-sm group/btn"
+                            title="عرض الفاتورة الاحترافية"
+                          >
+                             <FileText size={14} strokeWidth={2.5} className="group-hover/btn:scale-110 transition-transform" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
@@ -2140,7 +2347,7 @@ export default function Dashboard() {
                           </div>
                           <div className="min-w-0 flex-1">
                             <h4 className="text-[11px] font-bold text-[#0F2747] font-tajawal leading-tight truncate">
-                              {voucher.kind === 'in' ? 'سند إدخال' : 'سند إخراج'} - {voucher.clientName}
+                              {voucher.isTransfer ? 'تحويل مخزني' : (voucher.kind === 'in' ? 'سند إدخال' : 'سند إخراج')} - {voucher.clientName}
                             </h4>
                             {isCompleted && invoiceDate ? (
                               <p className="text-[8px] text-emerald-600 font-readex mt-0.5 truncate font-medium">
@@ -2153,7 +2360,7 @@ export default function Dashboard() {
                                 </p>
                                 {voucher.line_note && (
                                   <p className="text-[9px] font-black text-indigo-500 font-tajawal truncate bg-indigo-50/50 px-1.5 py-0.5 rounded border border-indigo-100/50 w-fit max-w-full">
-                                    {voucher.line_note.split('[تعديل حديث]')[0].split('[تم إصدار الفاتورة')[0].split('<!--')[0].trim()}
+                                    {voucher.line_note.split(/\[تعديل حديث\]|\[تم تعديله\]|\[تم إصدار الفاتورة|\[إضافة مراجعة\]|\[مستند رقم|\[نوع:|<!--/)[0].trim()}
                                   </p>
                                 )}
                               </div>
@@ -2203,7 +2410,7 @@ export default function Dashboard() {
                               </div>
                               <div className="min-w-0 flex-1">
                                 <h4 className="text-[11px] font-bold text-[#0F2747] font-tajawal leading-tight truncate">
-                                  {voucher.kind === 'in' ? 'سند إدخال' : 'سند إخراج'} - {voucher.clientName}
+                                  {voucher.isTransfer ? 'تحويل مخزني' : (voucher.kind === 'in' ? 'سند إدخال' : 'سند إخراج')} - {voucher.clientName}
                                 </h4>
                                 {invoiceDate ? (
                                   <p className="text-[8px] text-emerald-600 font-readex mt-0.5 truncate font-medium">
@@ -2409,29 +2616,30 @@ export default function Dashboard() {
                 let themeIcon = <FileText size={28} />;
 
                 if (isFunctionalIn) {
-                  typeLabel = 'تفاصيل سند إدخال';
+                  typeLabel = 'سند إدخال';
                   themeColor = 'indigo';
                   themeIcon = <FileInput size={28} />;
                 } else if (isFunctionalOut) {
+                  const isTransfer = firstTx.isTransfer;
                   const isInvoicedVoucher = firstTx.isInvoice;
-                  typeLabel = isInvoicedVoucher ? 'تفاصيل فاتورة سند' : 'تفاصيل سند إخراج';
-                  themeColor = isInvoicedVoucher ? 'blue' : 'rose';
-                  themeIcon = isInvoicedVoucher ? <FileText size={28} /> : <FileOutput size={28} />;
+                  typeLabel = isTransfer ? 'تحويل مخزني' : (isInvoicedVoucher ? 'فاتورة سند' : 'سند إخراج');
+                  themeColor = isTransfer ? 'emerald' : (isInvoicedVoucher ? 'blue' : 'rose');
+                  themeIcon = isTransfer ? <Box size={28} /> : (isInvoicedVoucher ? <FileText size={28} /> : <FileOutput size={28} />);
                 } else if (isInbound) {
                   const isAdj = type === 'adjust_in';
-                  typeLabel = isAdj ? 'سند إدخال (تعديل)' : 'تفاصيل حركة وارد';
+                  typeLabel = isAdj ? 'سند إدخال (تعديل)' : 'حركة وارد';
                   themeColor = isAdj ? 'slate' : 'emerald';
                   themeIcon = isAdj ? <ArrowDownLeft size={28} /> : <ArrowDownLeft size={28} />;
                 } else if (isReturn) {
-                  typeLabel = 'تفاصيل مرتجع مخزني';
+                  typeLabel = 'مرتجع مخزني';
                   themeColor = 'amber';
                   themeIcon = <RotateCcw size={28} />;
                 } else if (isOutbound) {
-                  typeLabel = firstTx.isInvoice ? 'تفاصيل فاتورة صادر' : 'تفاصيل حركة صادر';
+                  typeLabel = firstTx.isInvoice ? 'فاتورة مبيعات' : 'حركة صادر';
                   themeColor = 'blue';
                   themeIcon = <ArrowUpRight size={28} />;
                 } else {
-                  typeLabel = 'تفاصيل حركة مخزنية';
+                  typeLabel = 'حركة مخزنية';
                   themeColor = 'slate';
                   themeIcon = <FileText size={28} />;
                 }
@@ -2442,13 +2650,17 @@ export default function Dashboard() {
                 const formattedDate = txDate.toLocaleDateString('ar-SA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
                 const formattedTime = txDate.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
                 
-                const primaryName = (isInbound || isFunctionalIn) 
-                  ? (firstTx.supplier || firstTx.beneficiary || firstTx.recipient || firstTx.location || 'بدون مورد') 
-                  : (firstTx.beneficiary || firstTx.recipient || firstTx.supplier || firstTx.location || 'جهة غير محددة');
+                // Entity logic: Representative for sales, Beneficiary for vouchers
+                const isSalesInvoice = isOutbound && firstTx.isInvoice;
+                const primaryName = isSalesInvoice 
+                  ? (firstTx.rep || 'مندوب غير محدد')
+                  : (isInbound || isFunctionalIn) 
+                    ? (firstTx.supplier || firstTx.beneficiary || firstTx.recipient || firstTx.location || 'بدون مورد') 
+                    : (firstTx.beneficiary || firstTx.recipient || firstTx.supplier || firstTx.location || 'جهة غير محددة');
                 
                 const isModifiedVoucher = firstTx.isEdited;
                 const currentNotes = (firstTx.notes || '')
-                                      .split(/\[تعديل حديث\]|\[تم تعديله\]|\[تم إصدار الفاتورة|\[إضافة مراجعة\]|\[مستند رقم|<!--/)[0]
+                                      .split(/فاتورة مباشرة|\[تعديل حديث\]|\[تم تعديله\]|\[تم إصدار الفاتورة|\[إضافة مراجعة\]|\[مستند رقم|\[نوع:|<!--/)[0]
                                       .trim();
 
                 return (
@@ -2472,21 +2684,13 @@ export default function Dashboard() {
                                 <div>
                                    <div className="flex items-center gap-3 mb-1.5">
                                       <h3 className="text-xl font-black font-tajawal text-white tracking-tight">{typeLabel}</h3>
-                                      {docNumber && (
-                                        <span className="bg-white/20 text-[9px] font-black text-white px-2 py-0.5 rounded-md backdrop-blur-md border border-white/10 uppercase tracking-widest">
-                                          #{docNumber}
-                                        </span>
-                                      )}
                                    </div>
                                    <div className="flex items-center gap-4 text-white/80">
                                       <div className="flex items-center gap-1.5 text-[10px] font-bold font-readex">
                                          <Calendar size={12} className="opacity-70" />
                                          {formattedDate}
                                       </div>
-                                      <div className="flex items-center gap-1.5 text-[10px] font-bold font-readex">
-                                         <Clock size={12} className="opacity-70" />
-                                         {formattedTime}
-                                      </div>
+
                                       {isModifiedVoucher && (
                                         <span className="inline-flex items-center gap-1 bg-amber-400 text-amber-950 px-2 py-0.5 rounded-full text-[9px] font-black shadow-lg animate-in fade-in zoom-in">
                                            <RefreshCw size={10} className="animate-spin-slow" />
@@ -2527,7 +2731,7 @@ export default function Dashboard() {
                                 <div className="flex items-center gap-2">
                                    <Activity size={14} className="text-white/80" />
                                    <p className="text-xs font-black text-white flex items-center gap-2">
-                                      {firstTx.isInvoice && firstTx.isFunctional ? 'فاتورة' : typeLabel.replace('تفاصيل ', '')}
+                                      {typeLabel}
                                    </p>
                                 </div>
                              </div>
@@ -2540,7 +2744,7 @@ export default function Dashboard() {
                            <table className="w-full text-right text-[11px]">
                               <thead className="bg-slate-50/50 text-slate-400 font-black text-[9px] uppercase tracking-widest border-b border-slate-100 sticky top-0 backdrop-blur-md z-10">
                                  <tr>
-                                    <th className="px-4 py-3 text-center w-10">#</th>
+                                    <th className="px-4 py-3 text-center w-10">م</th>
                                     <th className="px-4 py-3 text-right">الصنف</th>
                                     <th className="px-4 py-3 text-center">الشركة</th>
                                     <th className="px-4 py-3 text-center">القسم</th>
@@ -2599,6 +2803,15 @@ export default function Dashboard() {
                        </div>
                        
                        <div className="flex items-center gap-3">
+                          {selectedBatchTransactions.some(t => t.receipt_image) && (
+                            <button 
+                              onClick={() => window.open(selectedBatchTransactions.find(t => t.receipt_image).receipt_image, '_blank')}
+                              className="flex items-center gap-2 px-6 py-2 bg-emerald-100 text-emerald-700 rounded-xl text-xs font-black hover:bg-emerald-200 transition-all active:scale-95 border border-emerald-200"
+                            >
+                               <Eye size={16} />
+                               عرض الفاتورة
+                            </button>
+                          )}
                           <button 
                             onClick={() => setIsTransactionDetailOpen(false)}
                             className={`px-8 py-2 bg-${themeColor}-600 text-white rounded-xl text-xs font-black hover:brightness-95 shadow-lg shadow-${themeColor}-500/20 transition-all active:scale-95`}
@@ -2677,7 +2890,7 @@ export default function Dashboard() {
                 };
                 const historyData = getOldVersion(detailVoucher.line_note);
                 const currentNotes = (detailVoucher.line_note || '')
-                                      .split(/\[تعديل حديث\]|\[تم تعديله\]|\[تم إصدار الفاتورة|\[إضافة مراجعة\]|\[مستند رقم|<!--/)[0]
+                                      .split(/\[تعديل حديث\]|\[تم تعديله\]|\[تم إصدار الفاتورة|\[إضافة مراجعة\]|\[مستند رقم|\[نوع:|<!--/)[0]
                                       .trim();
 
                 return (
@@ -2984,13 +3197,31 @@ export default function Dashboard() {
                         )}
 
                         {isCompleted && invoiceDate && (
-                          <div className="flex items-center gap-2 px-5 py-2.5 bg-emerald-50 text-emerald-600 rounded-2xl border border-emerald-100/50 shadow-sm">
-                            <CheckCircle size={18} />
-                            <span className="text-[13px] font-black font-tajawal">تم إصدار الفاتورة بتاريخ {invoiceDate}</span>
+                          <div className="flex flex-col items-center gap-2">
+                            <div className="flex items-center gap-2 px-5 py-2.5 bg-emerald-50 text-emerald-600 rounded-2xl border border-emerald-100/50 shadow-sm">
+                              <CheckCircle size={18} />
+                              <span className="text-[13px] font-black font-tajawal">تم إصدار الفاتورة بتاريخ {invoiceDate}</span>
+                            </div>
+                            {lines.some(l => l.receipt_image) && (
+                              <button 
+                                onClick={() => window.open(lines.find(l => l.receipt_image).receipt_image, '_blank')}
+                                className="flex items-center gap-2 px-6 py-2 bg-emerald-100 text-emerald-700 rounded-xl text-[10px] font-black hover:bg-emerald-200 transition-all active:scale-95 border border-emerald-200 shadow-sm"
+                              >
+                                 <Eye size={14} />
+                                 عرض أصل الفاتورة
+                              </button>
+                            )}
                           </div>
                         )}
 
-                        {!(isCancelled || (isCompleted && invoiceDate)) && (
+                        {detailVoucher.isTransfer && (
+                          <div className="flex items-center gap-2 px-5 py-2.5 bg-emerald-50 text-emerald-600 rounded-2xl border border-emerald-100/50 shadow-sm">
+                            <CheckCircle size={18} />
+                            <span className="text-[13px] font-black font-tajawal">سند تحويل مكتمل (لا يتطلب فاتورة)</span>
+                          </div>
+                        )}
+
+                        {!(isCancelled || (isCompleted && invoiceDate) || detailVoucher.isTransfer) && (
                           <button
                             type="button"
                             onClick={() => handleMarkAsInvoiced(detailVoucher)}
@@ -3497,10 +3728,10 @@ export default function Dashboard() {
         compact
         loading={loading}>
 
-          {/* Header Fields - Client, Representative, and Date */}
+           {/* Header Fields - Client, Representative, and Date */}
           <div className="bg-slate-50/50 p-4 rounded-[1.5rem] border border-slate-100 mb-3 grid grid-cols-1 md:grid-cols-2 gap-3">
               
-             
+             {!isVoucherInvoice && (
              <div className="flex flex-col">
                <label className="text-[10px] font-black text-slate-400 mb-1 mr-1 uppercase">المندوب المسجل <span className="text-red-500">*</span></label>
                <input
@@ -3519,8 +3750,9 @@ export default function Dashboard() {
                  {repsList.map(rep => <option key={rep} value={rep} />)}
                </datalist>
              </div>
+             )}
 
-             <div className="flex flex-col">
+             <div className={`flex flex-col ${isVoucherInvoice ? 'md:col-span-2' : ''}`}>
                 <label className="text-[10px] font-black text-slate-400 mb-1 mr-1 uppercase">تاريخ الفاتورة</label>
                 <div className="relative">
                   <input 
@@ -3532,6 +3764,18 @@ export default function Dashboard() {
                   />
                 </div>
              </div>
+
+             {!isVoucherInvoice && (
+             <div className="flex flex-col md:col-span-2 mt-1">
+                <label className="text-[10px] font-black text-slate-400 mb-1 mr-1 uppercase">ملاحظات إضافية (اختياري)</label>
+                <textarea
+                  placeholder="اكتب أي ملاحظات هنا..."
+                  className="w-full h-[60px] bg-white border border-slate-200 text-slate-800 text-[12px] font-bold rounded-xl px-4 py-2 outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500/20 transition-all font-tajawal resize-none"
+                  value={invoiceForm.notes || ''}
+                  onChange={(e) => setInvoiceForm({...invoiceForm, notes: e.target.value})}
+                />
+             </div>
+             )}
           </div>
 
           {/* Item Entry Section - Redesigned Card */}

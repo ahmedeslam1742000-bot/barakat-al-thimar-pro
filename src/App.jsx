@@ -4,43 +4,41 @@ import Dashboard from './components/Dashboard';
 import Items from './components/Items';
 import StockOut from './components/StockOut';
 import Returns from './pages/Returns';
-import VoucherIn from './pages/VoucherIn';
 import VoucherOutward from './pages/VoucherOutward';
 import Reps from './pages/Reps';
 import WarehouseInsights from './pages/WarehouseInsights';
-import WarehouseLogs from './pages/WarehouseLogs';
 import Settings from './pages/Settings';
 import StockInventory from './pages/StockInventory';
-import Archive from './pages/Archive';
 import InboundRecords from './pages/InboundRecords';
 import InboundItems from './pages/InboundItems';
 import StockCard from './pages/StockCard';
+import PriceList from './pages/PriceList';
+import ReceiptVouchers from './pages/ReceiptVouchers';
 import Placeholder from './components/Placeholder';
 import Login from './components/Login';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { SettingsProvider } from './contexts/SettingsContext';
 import { Toaster } from 'sonner';
-import { Package, Truck, ArrowUpRight, RotateCcw, Download, Upload, User, FileStack, BookOpen, ClipboardList, Activity, Settings as SettingsIcon, Archive as ArchiveIcon, BarChart3, Tags, History, TrendingUp } from 'lucide-react';
+import { Package, Truck, ArrowUpRight, RotateCcw, Download, Upload, User, FileStack, BookOpen, ClipboardList, Activity, Settings as SettingsIcon, BarChart3, Tags, History, TrendingUp, Banknote } from 'lucide-react';
 
 const viewConfig = {
   'dashboard': { component: Dashboard },
   'items': { component: Items },
   'stock-in': { component: InboundItems, title: 'الوارد', icon: TrendingUp },
-  'stock-out': { component: StockOut, title: 'صادر', icon: ArrowUpRight },
+  'stock-out': { component: StockOut, title: 'الفواتير', icon: FileStack },
   'returns': { component: Returns, title: 'مرتجع', icon: RotateCcw },
-  'voucher-in': { component: VoucherIn, title: 'سند إدخال', icon: Download },
   'voucher-outward': { component: VoucherOutward, title: 'سند إخراج', icon: Upload },
   'warehouse-insights': { component: WarehouseInsights },
-  'warehouse-logs': { component: WarehouseLogs, title: 'سجلات المستودع', icon: Activity },
   'reps': { component: Reps, title: 'المناديب', icon: User },
-  'invoices': { title: 'الفواتير', icon: FileStack },
-  'reports': { title: 'التقارير', icon: BarChart3 },
+  'receipt-vouchers': { component: ReceiptVouchers, title: 'سندات قبض', icon: Banknote },
+
+
+  'reports': { component: WarehouseInsights, title: 'التقارير', icon: BarChart3 },
   'inventory': { component: StockInventory, title: 'المخزون الحالي', icon: ClipboardList },
-  'archive': { component: Archive, title: 'أرشيف التعاملات', icon: ArchiveIcon },
   'inbound-records': { component: InboundRecords, title: 'أذونات الواردات', icon: History },
   'stock-card': { component: StockCard, title: 'الرصيد التراكمي', icon: History },
-  'price-list': { title: 'الأسعار', icon: Tags },
+  'price-list': { component: PriceList, title: 'الأسعار', icon: Tags },
   'settings': { component: Settings },
 };
 

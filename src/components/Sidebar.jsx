@@ -18,7 +18,8 @@ import {
   ChevronLeft,
   Box,
   TrendingUp,
-  History
+  History,
+  Banknote
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -37,27 +38,25 @@ const menuGroups = [
     subItems: [
       { id: 'items', label: 'الأصناف', view: 'items' },
       { id: 'stock-in', label: 'وارد', view: 'stock-in' },
-      { id: 'stock-out', label: 'صادر', view: 'stock-out' },
+      { id: 'stock-out', label: 'الفواتير', view: 'stock-out' },
       { id: 'returns', label: 'مرتجع', view: 'returns' },
     ]
   },
   {
-    id: 'vouchers',
-    label: 'سند',
-    icon: FileText,
-    subItems: [
-      { id: 'voucher-in', label: 'إدخال', view: 'voucher-in' },
-      { id: 'voucher-outward', label: 'إخراج', view: 'voucher-outward' },
-    ]
-  },
-  // Standalone: الفواتير (Invoices)
-  {
-    id: 'invoices',
-    label: 'الفواتير',
-    icon: FileStack,
+    id: 'receipt-vouchers',
+    label: 'سندات قبض',
+    icon: Banknote,
     isStatic: true,
-    view: 'invoices'
+    view: 'receipt-vouchers'
   },
+  {
+    id: 'voucher-outward',
+    label: 'سند إخراج',
+    icon: FileText,
+    isStatic: true,
+    view: 'voucher-outward'
+  },
+
   // Standalone: الأسعار (Price List)
   {
     id: 'price-list',
@@ -72,7 +71,6 @@ const menuGroups = [
     label: 'إدارة المستودع',
     icon: Archive,
     subItems: [
-      { id: 'archive', label: 'أرشيف العمليات', view: 'archive' },
       { id: 'inbound-records', label: 'أذونات الواردات', view: 'inbound-records' },
       { id: 'stock-card', label: 'الرصيد التراكمي', view: 'stock-card' },
       { id: 'inventory-check', label: 'جرد المستودع', view: 'inventory' },
