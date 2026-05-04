@@ -7,6 +7,13 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.error("⚠️ Supabase Environment Variables are missing!");
 }
 
-// Standard initialization is usually enough. 
-// Forcing headers can sometimes conflict with library internal logic for .single()
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Using sessionStorage so the session is cleared when the browser is closed.
+// The user will be required to log in again on every new browser session.
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    storage: window.sessionStorage,
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
+});
