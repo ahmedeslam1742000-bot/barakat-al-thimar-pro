@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   ClipboardList, Search, Snowflake, Thermometer, Package, PackageX,
-  Printer, LogOut, LayoutGrid, Box
+  Printer, LogOut, LayoutGrid, Box, FileDown
 } from 'lucide-react';
+import * as ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
 import { supabase } from '../lib/supabaseClient';
 import { useSettings } from '../contexts/SettingsContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -155,6 +157,89 @@ export default function StockInventory({ setActiveView }) {
     win.onload = () => { win.focus(); win.print(); };
   };
 
+  const handleExportExcel = async () => {
+    const workbook = new ExcelJS.Workbook();
+    const dateStr = new Date().toLocaleDateString('ar-SA', { day: 'numeric', month: 'long', year: 'numeric' });
+
+    // ─── 1. PROCESS CATEGORIES INTO SEPARATE SHEETS ───
+    const sortedCats = Object.keys(groupedItems).sort((a, b) => {
+      if (a === 'مجمدات') return -1;
+      if (b === 'مجمدات') return 1;
+      return a.localeCompare(b, 'ar');
+    });
+
+    sortedCats.forEach((cat) => {
+      const safeCatName = cat.substring(0, 31).replace(/[\][*?\/\\:']/g, '');
+      const catSheet = workbook.addWorksheet(safeCatName, {
+        views: [{ rightToLeft: true, showGridLines: true }]
+      });
+
+      // Set columns
+      catSheet.columns = [
+        { key: 'index', width: 8 },
+        { key: 'name', width: 45 },
+        { key: 'company', width: 30 },
+        { key: 'unit', width: 15 },
+        { key: 'qty', width: 15 }
+      ];
+
+      // Header Row
+      const headerRow = catSheet.addRow(['م', 'اسم الصنف', 'الشركة', 'الوحدة', 'الكمية']);
+      headerRow.height = 30;
+      headerRow.eachCell((cell) => {
+        cell.font = { name: 'Segoe UI', size: 12, bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F2747' } };
+        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        cell.border = { 
+          top: {style:'thin'}, 
+          bottom: {style:'thin'}, 
+          left: {style:'thin'}, 
+          right: {style:'thin'} 
+        };
+      });
+
+      // Data Rows
+      groupedItems[cat].forEach((item, idx) => {
+        const row = catSheet.addRow({
+          index: idx + 1,
+          name: item.name,
+          company: item.company || '—',
+          unit: item.unit || '—',
+          qty: Number(item.stockQty) || 0
+        });
+
+        row.height = 25;
+        const isEven = idx % 2 === 0;
+        const rowFill = isEven ? 'FFFFFFFF' : 'FFF9FAFB';
+
+        row.eachCell((cell, colNumber) => {
+          cell.font = { name: 'Segoe UI', size: 11 };
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowFill } };
+          cell.alignment = { vertical: 'middle', horizontal: colNumber === 2 || colNumber === 3 ? 'right' : 'center' };
+          cell.border = {
+            top: {style:'thin', color: {argb:'FFEDF2F7'}},
+            bottom: {style:'thin', color: {argb:'FFEDF2F7'}},
+            left: {style:'thin', color: {argb:'FFEDF2F7'}},
+            right: {style:'thin', color: {argb:'FFEDF2F7'}}
+          };
+          
+          if (colNumber === 5 && item.stockQty <= 0) {
+            cell.font = { name: 'Segoe UI', size: 11, bold: true, color: { argb: 'FFE11D48' } };
+          }
+        });
+      });
+
+      // Enable AutoFilter
+      catSheet.autoFilter = `A1:E1`;
+    });
+
+    // ─── 2. GENERATE FILE ───
+    const buffer = await workbook.xlsx.writeBuffer();
+    const dateForFile = new Date().toISOString().split('T')[0];
+    saveAs(new Blob([buffer]), `جرد_المستودع_حسب_الأقسام_${dateForFile}.xlsx`);
+  };
+
+
 
 
   if (loading) {
@@ -199,7 +284,8 @@ export default function StockInventory({ setActiveView }) {
 
           <div className="flex items-center gap-2">
             <button onClick={() => setActiveView && setActiveView('dashboard')} title="العودة للرئيسية" className="flex items-center justify-center w-11 h-11 bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 rounded-2xl transition-all hover:bg-rose-100 hover:scale-105 active:scale-95"><LogOut size={20} strokeWidth={2.5} className="rotate-180" /></button>
-            <button onClick={handlePrintPDF} title="طباعة التقرير" className="flex items-center justify-center w-11 h-11 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400 rounded-2xl transition-all hover:bg-emerald-100 hover:scale-105 active:scale-95"><Printer size={20} strokeWidth={2.5} /></button>
+            <button onClick={handleExportExcel} title="تصدير ملف اكسيل" className="flex items-center justify-center w-11 h-11 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400 rounded-2xl transition-all hover:bg-emerald-100 hover:scale-105 active:scale-95"><FileDown size={20} strokeWidth={2.5} /></button>
+            <button onClick={handlePrintPDF} title="طباعة التقرير" className="flex items-center justify-center w-11 h-11 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 rounded-2xl transition-all hover:bg-indigo-100 hover:scale-105 active:scale-95"><Printer size={20} strokeWidth={2.5} /></button>
           </div>
         </div>
 

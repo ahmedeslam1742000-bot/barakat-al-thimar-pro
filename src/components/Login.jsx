@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Apple, Lock, Loader2, Mail, Phone, User, Warehouse } from 'lucide-react';
+import { Lock, Loader2, Mail, User, Warehouse } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 
@@ -88,7 +88,7 @@ export default function Login() {
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
+
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -175,7 +175,6 @@ export default function Login() {
             email,
             username: email.split('@')[0],
             full_name: fullName,
-            phone,
             role: 'User',
           });
 
@@ -314,17 +313,7 @@ export default function Login() {
                   autoComplete={visibleForm === 'signup' ? 'email' : 'username'}
                 />
 
-                {visibleForm === 'signup' && (
-                  <FormField
-                    label="رقم الهاتف"
-                    icon={Phone}
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="05xxxxxxxxx"
-                    dir="ltr"
-                    autoComplete="tel"
-                  />
-                )}
+
 
                 <FormField
                   label="كلمة المرور"
@@ -371,49 +360,7 @@ export default function Login() {
                 </div>
               </form>
 
-              {/* Social Login Divider */}
-              <div className="mt-8 border-t border-slate-100 pt-6">
-                <p className="mb-5 text-center text-[12.5px] text-slate-400 font-readex">
-                  أو المتابعة بوسيلة أخرى
-                </p>
 
-                <div className="flex items-center justify-center gap-3.5">
-                  <SocialButton
-                    label="Google"
-                    onClick={() => setError('تسجيل الدخول عبر Google غير متاح حالياً.')}
-                  >
-                    <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor" stroke="none">
-                      <path d="M21.5 12.2c0-.8-.1-1.5-.2-2.2H12v4.1h5.3c-.2 1.3-1 2.5-2 3.1v2.6h3.2c1.9-1.8 3-4.4 3-7.6z"/>
-                      <path d="M12 22c2.7 0 4.9-.9 6.5-2.4l-3.2-2.6c-.9.6-2 .9-3.3.9-2.5 0-4.6-1.7-5.4-4H3.3v2.6C4.9 19.8 8.2 22 12 22z"/>
-                      <path d="M6.6 13.9c-.2-.6-.3-1.3-.3-1.9s.1-1.3.3-1.9V7.5H3.3a9.9 9.9 0 0 0 0 9l3.3-2.6z"/>
-                      <path d="M12 5.8c1.4 0 2.7.5 3.7 1.4l2.8-2.8C16.9 2.5 14.7 1.6 12 1.6 8.2 1.6 4.9 3.8 3.3 7.5l3.3 2.6c.8-2.3 2.9-4.3 5.4-4.3z"/>
-                    </svg>
-                  </SocialButton>
-
-                  <SocialButton
-                    label="Apple"
-                    onClick={() => setError('تسجيل الدخول عبر Apple غير متاح حالياً.')}
-                  >
-                    <Apple strokeWidth={1.5} className="h-[18px] w-[18px]" />
-                  </SocialButton>
-
-                  <SocialButton
-                    label="Facebook"
-                    onClick={() => setError('تسجيل الدخول عبر Facebook غير متاح حالياً.')}
-                  >
-                    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3.81l.38-4h-4.19V7a1 1 0 0 1 1-1h3z"/>
-                    </svg>
-                  </SocialButton>
-
-                  <SocialButton
-                    label="Phone"
-                    onClick={() => setError('تسجيل الدخول عبر الهاتف غير متاح حالياً.')}
-                  >
-                    <Phone strokeWidth={1.5} className="h-[18px] w-[18px]" />
-                  </SocialButton>
-                </div>
-              </div>
 
             </div>
           </div>

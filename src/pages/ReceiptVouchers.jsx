@@ -5,7 +5,7 @@ import {
   ArrowUpRight, Clock, CheckCircle2, ChevronRight,
   MoreHorizontal, FileText, CreditCard, Wallet, X,
   ChevronDown, Users, AlertTriangle, Pencil, Trash2,
-  LogOut
+  LogOut, Landmark, Eye, CalendarCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabaseClient';
@@ -25,6 +25,7 @@ export default function ReceiptVouchers({ setActiveView }) {
   const [isConfirmCloseOpen, setIsConfirmCloseOpen] = useState(false);
   const [isConfirmSaveOpen, setIsConfirmSaveOpen] = useState(false);
   const [editId, setEditId] = useState(null);
+  const [viewVoucher, setViewVoucher] = useState(null);
   
   // Reps for autocomplete
   const [reps, setReps] = useState([]);
@@ -55,7 +56,6 @@ export default function ReceiptVouchers({ setActiveView }) {
     if (error) {
       console.error('❌ fetchVouchers error:', error);
     } else {
-      // Map snake_case columns to camelCase for UI
       setVouchers((data || []).map(r => ({
         id: r.id,
         date: r.date,
@@ -65,7 +65,34 @@ export default function ReceiptVouchers({ setActiveView }) {
         invoiceNo: r.invoice_no || '',
         amount: Number(r.amount),
         type: r.type,
+        is_deposited: r.is_deposited || false,
+        deposited_at: r.deposited_at || null,
       })));
+    }
+  };
+
+  const toggleDepositStatus = async (id, currentStatus) => {
+    try {
+      const updateData = { 
+        is_deposited: !currentStatus,
+        deposited_at: !currentStatus ? new Date().toISOString() : null
+      };
+
+      const { error } = await supabase
+        .from('receipt_vouchers')
+        .update(updateData)
+        .eq('id', id);
+      if (error) throw error;
+      
+      toast.success(!currentStatus ? 'تم تسجيل الإيداع بالبنك ✅' : 'تم استرجاع السند للخزينة ↩️');
+      await fetchVouchers();
+      
+      if (viewVoucher && viewVoucher.id === id) {
+        setViewVoucher(prev => ({ ...prev, is_deposited: !currentStatus, deposited_at: updateData.deposited_at }));
+      }
+    } catch (err) {
+      console.error('❌ toggleDepositStatus error:', err);
+      toast.error('حدث خطأ أثناء تغيير الحالة. (يرجى التأكد من إضافة حقل is_deposited و deposited_at)');
     }
   };
 
@@ -213,7 +240,7 @@ export default function ReceiptVouchers({ setActiveView }) {
     let contentHtml = '';
     let grandTotal = 0;
 
-    const types = ['نقدي', 'شبكة', 'تحويل']; // Predefined order
+    const types = ['نقدي', 'شبكة']; // Predefined order
 
     types.forEach(type => {
       const vouchersForType = groupedVouchers[type];
@@ -494,11 +521,12 @@ export default function ReceiptVouchers({ setActiveView }) {
   // Keyboard support
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (!isModalOpen && !isConfirmCloseOpen && !isConfirmSaveOpen) return;
+      if (!isModalOpen && !isConfirmCloseOpen && !isConfirmSaveOpen && !viewVoucher) return;
 
       if (e.key === 'Escape') {
         if (isConfirmSaveOpen) setIsConfirmSaveOpen(false);
         else if (isConfirmCloseOpen) setIsConfirmCloseOpen(false);
+        else if (viewVoucher) setViewVoucher(null);
         else handleCloseModal();
       }
       
@@ -613,6 +641,7 @@ export default function ReceiptVouchers({ setActiveView }) {
                 <th className="bg-slate-50/80 dark:bg-slate-800/80 backdrop-blur-md px-6 py-4 text-slate-500 font-black text-[11px] uppercase tracking-wider border-b border-slate-100 dark:border-slate-700">رقم الفاتورة</th>
                 <th className="bg-slate-50/80 dark:bg-slate-800/80 backdrop-blur-md px-6 py-4 text-slate-500 font-black text-[11px] uppercase tracking-wider border-b border-slate-100 dark:border-slate-700 text-center">المبلغ</th>
                 <th className="bg-slate-50/80 dark:bg-slate-800/80 backdrop-blur-md px-6 py-4 text-slate-500 font-black text-[11px] uppercase tracking-wider border-b border-slate-100 dark:border-slate-700 text-center">نوع التحصيل</th>
+                <th className="bg-slate-50/80 dark:bg-slate-800/80 backdrop-blur-md px-6 py-4 text-slate-500 font-black text-[11px] uppercase tracking-wider border-b border-slate-100 dark:border-slate-700 text-center">حالة الإيداع</th>
                 <th className="bg-slate-50/80 dark:bg-slate-800/80 backdrop-blur-md px-6 py-4 text-slate-500 font-black text-[11px] uppercase tracking-wider border-b border-slate-100 dark:border-slate-700 text-center w-24">الإجراء</th>
               </tr>
             </thead>
@@ -642,7 +671,24 @@ export default function ReceiptVouchers({ setActiveView }) {
                     </span>
                   </td>
                   <td className="px-6 py-5 text-center">
+                    <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black border ${
+                        voucher.is_deposited 
+                          ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800/50' 
+                          : 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800/50'
+                      }`}
+                    >
+                      {voucher.is_deposited ? (
+                        <><Landmark size={12} /> تم الإيداع</>
+                      ) : (
+                        <><Wallet size={12} /> في الخزينة</>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-6 py-5 text-center">
                     <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => setViewVoucher(voucher)} className="p-1.5 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg transition-all" title="تفاصيل السند (للإيداع)">
+                        <Eye size={16} />
+                      </button>
                       <button onClick={() => openEdit(voucher)} className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all" title="تعديل">
                         <Pencil size={16} />
                       </button>
@@ -676,67 +722,88 @@ export default function ReceiptVouchers({ setActiveView }) {
                 </div>
                 <button onClick={handleCloseModal} className="w-10 h-10 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-400 hover:text-rose-500 transition-colors shadow-sm"><X size={20} /></button>
               </div>
-              <div className="p-8 overflow-y-auto custom-scrollbar flex-1">
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="col-span-2 sm:col-span-1">
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 mr-1">التاريخ <span className="text-rose-500">*</span></label>
-                    <div className="relative group">
-                      <Calendar className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500 transition-colors" size={18} />
-                      <input type="date" required className="w-full h-12 pr-12 pl-4 bg-slate-50 dark:bg-slate-800 border border-transparent rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white dark:focus:bg-slate-800 transition-all text-slate-700 dark:text-white" value={form.date} onChange={(e) => setForm({...form, date: e.target.value})} />
+              <div className="p-8 overflow-y-auto custom-scrollbar flex-1 bg-slate-50/30 dark:bg-slate-900/30">
+                <div className="space-y-8">
+                  {/* قسم بيانات السند الأساسية */}
+                  <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-100 dark:border-slate-700 shadow-sm relative">
+                    <div className="absolute -top-3 right-6 bg-white dark:bg-slate-800 px-3 text-[11px] font-black text-emerald-600 dark:text-emerald-400 tracking-wider">بيانات السند الأساسية</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mt-2">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-2">رقم السند <span className="text-rose-500">*</span></label>
+                        <div className="relative group">
+                          <Hash className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500 transition-colors" size={18} />
+                          <input type="text" required className="w-full h-12 pr-11 pl-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-slate-700 dark:text-white" placeholder="مثال: 1001" value={form.voucherNo} onChange={(e) => setForm({...form, voucherNo: e.target.value})} />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-2">التاريخ <span className="text-rose-500">*</span></label>
+                        <div className="relative group">
+                          <Calendar className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500 transition-colors" size={18} />
+                          <input type="date" required className="w-full h-12 pr-11 pl-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-slate-700 dark:text-white" value={form.date} onChange={(e) => setForm({...form, date: e.target.value})} />
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  <div className="col-span-2 sm:col-span-1">
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 mr-1">رقم السند <span className="text-rose-500">*</span></label>
-                    <div className="relative group">
-                      <Hash className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500 transition-colors" size={18} />
-                      <input type="text" required className="w-full h-12 pr-12 pl-4 bg-slate-50 dark:bg-slate-800 border border-transparent rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white dark:focus:bg-slate-800 transition-all text-slate-700 dark:text-white" placeholder="مثال: 1001" value={form.voucherNo} onChange={(e) => setForm({...form, voucherNo: e.target.value})} />
+
+                  {/* قسم أطراف المعاملة */}
+                  <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-100 dark:border-slate-700 shadow-sm relative">
+                    <div className="absolute -top-3 right-6 bg-white dark:bg-slate-800 px-3 text-[11px] font-black text-blue-600 dark:text-blue-400 tracking-wider">أطراف المعاملة</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mt-2">
+                      <div className="relative">
+                        <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-2">اسم المندوب <span className="text-rose-500">*</span></label>
+                        <div className="relative group">
+                          <User className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={18} />
+                          <input type="text" required autoComplete="off" className="w-full h-12 pr-11 pl-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 dark:text-white" placeholder="ابحث عن المندوب..." value={repSearchQuery} onFocus={() => setIsRepDropdownOpen(true)} onBlur={() => setTimeout(() => setIsRepDropdownOpen(false), 200)} onChange={(e) => { setRepSearchQuery(e.target.value); setIsRepDropdownOpen(true); }} />
+                          <ChevronDown className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                        </div>
+                        <AnimatePresence>
+                          {isRepDropdownOpen && (
+                            <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 5 }} className="absolute z-20 top-[calc(100%+5px)] right-0 left-0 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 max-h-48 overflow-y-auto custom-scrollbar p-1">
+                              {filteredReps.length > 0 ? filteredReps.map((r, i) => (
+                                <button key={i} type="button" onMouseDown={(e) => { e.preventDefault(); setRepSearchQuery(r.name); setIsRepDropdownOpen(false); }} className="w-full text-right px-4 py-3 text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 rounded-lg transition-all">{r.name}</button>
+                              )) : <div className="px-4 py-3 text-xs font-bold text-slate-400 text-center">لا يوجد نتائج</div>}
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-2">اسم العميل <span className="text-rose-500">*</span></label>
+                        <div className="relative group">
+                          <Users className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={18} />
+                          <input type="text" required className="w-full h-12 pr-11 pl-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 dark:text-white" placeholder="اسم العميل أو المؤسسة..." value={form.customerName} onChange={(e) => setForm({...form, customerName: e.target.value})} />
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  <div className="col-span-2 sm:col-span-1 relative">
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 mr-1">اسم المندوب <span className="text-rose-500">*</span></label>
-                    <div className="relative group">
-                      <User className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500 transition-colors" size={18} />
-                      <input type="text" required autoComplete="off" className="w-full h-12 pr-12 pl-4 bg-slate-50 dark:bg-slate-800 border border-transparent rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white dark:focus:bg-slate-800 transition-all text-slate-700 dark:text-white" placeholder="ابحث عن المندوب..." value={repSearchQuery} onFocus={() => setIsRepDropdownOpen(true)} onBlur={() => setTimeout(() => setIsRepDropdownOpen(false), 200)} onChange={(e) => { setRepSearchQuery(e.target.value); setIsRepDropdownOpen(true); }} />
-                      <ChevronDown className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+
+                  {/* قسم التفاصيل المالية */}
+                  <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-100 dark:border-slate-700 shadow-sm relative">
+                    <div className="absolute -top-3 right-6 bg-white dark:bg-slate-800 px-3 text-[11px] font-black text-amber-600 dark:text-amber-500 tracking-wider">التفاصيل المالية</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mt-2 mb-5">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-2">رقم الفاتورة <span className="text-rose-500">*</span></label>
+                        <div className="relative group">
+                          <FileText className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-amber-500 transition-colors" size={18} />
+                          <input type="text" required className="w-full h-12 pr-11 pl-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all text-slate-700 dark:text-white" placeholder="مثال: 5001" value={form.invoiceNo} onChange={(e) => setForm({...form, invoiceNo: e.target.value})} />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-2">المبلغ <span className="text-rose-500">*</span></label>
+                        <div className="relative group">
+                          <Wallet className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-amber-500 transition-colors" size={18} />
+                          <input type="number" required step="0.01" className="w-full h-12 pr-11 pl-12 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all text-slate-700 dark:text-white" placeholder="0.00" value={form.amount} onChange={(e) => setForm({...form, amount: e.target.value})} />
+                          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400 tracking-widest bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-md">ر.س</span>
+                        </div>
+                      </div>
                     </div>
-                    <AnimatePresence>
-                      {isRepDropdownOpen && (
-                        <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 5 }} className="absolute z-20 top-[calc(100%+5px)] right-0 left-0 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-100 dark:border-slate-700 max-h-48 overflow-y-auto custom-scrollbar p-1">
-                          {filteredReps.length > 0 ? filteredReps.map((r, i) => (
-                            <button key={i} type="button" onMouseDown={(e) => { e.preventDefault(); setRepSearchQuery(r.name); setIsRepDropdownOpen(false); }} className="w-full text-right px-4 py-3 text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 hover:text-emerald-600 dark:hover:text-emerald-400 rounded-lg transition-all">{r.name}</button>
-                          )) : <div className="px-4 py-3 text-xs font-bold text-slate-400 text-center">لا يوجد نتائج</div>}
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                  <div className="col-span-2 sm:col-span-1">
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 mr-1">اسم العميل <span className="text-rose-500">*</span></label>
-                    <div className="relative group">
-                      <Users className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500 transition-colors" size={18} />
-                      <input type="text" required className="w-full h-12 pr-12 pl-4 bg-slate-50 dark:bg-slate-800 border border-transparent rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white dark:focus:bg-slate-800 transition-all text-slate-700 dark:text-white" placeholder="اسم المحل أو العميل..." value={form.customerName} onChange={(e) => setForm({...form, customerName: e.target.value})} />
-                    </div>
-                  </div>
-                  <div className="col-span-2 sm:col-span-1">
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 mr-1">رقم الفاتورة <span className="text-rose-500">*</span></label>
-                    <div className="relative group">
-                      <FileText className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500 transition-colors" size={18} />
-                      <input type="text" required className="w-full h-12 pr-12 pl-4 bg-slate-50 dark:bg-slate-800 border border-transparent rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white dark:focus:bg-slate-800 transition-all text-slate-700 dark:text-white" placeholder="مثال: 5001" value={form.invoiceNo} onChange={(e) => setForm({...form, invoiceNo: e.target.value})} />
-                    </div>
-                  </div>
-                  <div className="col-span-2 sm:col-span-1">
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 mr-1">المبلغ <span className="text-rose-500">*</span></label>
-                    <div className="relative group">
-                      <Wallet className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500 transition-colors" size={18} />
-                      <input type="number" required step="0.01" className="w-full h-12 pr-12 pl-12 bg-slate-50 dark:bg-slate-800 border border-transparent rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white dark:focus:bg-slate-800 transition-all text-slate-700 dark:text-white" placeholder="0.00" value={form.amount} onChange={(e) => setForm({...form, amount: e.target.value})} />
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400 uppercase tracking-widest">ر.س</span>
-                    </div>
-                  </div>
-                  <div className="col-span-2">
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 mr-1 text-center">نوع التحصيل <span className="text-rose-500">*</span></label>
-                    <div className="grid grid-cols-3 gap-3">
-                      {['نقدي', 'شبكة', 'تحويل'].map((t) => (
-                        <button key={t} type="button" onClick={() => setForm({...form, type: t})} className={`h-12 rounded-xl font-black text-xs transition-all border ${form.type === t ? 'bg-emerald-600 text-white border-emerald-600 shadow-lg shadow-emerald-600/20' : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-transparent hover:bg-slate-100 dark:hover:bg-slate-700'}`}>{t === 'نقدي' && <Wallet size={14} className="inline-block ml-2" />}{t === 'شبكة' && <CreditCard size={14} className="inline-block ml-2" />}{t === 'تحويل' && <ArrowUpRight size={14} className="inline-block ml-2" />}{t}</button>
-                      ))}
+                    
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-3 text-center">نوع التحصيل <span className="text-rose-500">*</span></label>
+                      <div className="grid grid-cols-2 gap-4 max-w-sm mx-auto">
+                        {['نقدي', 'شبكة'].map((t) => (
+                          <button key={t} type="button" onClick={() => setForm({...form, type: t})} className={`h-12 rounded-xl font-black text-sm transition-all border-2 ${form.type === t ? 'bg-emerald-50 text-emerald-600 border-emerald-500 shadow-md shadow-emerald-500/10 dark:bg-emerald-900/30 dark:border-emerald-500' : 'bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-emerald-200 hover:bg-emerald-50/50 dark:hover:bg-slate-800'}`}>{t === 'نقدي' && <Wallet size={16} className="inline-block ml-2 mb-0.5" />}{t === 'شبكة' && <CreditCard size={16} className="inline-block ml-2 mb-0.5" />}{t}</button>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -746,6 +813,100 @@ export default function ReceiptVouchers({ setActiveView }) {
                 <button type="button" onClick={handleSaveVoucher} className="px-10 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-2xl font-black text-xs shadow-xl shadow-emerald-600/20 hover:scale-[1.03] active:scale-[0.98] transition-all">
                   {editId ? 'حفظ التعديلات' : 'حفظ السند'}
                 </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ═══ VIEW DETAILS MODAL ═══ */}
+      <AnimatePresence>
+        {viewVoucher && (
+          <div key="view-modal" className="fixed inset-0 z-[150] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setViewVoucher(null)} className="absolute inset-0 bg-slate-950/40 backdrop-blur-md" />
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl border border-white/20 dark:border-slate-800 overflow-hidden flex flex-col">
+              {/* Header */}
+              <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/50 shrink-0">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+                    <FileText size={24} className="text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black text-slate-800 dark:text-white">
+                      تفاصيل سند القبض
+                    </h2>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">سند رقم: {viewVoucher.voucherNo}</p>
+                  </div>
+                </div>
+                <button onClick={() => setViewVoucher(null)} className="w-10 h-10 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-400 hover:text-rose-500 transition-colors shadow-sm"><X size={20} /></button>
+              </div>
+              
+              {/* Body */}
+              <div className="p-8 bg-slate-50/30 dark:bg-slate-900/30 space-y-6">
+                
+                {/* Amount Highlight */}
+                <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">المبلغ المحصل</span>
+                  <div className="text-3xl font-black text-emerald-600 dark:text-emerald-400">
+                    {viewVoucher.amount.toLocaleString()} <span className="text-sm">ر.س</span>
+                  </div>
+                  <div className="mt-3 inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-600">
+                    نوع التحصيل: {viewVoucher.type}
+                  </div>
+                </div>
+
+                {/* Details Grid */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700">
+                    <span className="block text-[10px] font-black text-slate-400 mb-1">التاريخ</span>
+                    <span className="font-bold text-slate-700 dark:text-white text-sm">{formatDateToDisplay(viewVoucher.date)}</span>
+                  </div>
+                  <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700">
+                    <span className="block text-[10px] font-black text-slate-400 mb-1">رقم الفاتورة</span>
+                    <span className="font-bold text-slate-700 dark:text-white text-sm">{viewVoucher.invoiceNo}</span>
+                  </div>
+                  <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700">
+                    <span className="block text-[10px] font-black text-slate-400 mb-1">اسم المندوب</span>
+                    <span className="font-black text-blue-600 dark:text-blue-400 text-sm">{viewVoucher.repName}</span>
+                  </div>
+                  <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700">
+                    <span className="block text-[10px] font-black text-slate-400 mb-1">اسم العميل</span>
+                    <span className="font-bold text-slate-700 dark:text-white text-sm">{viewVoucher.customerName}</span>
+                  </div>
+                </div>
+
+                {/* Deposit Action Area */}
+                <div className="mt-6 border-t border-slate-200 dark:border-slate-700 pt-6">
+                  {viewVoucher.is_deposited ? (
+                    <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/50 rounded-2xl p-5 flex items-start gap-4">
+                      <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0 shadow-sm">
+                        <CheckCircle2 size={20} />
+                      </div>
+                      <div className="flex-1 pt-0.5">
+                        <h4 className="font-black text-emerald-800 dark:text-emerald-300 text-sm mb-1.5">تم إيداع السند بنجاح</h4>
+                        <p className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400/80 flex items-center gap-1.5 mb-2">
+                          <CalendarCheck size={14} />
+                          بتاريخ: {viewVoucher.deposited_at ? new Date(viewVoucher.deposited_at).toLocaleString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'غير مسجل'}
+                        </p>
+                        <button 
+                          onClick={() => toggleDepositStatus(viewVoucher.id, true)}
+                          className="text-[10px] font-bold text-slate-400 hover:text-rose-500 underline transition-colors"
+                          title="تراجع عن الإيداع"
+                        >
+                          إلغاء الإيداع
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button 
+                      onClick={() => toggleDepositStatus(viewVoucher.id, false)}
+                      className="w-full py-4 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-2xl font-black text-sm shadow-xl shadow-emerald-600/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                    >
+                      <Landmark size={20} />
+                      تأكيد إيداع السند في البنك
+                    </button>
+                  )}
+                </div>
               </div>
             </motion.div>
           </div>

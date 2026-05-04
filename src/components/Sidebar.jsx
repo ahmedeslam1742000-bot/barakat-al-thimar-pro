@@ -74,14 +74,13 @@ const menuGroups = [
       { id: 'inbound-records', label: 'أذونات الواردات', view: 'inbound-records' },
       { id: 'stock-card', label: 'الرصيد التراكمي', view: 'stock-card' },
       { id: 'inventory-check', label: 'جرد المستودع', view: 'inventory' },
-      { id: 'reports', label: 'التقارير', view: 'reports' },
       { id: 'reps', label: 'إدارة المناديب', view: 'reps' },
     ]
   }
 ];
 
 export default function Sidebar({ isSidebarOpen, setIsSidebarOpen, activeView, setActiveView }) {
-  const { logout, isAdmin } = useAuth();
+  const { logout, isAdmin, canAccess } = useAuth();
   const [openGroup, setOpenGroup] = useState(null);
 
   const toggleGroup = (groupId) => {
@@ -132,10 +131,13 @@ export default function Sidebar({ isSidebarOpen, setIsSidebarOpen, activeView, s
           </div>
 
           <nav className="flex-1 overflow-y-auto py-4 px-2.5 space-y-0.5 custom-scrollbar" dir="rtl">
-            {menuGroups.map((group) => {
+            {menuGroups.filter(g => g.isStatic ? canAccess(g.view) : g.subItems.some(s => canAccess(s.view))).map((group) => {
               const Icon = group.icon;
               const isActive = isGroupActive(group);
               const isOpen = openGroup === group.id;
+              
+              // Filter subItems based on access
+              const allowedSubItems = group.subItems ? group.subItems.filter(s => canAccess(s.view)) : [];
 
               return (
                 <div key={group.id} className="flex flex-col rounded-xl overflow-hidden mb-0.5 shadow-none group/sidebar transition-all duration-300">
@@ -181,7 +183,7 @@ export default function Sidebar({ isSidebarOpen, setIsSidebarOpen, activeView, s
                           className="overflow-hidden"
                         >
                           <div className="flex flex-col py-0.5 mt-0.5 pr-10 space-y-0.5">
-                            {group.subItems.map((sub) => {
+                            {allowedSubItems.map((sub) => {
                               const isSubActive = activeView === sub.view;
                               return (
                                 <button

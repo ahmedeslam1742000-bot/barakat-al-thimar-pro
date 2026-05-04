@@ -233,8 +233,14 @@ export default function MainLayout({ children, activeView, setActiveView }) {
                   {currentUser?.email?.charAt(0).toUpperCase() || 'A'}
                 </div>
                 <div className="hidden sm:flex flex-col items-start ml-1 leading-none text-right">
-                  <span className="text-[10px] font-black text-slate-800 truncate max-w-[80px]">{currentUser?.email?.split('@')[0]}</span>
-                  <span className="text-[8px] text-slate-400 uppercase tracking-widest font-black">مسؤول</span>
+                  <span className="text-[10px] font-black text-slate-800 truncate max-w-[80px]">{currentUser?.fullName || currentUser?.username || currentUser?.email?.split('@')[0]}</span>
+                  <span className={`text-[8px] uppercase tracking-widest font-black ${
+                    currentUser?.role === 'Admin' ? 'text-emerald-500' : 
+                    currentUser?.role === 'Storekeeper' ? 'text-blue-500' : 'text-slate-400'
+                  }`}>
+                    {currentUser?.role === 'Admin' ? 'مدير عام' : 
+                     currentUser?.role === 'Storekeeper' ? 'أمين مستودع' : 'مراقب'}
+                  </span>
                 </div>
                 <ChevronDown size={12} className={`text-slate-400 transition-transform duration-300 ${isProfileOpen ? 'rotate-180' : ''}`} />
               </button>

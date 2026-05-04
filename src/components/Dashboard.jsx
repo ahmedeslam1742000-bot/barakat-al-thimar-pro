@@ -993,19 +993,46 @@ export default function Dashboard() {
     setIsVoucherModalOpen(true);
   }, []);
 
-  // --- Aggregations --- //
+  // --- Shift-Based Aggregations (Starting 7:00 AM Daily) --- //
+  const getShiftStartTime = () => {
+    const now = new Date();
+    const shiftStart = new Date(now);
+    shiftStart.setHours(7, 0, 0, 0);
+    
+    // If it's currently before 7 AM, the shift started at 7 AM yesterday
+    if (now < shiftStart) {
+      shiftStart.setDate(shiftStart.getDate() - 1);
+    }
+    return shiftStart;
+  };
+
+  const shiftStartTime = getShiftStartTime();
+
   const stockInCount = dbTransactionsList
     .filter(t => t.is_summary !== true && t.status !== 'cancelled')
+    .filter(t => {
+      const txTime = t.timestamp ? new Date(t.timestamp) : new Date();
+      return txTime >= shiftStartTime;
+    })
     .filter(t => t.type === 'in' || t.type === 'Restock' || (t.type === FUNCTIONAL_INBOUND_TYPE && t.isFunctional === true))
     .reduce((sum, t) => sum + Number(t.qty || 0), 0);
 
   const salesCount = dbTransactionsList
     .filter(t => t.is_summary !== true && t.status !== 'cancelled')
-    .filter(t => t.type === 'out' || (t.type === 'Issue' && t.isInvoice === true) || (t.type === FUNCTIONAL_OUTBOUND_TYPE && t.isFunctional === true))
+    .filter(t => {
+      const txTime = t.timestamp ? new Date(t.timestamp) : new Date();
+      return txTime >= shiftStartTime;
+    })
+    .filter(t => t.type === 'Issue' || t.type === 'out' || t.type === 'صادر' || (t.type === FUNCTIONAL_OUTBOUND_TYPE && t.isFunctional === true))
     .reduce((sum, t) => sum + Math.abs(Number(t.qty || 0)), 0);
 
   const returnsCount = dbTransactionsList
-    .filter(t => t.is_summary !== true && t.type === 'Return' && t.status !== 'cancelled')
+    .filter(t => t.is_summary !== true && t.status !== 'cancelled')
+    .filter(t => {
+      const txTime = t.timestamp ? new Date(t.timestamp) : new Date();
+      return txTime >= shiftStartTime;
+    })
+    .filter(t => t.type === 'Return' || t.type === 'مرتجع' || t.type === 'return')
     .reduce((sum, t) => sum + Number(t.qty || 0), 0);
 
   const damageCount = dbTransactionsList
@@ -2129,7 +2156,7 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="space-y-2">
-                {finalTransactions.slice(0, 50).map((tx) => {
+                {finalTransactions.slice(0, 50).map((tx, idx) => {
                   let actionTitle = '';
                   let actionColor = 'text-slate-600';
                   let actionBg = 'bg-slate-100';
@@ -2215,66 +2242,70 @@ export default function Dashboard() {
                   const formattedDate = txDate.toLocaleDateString('ar-SA', { month: 'short', day: 'numeric', year: 'numeric' });
 
                   return (
-                    <div 
-                      key={tx.id} 
+                    <motion.div 
+                      key={tx.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3, delay: idx * 0.03 }}
                       onClick={() => {
                         const rawBatch = tx.voucherGroupId 
                           ? dbTransactionsList.filter(t => t.voucherGroupId === tx.voucherGroupId) 
                           : tx.batchId 
                             ? dbTransactionsList.filter(t => t.batchId === tx.batchId) 
                             : [tx];
-                        // FILTER OUT SUMMARY ROWS HERE
                         setSelectedBatchTransactions(rawBatch.filter(t => t.is_summary !== true));
                         setIsTransactionDetailOpen(true);
                       }}
-                      className="flex items-center justify-between py-1.5 px-3 hover:bg-slate-50 transition-all rounded-xl cursor-pointer group border border-transparent hover:border-slate-100"
+                      className="group/tx relative p-4 rounded-2xl border border-slate-50 bg-white hover:bg-slate-50/50 hover:shadow-md hover:shadow-slate-200/20 transition-all duration-300 cursor-pointer overflow-hidden"
                     >
-                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                        <div className={`w-8 h-8 rounded-lg shrink-0 flex items-center justify-center ${actionBg} ${actionColor} shadow-sm group-hover:scale-105 transition-transform`}>
-                          {React.cloneElement(actionIcon, { size: 16 })}
-                        </div>
-                        
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <h4 className="font-black text-slate-800 text-[12px] font-tajawal text-right truncate">
+                      {/* Side accent to match alerts style */}
+                      <div className="absolute top-0 right-0 w-1 h-full opacity-0 group-hover/tx:opacity-100 transition-opacity" style={{ backgroundColor: actionColor.includes('emerald') ? '#10B981' : actionColor.includes('rose') ? '#EF4444' : actionColor.includes('blue') ? '#3B82F6' : '#64748B' }} />
+
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-4 min-w-0 flex-1">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover/tx:scale-110 shadow-sm`} style={{ backgroundColor: actionBg.replace('bg-', ''), color: actionColor.replace('text-', '') }}>
+                            {React.cloneElement(actionIcon, { size: 18, strokeWidth: 2.5 })}
+                          </div>
+                          
+                          <div className="min-w-0 flex-1">
+                            <h4 className="text-[13px] font-black text-slate-800 font-tajawal truncate group-hover/tx:text-[#0F2747] transition-colors mb-1">
                               {primaryName}
                               {secondaryName && secondaryName.trim() !== primaryName.trim() && (
-                                <span className="text-[10px] text-slate-400 font-readex font-medium mr-1.5">
+                                <span className="text-[10px] text-slate-400 font-bold mr-1.5 opacity-80">
                                    - {secondaryName}
                                 </span>
                               )}
                             </h4>
-                          </div>
-                          
-                           <div className="flex items-center gap-2">
-                             <p className={`text-[10px] font-bold font-readex ${actionColor}`}>
-                               {actionTitle}
-                             </p>
-                            {isModifiedVoucher && (
-                               <div className="flex items-center gap-1 bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded-md border border-amber-100 dark:border-amber-500/20">
-                                 <RefreshCw size={8} className="animate-spin-slow" />
-                                 <span className="text-[9px] font-black uppercase tracking-wider">تم تعديله</span>
-                               </div>
-                             )}
+                            
+                            <div className="flex items-center gap-2">
+                              <span className={`text-[10px] font-black px-2 py-0.5 rounded-lg font-tajawal uppercase tracking-wider ${actionBg} ${actionColor.replace('text-', 'text-opacity-90 text-')}`}>
+                                {actionTitle}
+                              </span>
+                              {isModifiedVoucher && (
+                                 <div className="flex items-center gap-1 bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded-lg border border-amber-100">
+                                   <RefreshCw size={8} className="animate-spin-slow" />
+                                   <span className="text-[8px] font-black uppercase">معدل</span>
+                                 </div>
+                               )}
+                            </div>
                           </div>
                         </div>
+                        
+                        <div className="flex flex-col items-end gap-2 shrink-0">
+                          <span className="text-[11px] text-slate-400 font-black font-readex tabular-nums opacity-80">
+                            {formattedDate}
+                          </span>
+                          {tx.receipt_image && (
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); window.open(tx.receipt_image, '_blank'); }}
+                              className="w-8 h-8 flex items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 hover:bg-emerald-100 transition-all shadow-sm group/btn"
+                            >
+                               <FileText size={14} strokeWidth={2.5} className="group-hover/btn:scale-110 transition-transform" />
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      
-                      <div className="text-left shrink-0 mr-4 flex flex-col items-end gap-1">
-                        <p className="text-[11px] text-slate-400 font-bold font-readex">
-                          {formattedDate}
-                        </p>
-                        {tx.receipt_image && (
-                          <button 
-                            onClick={(e) => { e.stopPropagation(); window.open(tx.receipt_image, '_blank'); }}
-                            className="w-7 h-7 flex items-center justify-center rounded-lg bg-emerald-100 text-emerald-700 border border-emerald-200 hover:bg-emerald-200 transition-all shadow-sm group/btn"
-                            title="عرض الفاتورة الاحترافية"
-                          >
-                             <FileText size={14} strokeWidth={2.5} className="group-hover/btn:scale-110 transition-transform" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
+                    </motion.div>
                   );
                 })}
               </div>
@@ -2539,36 +2570,47 @@ export default function Dashboard() {
                       <motion.div
                         key={`${item.id}-${idx}`}
                         layout
-                        initial={{ opacity: 0, x: -15 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: 15, transition: { duration: 0.25, ease: [0.4, 0, 0.2, 1] } }}
-                        transition={{ duration: 0.25, layout: { duration: 0.3 }, ease: [0.4, 0, 0.2, 1] }}
-                        whileHover={{ backgroundColor: 'rgba(248, 250, 252, 0.6)' }}
-                        className="p-2.5 rounded-lg border border-slate-100 bg-white group/alert cursor-pointer hover-stable no-select-click"
-                        style={{ willChange: 'transform, opacity', backfaceVisibility: 'hidden', transform: 'translate3d(0, 0, 0)' }}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        transition={{ duration: 0.3, delay: idx * 0.03 }}
+                        className="group/alert relative p-4 rounded-2xl border border-slate-50 bg-white hover:bg-slate-50/50 hover:shadow-md hover:shadow-slate-200/20 transition-all duration-300 cursor-pointer overflow-hidden"
                       >
-                        <div className="flex items-start gap-2">
-                          <div className={`w-6 h-6 rounded-md flex items-center justify-center ${iconColor} bg-white border border-slate-100`}>
-                            {icon}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center justify-between mb-1">
-                              <h4 className="text-[11px] font-bold text-[#0F2747] font-tajawal truncate">{item.name} - {item.company || 'بدون شركة'}</h4>
-                              <div className="flex items-center gap-1.5 shrink-0">
-                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${urgencyBg}`}>{urgencyLabel}</span>
-                                <span className="text-xs font-bold tabular-nums" style={{ color: statusColor }}>{item.stockQty}</span>
+                        {/* Decorative side accent based on status */}
+                        <div className="absolute top-0 right-0 w-1 h-full opacity-0 group-hover/alert:opacity-100 transition-opacity" style={{ backgroundColor: barColor }} />
+                        
+                        <div className="flex flex-col gap-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover/alert:scale-110`} style={{ backgroundColor: barColor + '15', color: barColor }}>
+                                {icon}
+                              </div>
+                              <div className="min-w-0">
+                                <h4 className="text-[13px] font-black text-slate-800 font-tajawal truncate group-hover/alert:text-[#0F2747] transition-colors">
+                                  {item.name} <span className="text-slate-500 font-bold text-[11px] mr-1">- {item.company || 'بدون شركة'}</span>
+                                </h4>
                               </div>
                             </div>
-                            {/* Progress Bar */}
-                            <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                              <motion.div
-                                initial={{ width: 0 }}
-                                animate={{ width: `${stockPct}%` }}
-                                transition={{ duration: 0.5, delay: idx * 0.05 }}
-                                className="h-full rounded-full transition-all duration-500"
-                                style={{ backgroundColor: barColor }}
-                              />
+                            
+                            <div className="flex flex-col items-end gap-1 shrink-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className={`text-[10px] font-black px-2 py-0.5 rounded-lg font-tajawal uppercase tracking-wider ${urgencyBg}`}>{urgencyLabel}</span>
+                                <span className="text-sm font-black tabular-nums" style={{ color: statusColor }}>{item.stockQty}</span>
+                              </div>
                             </div>
+                          </div>
+
+                          {/* Minimalist Slim Progress Bar */}
+                          <div className="relative w-full h-[4px] bg-slate-100 rounded-full overflow-hidden">
+                            <motion.div
+                              initial={{ width: 0 }}
+                              animate={{ width: `${stockPct}%` }}
+                              transition={{ duration: 1, ease: "easeOut", delay: 0.2 + (idx * 0.05) }}
+                              className="h-full rounded-full shadow-[0_0_8px_rgba(0,0,0,0.1)]"
+                              style={{ 
+                                background: `linear-gradient(to left, ${barColor}, ${barColor}dd)`
+                              }}
+                            />
                           </div>
                         </div>
                       </motion.div>
@@ -2814,7 +2856,12 @@ export default function Dashboard() {
                           )}
                           <button 
                             onClick={() => setIsTransactionDetailOpen(false)}
-                            className={`px-8 py-2 bg-${themeColor}-600 text-white rounded-xl text-xs font-black hover:brightness-95 shadow-lg shadow-${themeColor}-500/20 transition-all active:scale-95`}
+                            className={`px-8 py-2 rounded-xl text-xs font-black text-white shadow-lg transition-all active:scale-95 ${
+                              themeColor === 'amber' ? 'bg-amber-600 shadow-amber-600/30' :
+                              themeColor === 'rose' ? 'bg-rose-600 shadow-rose-600/30' :
+                              themeColor === 'emerald' ? 'bg-emerald-600 shadow-emerald-600/30' :
+                              'bg-indigo-600 shadow-indigo-600/30'
+                            } hover:brightness-110`}
                           >
                              إغلاق
                           </button>

@@ -73,32 +73,54 @@ export function AuthProvider({ children }) {
 
   async function fetchUserRole(userId) {
     try {
-      const { data, error } = await supabase
+      const { data: userData, error: userError } = await supabase
         .from('users')
-        .select('role, username, full_name, phone')
+        .select('role, username, full_name, phone, email')
         .eq('id', userId)
         .maybeSingle();
 
-      if (error || !data) return { role: 'User', username: '' };
+      if (userError || !userData) return { role: 'User', username: '', permissions: [] };
+
+      // Fetch permissions
+      const { data: permData } = await supabase
+        .from('user_permissions')
+        .select('page_id, is_allowed')
+        .eq('user_id', userId);
+
+      const permissions = permData || [];
+
       return {
-        role: data.role || 'User',
-        username: data.username || '',
-        fullName: data.full_name || '',
-        phone: data.phone || '',
+        role: userData.role || 'User',
+        username: userData.username || '',
+        fullName: userData.full_name || '',
+        phone: userData.phone || '',
+        email: userData.email || '',
+        permissions: permissions
       };
     } catch {
-      return { role: 'User', username: '' };
+      return { role: 'User', username: '', permissions: [] };
     }
   }
 
+  const canAccess = (pageId) => {
+    if (!currentUser) return false;
+    // Master Admin bypass
+    if (currentUser.email === 'ahmed_eslam288@yahoo.com') return true;
+    if (currentUser.role === 'Admin') return true;
+    
+    const perm = currentUser.permissions?.find(p => p.page_id === pageId);
+    return perm ? perm.is_allowed : false;
+  };
+
   const value = {
     currentUser,
-    isAdmin: currentUser?.role === 'Admin',
+    isAdmin: currentUser?.role === 'Admin' || currentUser?.email === 'ahmed_eslam288@yahoo.com',
     isViewer: currentUser?.role === 'Viewer' || settings?.systemFrozen,
     isStorekeeper: currentUser?.role === 'Storekeeper',
     login,
     signup,
     logout,
+    canAccess,
     supabase,
   };
 
