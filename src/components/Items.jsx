@@ -49,8 +49,8 @@ export default function Items({ setActiveView }) {
   // --- FILTERING ---
   const filteredItems = useMemo(() => {
     return items.filter(item => {
-      const q = normalizeArabic(searchQuery);
-      const matchSearch = normalizeArabic(item.name).includes(q) || 
+      const q = normalizeArabic(searchQuery || '');
+      const matchSearch = normalizeArabic(item.name || '').includes(q) || 
                           normalizeArabic(item.company || '').includes(q);
       const matchCat = activeCategory === 'الكل' || item.cat === activeCategory;
       return matchSearch && matchCat;
@@ -59,7 +59,7 @@ export default function Items({ setActiveView }) {
       if (a.cat !== 'مجمدات' && b.cat === 'مجمدات') return 1;
       const catOrder = (a.cat || '').localeCompare(b.cat || '', 'ar');
       if (catOrder !== 0) return catOrder;
-      return a.name.localeCompare(b.name, 'ar');
+      return (a.name || '').localeCompare(b.name || '', 'ar');
     });
   }, [items, searchQuery, activeCategory]);
 

@@ -1153,17 +1153,6 @@ export default function Dashboard() {
           search_key: `${item.name} ${item.company}`.toLowerCase()
         }).select().single();
 
-        await supabase.from('transactions').insert({
-          type: 'adjust_in',
-          item_id: insertedDoc.id,
-          qty: 0,
-          unit: item.unit,
-          cat: item.cat,
-          date: new Date().toISOString().split('T')[0],
-          location: 'إداري',
-          notes: 'تعريف صنف جديد',
-          invoiced: false
-        });
       }
       toast.success('تم التسجيل واعتماد القائمة بنجاح! ✅');
       setSessionItems([]);
