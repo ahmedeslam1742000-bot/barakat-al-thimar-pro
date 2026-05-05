@@ -741,6 +741,13 @@ export default function ReceiptVouchers({ setActiveView }) {
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                       {/* بيانات السند */}
                       <div className="md:col-span-1">
+                        <label className="block text-[10px] font-bold text-slate-500 mb-1.5">التاريخ <span className="text-rose-500">*</span></label>
+                        <div className="relative group">
+                          <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500" size={16} />
+                          <input type="date" required className="w-full h-10 pr-9 pl-3 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-xs outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all text-slate-700 dark:text-white" value={form.date} onChange={(e) => setForm({...form, date: e.target.value})} />
+                        </div>
+                      </div>
+                      <div className="md:col-span-1">
                         <label className="block text-[10px] font-bold text-slate-500 mb-1.5">رقم السند <span className="text-rose-500">*</span></label>
                         <div className="relative group">
                           <Hash className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500" size={16} />
@@ -748,13 +755,12 @@ export default function ReceiptVouchers({ setActiveView }) {
                         </div>
                       </div>
                       <div className="md:col-span-1">
-                        <label className="block text-[10px] font-bold text-slate-500 mb-1.5">التاريخ <span className="text-rose-500">*</span></label>
+                        <label className="block text-[10px] font-bold text-slate-500 mb-1.5">العميل <span className="text-rose-500">*</span></label>
                         <div className="relative group">
-                          <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500" size={16} />
-                          <input type="date" required className="w-full h-10 pr-9 pl-3 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-xs outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all text-slate-700 dark:text-white" value={form.date} onChange={(e) => setForm({...form, date: e.target.value})} />
+                          <Users className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500" size={16} />
+                          <input type="text" required className="w-full h-10 pr-9 pl-3 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-xs outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-slate-700 dark:text-white" placeholder="اسم العميل..." value={form.customerName} onChange={(e) => setForm({...form, customerName: e.target.value})} />
                         </div>
                       </div>
-                      {/* المندوب والعميل */}
                       <div className="md:col-span-1 relative">
                         <label className="block text-[10px] font-bold text-slate-500 mb-1.5">المندوب <span className="text-rose-500">*</span></label>
                         <div className="relative group">
@@ -771,13 +777,6 @@ export default function ReceiptVouchers({ setActiveView }) {
                           )}
                         </AnimatePresence>
                       </div>
-                      <div className="md:col-span-1">
-                        <label className="block text-[10px] font-bold text-slate-500 mb-1.5">العميل <span className="text-rose-500">*</span></label>
-                        <div className="relative group">
-                          <Users className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500" size={16} />
-                          <input type="text" required className="w-full h-10 pr-9 pl-3 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-xs outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-slate-700 dark:text-white" placeholder="اسم العميل..." value={form.customerName} onChange={(e) => setForm({...form, customerName: e.target.value})} />
-                        </div>
-                      </div>
                     </div>
                   </div>
 
@@ -786,7 +785,37 @@ export default function ReceiptVouchers({ setActiveView }) {
                     <div className="absolute -top-3 right-6 bg-white dark:bg-slate-800 px-3 text-[10px] font-black text-amber-600 dark:text-amber-500 tracking-wider uppercase">التفاصيل المالية والتحصيل</div>
                     
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start mt-2">
-                      
+                      {/* المبلغ المحصل */}
+                      <div className="lg:col-span-3">
+                        <label className="block text-[10px] font-bold text-slate-500 mb-1.5">المبلغ المحصل <span className="text-rose-500">*</span></label>
+                        <div className="relative group">
+                          <Wallet className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500" size={16} />
+                          <input 
+                            type="number" 
+                            required 
+                            step="0.01" 
+                            className="w-full h-10 pr-9 pl-10 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl font-black text-sm outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all text-emerald-600 dark:text-emerald-400" 
+                            placeholder="0.00" 
+                            value={form.amount} 
+                            onChange={(e) => setForm({...form, amount: e.target.value})} 
+                          />
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[9px] font-black text-emerald-600/60 bg-emerald-50 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded-md border border-emerald-100 dark:border-emerald-800">ر.س</span>
+                        </div>
+                      </div>
+
+                      {/* نوع التحصيل */}
+                      <div className="lg:col-span-3">
+                        <label className="block text-[10px] font-bold text-slate-500 mb-1.5 text-center">نوع التحصيل <span className="text-rose-500">*</span></label>
+                        <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 dark:bg-slate-900/50 rounded-xl">
+                          {['نقدي', 'شبكة'].map((t) => (
+                            <button key={t} type="button" onClick={() => setForm({...form, type: t})} className={`h-8 rounded-lg font-black text-[10px] transition-all flex items-center justify-center gap-1.5 ${form.type === t ? 'bg-white dark:bg-slate-800 text-emerald-600 shadow-sm border border-emerald-500/20' : 'text-slate-400 hover:text-slate-500'}`}>
+                              {t === 'نقدي' ? <Wallet size={12} /> : <CreditCard size={12} />}
+                              {t}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
                       {/* نوع الارتباط */}
                       <div className="lg:col-span-3">
                         <label className="block text-[10px] font-bold text-slate-500 mb-1.5">نوع الارتباط <span className="text-rose-500">*</span></label>
@@ -823,37 +852,6 @@ export default function ReceiptVouchers({ setActiveView }) {
                             value={form.isAccountPayment ? "" : form.invoiceNo} 
                             onChange={(e) => setForm({...form, invoiceNo: e.target.value})} 
                           />
-                        </div>
-                      </div>
-
-                      {/* المبلغ المحصل */}
-                      <div className="lg:col-span-3">
-                        <label className="block text-[10px] font-bold text-slate-500 mb-1.5">المبلغ المحصل <span className="text-rose-500">*</span></label>
-                        <div className="relative group">
-                          <Wallet className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500" size={16} />
-                          <input 
-                            type="number" 
-                            required 
-                            step="0.01" 
-                            className="w-full h-10 pr-9 pl-10 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl font-black text-sm outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all text-emerald-600 dark:text-emerald-400" 
-                            placeholder="0.00" 
-                            value={form.amount} 
-                            onChange={(e) => setForm({...form, amount: e.target.value})} 
-                          />
-                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[9px] font-black text-emerald-600/60 bg-emerald-50 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded-md border border-emerald-100 dark:border-emerald-800">ر.س</span>
-                        </div>
-                      </div>
-
-                      {/* نوع التحصيل */}
-                      <div className="lg:col-span-3">
-                        <label className="block text-[10px] font-bold text-slate-500 mb-1.5 text-center">نوع التحصيل <span className="text-rose-500">*</span></label>
-                        <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 dark:bg-slate-900/50 rounded-xl">
-                          {['نقدي', 'شبكة'].map((t) => (
-                            <button key={t} type="button" onClick={() => setForm({...form, type: t})} className={`h-8 rounded-lg font-black text-[10px] transition-all flex items-center justify-center gap-1.5 ${form.type === t ? 'bg-white dark:bg-slate-800 text-emerald-600 shadow-sm border border-emerald-500/20' : 'text-slate-400 hover:text-slate-500'}`}>
-                              {t === 'نقدي' ? <Wallet size={12} /> : <CreditCard size={12} />}
-                              {t}
-                            </button>
-                          ))}
                         </div>
                       </div>
                     </div>
