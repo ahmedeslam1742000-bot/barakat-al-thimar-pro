@@ -40,7 +40,8 @@ export default function ReceiptVouchers({ setActiveView }) {
     amount: '',
     type: 'نقدي',
     invoiceNo: '',
-    voucherNo: ''
+    voucherNo: '',
+    isAccountPayment: false
   };
   const [form, setForm] = useState(emptyForm);
 
@@ -63,6 +64,7 @@ export default function ReceiptVouchers({ setActiveView }) {
         customerName: r.customer_name,
         voucherNo: r.voucher_no,
         invoiceNo: r.invoice_no || '',
+        isAccountPayment: !r.invoice_no || r.invoice_no === 'دفعة من الحساب',
         amount: Number(r.amount),
         type: r.type,
         is_deposited: r.is_deposited || false,
@@ -117,7 +119,7 @@ export default function ReceiptVouchers({ setActiveView }) {
   // Dirty check
   const isDirty = useMemo(() => {
     const { repName: _, ...formData } = form;
-    const emptyData = { date: '', customerName: '', amount: '', type: 'نقدي', invoiceNo: '', voucherNo: '' };
+    const emptyData = { date: '', customerName: '', amount: '', type: 'نقدي', invoiceNo: '', voucherNo: '', isAccountPayment: false };
     return JSON.stringify(formData) !== JSON.stringify(emptyData) || repSearchQuery !== '';
   }, [form, repSearchQuery]);
 
@@ -141,7 +143,11 @@ export default function ReceiptVouchers({ setActiveView }) {
     const finalRepName = repSearchQuery || form.repName;
     const currentForm = { ...form, repName: finalRepName };
 
-    const requiredFields = ['date', 'repName', 'customerName', 'amount', 'type', 'invoiceNo', 'voucherNo'];
+    const requiredFields = ['date', 'repName', 'customerName', 'amount', 'type', 'voucherNo'];
+    if (!currentForm.isAccountPayment) {
+      requiredFields.push('invoiceNo');
+    }
+
     for (const field of requiredFields) {
       if (!currentForm[field]) {
         toast.error(`يرجى إكمال الحقل: ${getLabelText(field)}`);
@@ -167,7 +173,7 @@ export default function ReceiptVouchers({ setActiveView }) {
         rep_name: finalRepName,
         customer_name: form.customerName,
         voucher_no: form.voucherNo,
-        invoice_no: form.invoiceNo || '',
+        invoice_no: form.isAccountPayment ? 'دفعة من الحساب' : (form.invoiceNo || ''),
         amount: Number(form.amount),
         type: form.type,
       };
@@ -219,8 +225,9 @@ export default function ReceiptVouchers({ setActiveView }) {
       customerName: voucher.customerName,
       amount: voucher.amount,
       type: voucher.type,
-      invoiceNo: voucher.invoiceNo,
-      voucherNo: voucher.voucherNo
+      invoiceNo: voucher.invoiceNo === 'دفعة من الحساب' ? '' : voucher.invoiceNo,
+      voucherNo: voucher.voucherNo,
+      isAccountPayment: voucher.isAccountPayment
     });
     setRepSearchQuery(voucher.repName);
     setEditId(voucher.id);
@@ -659,7 +666,11 @@ export default function ReceiptVouchers({ setActiveView }) {
                       {voucher.voucherNo}
                     </span>
                   </td>
-                  <td className="px-6 py-5 text-xs font-bold text-slate-500 dark:text-slate-400">{voucher.invoiceNo}</td>
+                  <td className="px-6 py-5 text-xs font-bold text-slate-500 dark:text-slate-400">
+                    {voucher.invoiceNo === 'دفعة من الحساب' ? (
+                      <span className="text-[10px] px-2 py-0.5 rounded-md bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400 font-black">دفعة من الحساب</span>
+                    ) : voucher.invoiceNo}
+                  </td>
                   <td className="px-6 py-5 text-center text-sm font-black text-emerald-600 dark:text-emerald-400">{voucher.amount.toLocaleString()} <small className="text-[10px]">ر.س</small></td>
                   <td className="px-6 py-5 text-center">
                     <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black 
@@ -779,15 +790,44 @@ export default function ReceiptVouchers({ setActiveView }) {
                   {/* قسم التفاصيل المالية */}
                   <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-100 dark:border-slate-700 shadow-sm relative">
                     <div className="absolute -top-3 right-6 bg-white dark:bg-slate-800 px-3 text-[11px] font-black text-amber-600 dark:text-amber-500 tracking-wider">التفاصيل المالية</div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mt-2 mb-5">
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-2">رقم الفاتورة <span className="text-rose-500">*</span></label>
-                        <div className="relative group">
-                          <FileText className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-amber-500 transition-colors" size={18} />
-                          <input type="text" required className="w-full h-12 pr-11 pl-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all text-slate-700 dark:text-white" placeholder="مثال: 5001" value={form.invoiceNo} onChange={(e) => setForm({...form, invoiceNo: e.target.value})} />
+                    <div className="flex flex-col sm:flex-row gap-5 mt-2 mb-5">
+                      <div className="flex-1">
+                        <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-2">نوع الارتباط <span className="text-rose-500">*</span></label>
+                        <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 dark:bg-slate-900/50 rounded-xl">
+                          <button 
+                            type="button" 
+                            onClick={() => setForm({...form, isAccountPayment: false})}
+                            className={`py-2 px-3 rounded-lg text-[10px] font-black transition-all ${!form.isAccountPayment ? 'bg-white dark:bg-slate-800 text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                          >
+                            فاتورة محددة
+                          </button>
+                          <button 
+                            type="button" 
+                            onClick={() => setForm({...form, isAccountPayment: true, invoiceNo: ''})}
+                            className={`py-2 px-3 rounded-lg text-[10px] font-black transition-all ${form.isAccountPayment ? 'bg-white dark:bg-slate-800 text-amber-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                          >
+                            من الحساب
+                          </button>
                         </div>
                       </div>
-                      <div>
+
+                      <div className={`flex-[2] transition-all duration-300 ${form.isAccountPayment ? 'opacity-50 grayscale' : ''}`}>
+                        <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-2">رقم الفاتورة {!form.isAccountPayment && <span className="text-rose-500">*</span>}</label>
+                        <div className="relative group">
+                          <FileText className={`absolute right-4 top-1/2 -translate-y-1/2 transition-colors ${form.isAccountPayment ? 'text-slate-300' : 'text-slate-400 group-focus-within:text-amber-500'}`} size={18} />
+                          <input 
+                            type="text" 
+                            disabled={form.isAccountPayment}
+                            required={!form.isAccountPayment} 
+                            className="w-full h-12 pr-11 pl-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all text-slate-700 dark:text-white disabled:cursor-not-allowed" 
+                            placeholder={form.isAccountPayment ? "سند دفعة من الحساب" : "مثال: 5001"} 
+                            value={form.isAccountPayment ? "" : form.invoiceNo} 
+                            onChange={(e) => setForm({...form, invoiceNo: e.target.value})} 
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="flex-1">
                         <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-2">المبلغ <span className="text-rose-500">*</span></label>
                         <div className="relative group">
                           <Wallet className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-amber-500 transition-colors" size={18} />
