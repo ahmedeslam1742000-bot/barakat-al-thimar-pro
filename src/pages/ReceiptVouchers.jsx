@@ -720,149 +720,149 @@ export default function ReceiptVouchers({ setActiveView }) {
         {isModalOpen && (
           <div key="main-modal" className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={handleCloseModal} className="absolute inset-0 bg-slate-950/40 backdrop-blur-md" />
-            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-2xl bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl border border-white/20 dark:border-slate-800 overflow-hidden flex flex-col max-h-[90vh]">
-              <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/50 shrink-0">
+            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-4xl bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl border border-white/20 dark:border-slate-800 overflow-hidden flex flex-col max-h-[95vh]">
+              <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/50 shrink-0">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/20"><Plus size={24} className="text-white" /></div>
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/20"><Plus size={20} className="text-white" /></div>
                   <div>
-                    <h2 className="text-xl font-black text-slate-800 dark:text-white">
+                    <h2 className="text-lg font-black text-slate-800 dark:text-white">
                       {editId ? 'تعديل سند قبض' : 'إنشاء سند قبض جديد'}
                     </h2>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">تعبئة بيانات التحصيل المالي الإجبارية</p>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">تعبئة بيانات التحصيل المالي</p>
                   </div>
                 </div>
-                <button onClick={handleCloseModal} className="w-10 h-10 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-400 hover:text-rose-500 transition-colors shadow-sm"><X size={20} /></button>
+                <button onClick={handleCloseModal} className="w-9 h-9 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-400 hover:text-rose-500 transition-colors shadow-sm"><X size={18} /></button>
               </div>
-              <div className="p-8 overflow-y-auto custom-scrollbar flex-1 bg-slate-50/30 dark:bg-slate-900/30">
-                <div className="space-y-8">
-                  {/* قسم بيانات السند الأساسية */}
-                  <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-100 dark:border-slate-700 shadow-sm relative">
-                    <div className="absolute -top-3 right-6 bg-white dark:bg-slate-800 px-3 text-[11px] font-black text-emerald-600 dark:text-emerald-400 tracking-wider">بيانات السند الأساسية</div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mt-2">
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-2">رقم السند <span className="text-rose-500">*</span></label>
+              <div className="p-6 overflow-y-auto custom-scrollbar flex-1 bg-slate-50/30 dark:bg-slate-900/30">
+                <div className="space-y-5">
+                  
+                  {/* قسم البيانات الأساسية - مدمج في سطرين لتقليل الارتفاع */}
+                  <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-100 dark:border-slate-700 shadow-sm relative">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      {/* بيانات السند */}
+                      <div className="md:col-span-1">
+                        <label className="block text-[10px] font-bold text-slate-500 mb-1.5">رقم السند <span className="text-rose-500">*</span></label>
                         <div className="relative group">
-                          <Hash className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500 transition-colors" size={18} />
-                          <input type="text" required className="w-full h-12 pr-11 pl-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-slate-700 dark:text-white" placeholder="مثال: 1001" value={form.voucherNo} onChange={(e) => setForm({...form, voucherNo: e.target.value})} />
+                          <Hash className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500" size={16} />
+                          <input type="text" required className="w-full h-10 pr-9 pl-3 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-xs outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all text-slate-700 dark:text-white" placeholder="1001" value={form.voucherNo} onChange={(e) => setForm({...form, voucherNo: e.target.value})} />
                         </div>
                       </div>
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-2">التاريخ <span className="text-rose-500">*</span></label>
+                      <div className="md:col-span-1">
+                        <label className="block text-[10px] font-bold text-slate-500 mb-1.5">التاريخ <span className="text-rose-500">*</span></label>
                         <div className="relative group">
-                          <Calendar className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500 transition-colors" size={18} />
-                          <input type="date" required className="w-full h-12 pr-11 pl-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-slate-700 dark:text-white" value={form.date} onChange={(e) => setForm({...form, date: e.target.value})} />
+                          <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500" size={16} />
+                          <input type="date" required className="w-full h-10 pr-9 pl-3 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-xs outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all text-slate-700 dark:text-white" value={form.date} onChange={(e) => setForm({...form, date: e.target.value})} />
                         </div>
                       </div>
-                    </div>
-                  </div>
-
-                  {/* قسم أطراف المعاملة */}
-                  <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-100 dark:border-slate-700 shadow-sm relative">
-                    <div className="absolute -top-3 right-6 bg-white dark:bg-slate-800 px-3 text-[11px] font-black text-blue-600 dark:text-blue-400 tracking-wider">أطراف المعاملة</div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mt-2">
-                      <div className="relative">
-                        <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-2">اسم المندوب <span className="text-rose-500">*</span></label>
+                      {/* المندوب والعميل */}
+                      <div className="md:col-span-1 relative">
+                        <label className="block text-[10px] font-bold text-slate-500 mb-1.5">المندوب <span className="text-rose-500">*</span></label>
                         <div className="relative group">
-                          <User className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={18} />
-                          <input type="text" required autoComplete="off" className="w-full h-12 pr-11 pl-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 dark:text-white" placeholder="ابحث عن المندوب..." value={repSearchQuery} onFocus={() => setIsRepDropdownOpen(true)} onBlur={() => setTimeout(() => setIsRepDropdownOpen(false), 200)} onChange={(e) => { setRepSearchQuery(e.target.value); setIsRepDropdownOpen(true); }} />
-                          <ChevronDown className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                          <User className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500" size={16} />
+                          <input type="text" required autoComplete="off" className="w-full h-10 pr-9 pl-3 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-xs outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-slate-700 dark:text-white" placeholder="ابحث..." value={repSearchQuery} onFocus={() => setIsRepDropdownOpen(true)} onBlur={() => setTimeout(() => setIsRepDropdownOpen(false), 200)} onChange={(e) => { setRepSearchQuery(e.target.value); setIsRepDropdownOpen(true); }} />
                         </div>
                         <AnimatePresence>
                           {isRepDropdownOpen && (
-                            <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 5 }} className="absolute z-20 top-[calc(100%+5px)] right-0 left-0 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 max-h-48 overflow-y-auto custom-scrollbar p-1">
+                            <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 5 }} className="absolute z-20 top-[calc(100%+5px)] right-0 left-0 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 max-h-40 overflow-y-auto custom-scrollbar p-1">
                               {filteredReps.length > 0 ? filteredReps.map((r, i) => (
-                                <button key={i} type="button" onMouseDown={(e) => { e.preventDefault(); setRepSearchQuery(r.name); setIsRepDropdownOpen(false); }} className="w-full text-right px-4 py-3 text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 rounded-lg transition-all">{r.name}</button>
-                              )) : <div className="px-4 py-3 text-xs font-bold text-slate-400 text-center">لا يوجد نتائج</div>}
+                                <button key={i} type="button" onMouseDown={(e) => { e.preventDefault(); setRepSearchQuery(r.name); setIsRepDropdownOpen(false); }} className="w-full text-right px-3 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 rounded-lg transition-all">{r.name}</button>
+                              )) : <div className="px-3 py-2 text-[10px] font-bold text-slate-400 text-center">لا يوجد نتائج</div>}
                             </motion.div>
                           )}
                         </AnimatePresence>
                       </div>
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-2">اسم العميل <span className="text-rose-500">*</span></label>
+                      <div className="md:col-span-1">
+                        <label className="block text-[10px] font-bold text-slate-500 mb-1.5">العميل <span className="text-rose-500">*</span></label>
                         <div className="relative group">
-                          <Users className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={18} />
-                          <input type="text" required className="w-full h-12 pr-11 pl-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 dark:text-white" placeholder="اسم العميل أو المؤسسة..." value={form.customerName} onChange={(e) => setForm({...form, customerName: e.target.value})} />
+                          <Users className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500" size={16} />
+                          <input type="text" required className="w-full h-10 pr-9 pl-3 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-xs outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-slate-700 dark:text-white" placeholder="اسم العميل..." value={form.customerName} onChange={(e) => setForm({...form, customerName: e.target.value})} />
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  {/* قسم التفاصيل المالية */}
-                  <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-100 dark:border-slate-700 shadow-sm relative">
-                    <div className="absolute -top-3 right-6 bg-white dark:bg-slate-800 px-3 text-[11px] font-black text-amber-600 dark:text-amber-500 tracking-wider">التفاصيل المالية</div>
+                  {/* قسم التفاصيل المالية - تصميم أفقي مضغوط */}
+                  <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-100 dark:border-slate-700 shadow-sm relative">
+                    <div className="absolute -top-3 right-6 bg-white dark:bg-slate-800 px-3 text-[10px] font-black text-amber-600 dark:text-amber-500 tracking-wider uppercase">التفاصيل المالية والتحصيل</div>
                     
-                    {/* اختيار نوع الارتباط في سطر مستقل */}
-                    <div className="mb-6">
-                      <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-2">نوع الارتباط <span className="text-rose-500">*</span></label>
-                      <div className="grid grid-cols-2 gap-2 p-1.5 bg-slate-100 dark:bg-slate-900/50 rounded-2xl w-full max-w-sm">
-                        <button 
-                          type="button" 
-                          onClick={() => setForm({...form, isAccountPayment: false})}
-                          className={`py-2.5 px-4 rounded-xl text-[11px] font-black transition-all flex items-center justify-center gap-2 ${!form.isAccountPayment ? 'bg-white dark:bg-slate-800 text-emerald-600 shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
-                        >
-                          <FileText size={14} />
-                          فاتورة محددة
-                        </button>
-                        <button 
-                          type="button" 
-                          onClick={() => setForm({...form, isAccountPayment: true, invoiceNo: ''})}
-                          className={`py-2.5 px-4 rounded-xl text-[11px] font-black transition-all flex items-center justify-center gap-2 ${form.isAccountPayment ? 'bg-white dark:bg-slate-800 text-amber-600 shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
-                        >
-                          <Info size={14} />
-                          من الحساب
-                        </button>
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start mt-2">
+                      
+                      {/* نوع الارتباط */}
+                      <div className="lg:col-span-3">
+                        <label className="block text-[10px] font-bold text-slate-500 mb-1.5">نوع الارتباط <span className="text-rose-500">*</span></label>
+                        <div className="flex bg-slate-100 dark:bg-slate-900/50 rounded-xl p-1">
+                          <button 
+                            type="button" 
+                            onClick={() => setForm({...form, isAccountPayment: false})}
+                            className={`flex-1 py-2 px-2 rounded-lg text-[10px] font-black transition-all flex items-center justify-center gap-1.5 ${!form.isAccountPayment ? 'bg-white dark:bg-slate-800 text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                          >
+                            <FileText size={12} />
+                            فاتورة
+                          </button>
+                          <button 
+                            type="button" 
+                            onClick={() => setForm({...form, isAccountPayment: true, invoiceNo: ''})}
+                            className={`flex-1 py-2 px-2 rounded-lg text-[10px] font-black transition-all flex items-center justify-center gap-1.5 ${form.isAccountPayment ? 'bg-white dark:bg-slate-800 text-amber-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                          >
+                            <Info size={12} />
+                            من الحساب
+                          </button>
+                        </div>
                       </div>
-                    </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
-                      <div className={`transition-all duration-300 ${form.isAccountPayment ? 'opacity-50' : ''}`}>
-                        <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-2">رقم الفاتورة {!form.isAccountPayment && <span className="text-rose-500">*</span>}</label>
+                      {/* رقم الفاتورة */}
+                      <div className={`lg:col-span-3 transition-all duration-300 ${form.isAccountPayment ? 'opacity-40' : ''}`}>
+                        <label className="block text-[10px] font-bold text-slate-500 mb-1.5">رقم الفاتورة {!form.isAccountPayment && <span className="text-rose-500">*</span>}</label>
                         <div className="relative group">
-                          <Hash className={`absolute right-4 top-1/2 -translate-y-1/2 transition-colors ${form.isAccountPayment ? 'text-slate-300' : 'text-slate-400 group-focus-within:text-amber-500'}`} size={18} />
+                          <Hash className={`absolute right-3 top-1/2 -translate-y-1/2 transition-colors ${form.isAccountPayment ? 'text-slate-300' : 'text-slate-400 group-focus-within:text-amber-500'}`} size={16} />
                           <input 
                             type="text" 
                             disabled={form.isAccountPayment}
-                            required={!form.isAccountPayment} 
-                            className="w-full h-14 pr-11 pl-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold text-sm outline-none focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500 transition-all text-slate-700 dark:text-white disabled:cursor-not-allowed" 
-                            placeholder={form.isAccountPayment ? "سند دفعة من الحساب" : "مثال: 5001"} 
+                            className="w-full h-10 pr-9 pl-3 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-xs outline-none focus:ring-2 focus:ring-amber-500/10 focus:border-amber-500 transition-all text-slate-700 dark:text-white" 
+                            placeholder={form.isAccountPayment ? "---" : "مثال: 5001"} 
                             value={form.isAccountPayment ? "" : form.invoiceNo} 
                             onChange={(e) => setForm({...form, invoiceNo: e.target.value})} 
                           />
                         </div>
                       </div>
-                      
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-2">المبلغ المحصل <span className="text-rose-500">*</span></label>
+
+                      {/* المبلغ المحصل */}
+                      <div className="lg:col-span-3">
+                        <label className="block text-[10px] font-bold text-slate-500 mb-1.5">المبلغ المحصل <span className="text-rose-500">*</span></label>
                         <div className="relative group">
-                          <Wallet className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500 transition-colors" size={20} />
+                          <Wallet className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500" size={16} />
                           <input 
                             type="number" 
                             required 
                             step="0.01" 
-                            className="w-full h-14 pr-12 pl-16 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-2xl font-black text-lg outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all text-emerald-600 dark:text-emerald-400" 
+                            className="w-full h-10 pr-9 pl-10 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl font-black text-sm outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all text-emerald-600 dark:text-emerald-400" 
                             placeholder="0.00" 
                             value={form.amount} 
                             onChange={(e) => setForm({...form, amount: e.target.value})} 
                           />
-                          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-emerald-600/60 tracking-widest bg-emerald-50 dark:bg-emerald-900/30 px-2 py-1 rounded-lg border border-emerald-100 dark:border-emerald-800">ر.س</span>
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[9px] font-black text-emerald-600/60 bg-emerald-50 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded-md border border-emerald-100 dark:border-emerald-800">ر.س</span>
                         </div>
                       </div>
-                    </div>
-                    
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-3 text-center">نوع التحصيل <span className="text-rose-500">*</span></label>
-                      <div className="grid grid-cols-2 gap-4 max-w-sm mx-auto">
-                        {['نقدي', 'شبكة'].map((t) => (
-                          <button key={t} type="button" onClick={() => setForm({...form, type: t})} className={`h-12 rounded-xl font-black text-sm transition-all border-2 ${form.type === t ? 'bg-emerald-50 text-emerald-600 border-emerald-500 shadow-md shadow-emerald-500/10 dark:bg-emerald-900/30 dark:border-emerald-500' : 'bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-emerald-200 hover:bg-emerald-50/50 dark:hover:bg-slate-800'}`}>{t === 'نقدي' && <Wallet size={16} className="inline-block ml-2 mb-0.5" />}{t === 'شبكة' && <CreditCard size={16} className="inline-block ml-2 mb-0.5" />}{t}</button>
-                        ))}
+
+                      {/* نوع التحصيل */}
+                      <div className="lg:col-span-3">
+                        <label className="block text-[10px] font-bold text-slate-500 mb-1.5 text-center">نوع التحصيل <span className="text-rose-500">*</span></label>
+                        <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 dark:bg-slate-900/50 rounded-xl">
+                          {['نقدي', 'شبكة'].map((t) => (
+                            <button key={t} type="button" onClick={() => setForm({...form, type: t})} className={`h-8 rounded-lg font-black text-[10px] transition-all flex items-center justify-center gap-1.5 ${form.type === t ? 'bg-white dark:bg-slate-800 text-emerald-600 shadow-sm border border-emerald-500/20' : 'text-slate-400 hover:text-slate-500'}`}>
+                              {t === 'نقدي' ? <Wallet size={12} /> : <CreditCard size={12} />}
+                              {t}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
-              <div className="p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 flex items-center justify-end gap-3 shrink-0">
-                <button type="button" onClick={handleCloseModal} className="px-6 py-3 font-bold text-xs text-slate-500 hover:text-rose-500 transition-colors">إلغاء</button>
-                <button type="button" onClick={handleSaveVoucher} className="px-10 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-2xl font-black text-xs shadow-xl shadow-emerald-600/20 hover:scale-[1.03] active:scale-[0.98] transition-all">
+              <div className="p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 flex items-center justify-end gap-3 shrink-0">
+                <button type="button" onClick={handleCloseModal} className="px-5 py-2.5 font-bold text-[11px] text-slate-500 hover:text-rose-500 transition-colors">إلغاء</button>
+                <button type="button" onClick={handleSaveVoucher} className="px-10 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl font-black text-[11px] shadow-lg shadow-emerald-600/20 hover:scale-[1.02] active:scale-[0.98] transition-all">
                   {editId ? 'حفظ التعديلات' : 'حفظ السند'}
                 </button>
               </div>
