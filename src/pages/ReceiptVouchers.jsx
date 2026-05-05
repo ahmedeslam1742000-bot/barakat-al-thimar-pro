@@ -790,36 +790,40 @@ export default function ReceiptVouchers({ setActiveView }) {
                   {/* قسم التفاصيل المالية */}
                   <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-100 dark:border-slate-700 shadow-sm relative">
                     <div className="absolute -top-3 right-6 bg-white dark:bg-slate-800 px-3 text-[11px] font-black text-amber-600 dark:text-amber-500 tracking-wider">التفاصيل المالية</div>
-                    <div className="flex flex-col sm:flex-row gap-5 mt-2 mb-5">
-                      <div className="flex-1">
-                        <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-2">نوع الارتباط <span className="text-rose-500">*</span></label>
-                        <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 dark:bg-slate-900/50 rounded-xl">
-                          <button 
-                            type="button" 
-                            onClick={() => setForm({...form, isAccountPayment: false})}
-                            className={`py-2 px-3 rounded-lg text-[10px] font-black transition-all ${!form.isAccountPayment ? 'bg-white dark:bg-slate-800 text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                          >
-                            فاتورة محددة
-                          </button>
-                          <button 
-                            type="button" 
-                            onClick={() => setForm({...form, isAccountPayment: true, invoiceNo: ''})}
-                            className={`py-2 px-3 rounded-lg text-[10px] font-black transition-all ${form.isAccountPayment ? 'bg-white dark:bg-slate-800 text-amber-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                          >
-                            من الحساب
-                          </button>
-                        </div>
+                    
+                    {/* اختيار نوع الارتباط في سطر مستقل */}
+                    <div className="mb-6">
+                      <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-2">نوع الارتباط <span className="text-rose-500">*</span></label>
+                      <div className="grid grid-cols-2 gap-2 p-1.5 bg-slate-100 dark:bg-slate-900/50 rounded-2xl w-full max-w-sm">
+                        <button 
+                          type="button" 
+                          onClick={() => setForm({...form, isAccountPayment: false})}
+                          className={`py-2.5 px-4 rounded-xl text-[11px] font-black transition-all flex items-center justify-center gap-2 ${!form.isAccountPayment ? 'bg-white dark:bg-slate-800 text-emerald-600 shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
+                        >
+                          <FileText size={14} />
+                          فاتورة محددة
+                        </button>
+                        <button 
+                          type="button" 
+                          onClick={() => setForm({...form, isAccountPayment: true, invoiceNo: ''})}
+                          className={`py-2.5 px-4 rounded-xl text-[11px] font-black transition-all flex items-center justify-center gap-2 ${form.isAccountPayment ? 'bg-white dark:bg-slate-800 text-amber-600 shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
+                        >
+                          <Info size={14} />
+                          من الحساب
+                        </button>
                       </div>
+                    </div>
 
-                      <div className={`flex-[2] transition-all duration-300 ${form.isAccountPayment ? 'opacity-50 grayscale' : ''}`}>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
+                      <div className={`transition-all duration-300 ${form.isAccountPayment ? 'opacity-50' : ''}`}>
                         <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-2">رقم الفاتورة {!form.isAccountPayment && <span className="text-rose-500">*</span>}</label>
                         <div className="relative group">
-                          <FileText className={`absolute right-4 top-1/2 -translate-y-1/2 transition-colors ${form.isAccountPayment ? 'text-slate-300' : 'text-slate-400 group-focus-within:text-amber-500'}`} size={18} />
+                          <Hash className={`absolute right-4 top-1/2 -translate-y-1/2 transition-colors ${form.isAccountPayment ? 'text-slate-300' : 'text-slate-400 group-focus-within:text-amber-500'}`} size={18} />
                           <input 
                             type="text" 
                             disabled={form.isAccountPayment}
                             required={!form.isAccountPayment} 
-                            className="w-full h-12 pr-11 pl-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all text-slate-700 dark:text-white disabled:cursor-not-allowed" 
+                            className="w-full h-14 pr-11 pl-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold text-sm outline-none focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500 transition-all text-slate-700 dark:text-white disabled:cursor-not-allowed" 
                             placeholder={form.isAccountPayment ? "سند دفعة من الحساب" : "مثال: 5001"} 
                             value={form.isAccountPayment ? "" : form.invoiceNo} 
                             onChange={(e) => setForm({...form, invoiceNo: e.target.value})} 
@@ -827,12 +831,20 @@ export default function ReceiptVouchers({ setActiveView }) {
                         </div>
                       </div>
                       
-                      <div className="flex-1">
-                        <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-2">المبلغ <span className="text-rose-500">*</span></label>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-2">المبلغ المحصل <span className="text-rose-500">*</span></label>
                         <div className="relative group">
-                          <Wallet className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-amber-500 transition-colors" size={18} />
-                          <input type="number" required step="0.01" className="w-full h-12 pr-11 pl-12 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all text-slate-700 dark:text-white" placeholder="0.00" value={form.amount} onChange={(e) => setForm({...form, amount: e.target.value})} />
-                          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400 tracking-widest bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-md">ر.س</span>
+                          <Wallet className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500 transition-colors" size={20} />
+                          <input 
+                            type="number" 
+                            required 
+                            step="0.01" 
+                            className="w-full h-14 pr-12 pl-16 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-2xl font-black text-lg outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all text-emerald-600 dark:text-emerald-400" 
+                            placeholder="0.00" 
+                            value={form.amount} 
+                            onChange={(e) => setForm({...form, amount: e.target.value})} 
+                          />
+                          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-emerald-600/60 tracking-widest bg-emerald-50 dark:bg-emerald-900/30 px-2 py-1 rounded-lg border border-emerald-100 dark:border-emerald-800">ر.س</span>
                         </div>
                       </div>
                     </div>
